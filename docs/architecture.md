@@ -2,7 +2,7 @@ Frontend:
 Next.js
 
 Backend:
-Node + Express
+Node + Fastify
 
 Database:
 Postgress with Prisma
