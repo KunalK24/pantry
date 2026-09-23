@@ -2,10 +2,10 @@ Frontend:
 Next.js
 
 Backend:
-Node + Fastify
+Next.js Route Handlers
 
 Database:
-Postgress with Prisma
+None yet
 
 Rules:
 Core planning logic remains deterministic
