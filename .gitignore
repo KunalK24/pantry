@@ -3,7 +3,6 @@
 # ---------------------------------------
 
 node_modules/
-**/**/node_modules/
 
 # pnpm
 .pnpm-store/
@@ -13,10 +12,7 @@ node_modules/
 # ---------------------------------------
 
 .next/
-**/**/.next/
-
 out/
-**/out/
 
 # Next.js build output
 .next-cache/
@@ -26,13 +22,8 @@ out/
 # ---------------------------------------
 
 dist/
-**/dist/
-
 build/
-**/build/
-
 coverage/
-**/coverage/
 
 *.tsbuildinfo
 
@@ -45,16 +36,6 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
-
-**/**/.env
-**/**/.env.local
-**/**/.env.development.local
-**/**/.env.test.local
-**/**/.env.production.local
-
-# Keep example env files
-!.env.example
-!**/.env.example
 
 # ---------------------------------------
 # Logs
@@ -72,8 +53,8 @@ pnpm-debug.log*
 # Testing
 # ---------------------------------------
 
-coverage/
 .nyc_output/
+.vitest/
 
 # Playwright
 playwright-report/
@@ -87,7 +68,7 @@ blob-report/
 *.db
 *.db-journal
 
-**/**/prisma/
+apps/web/src/generated/prisma/
 
 # ---------------------------------------
 # IDE / editor
