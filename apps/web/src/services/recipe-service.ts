@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
-import { CreateRecipeInput } from '@/types/recipe'
+import { RecipeInput } from '@/schemas/recipe'
 
-export async function createRecipe(input: CreateRecipeInput) {
+export async function createRecipe(input: RecipeInput) {
     return prisma.recipe.create({
         data: {
             name: input.name,
