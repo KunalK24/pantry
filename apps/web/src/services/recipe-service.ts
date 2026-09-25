@@ -8,3 +8,11 @@ export async function createRecipe(input: CreateRecipeInput) {
         }
     })
 }
+
+export async function getRecipe(name: string) {
+    return prisma.recipe.findFirst({
+        where: {
+            name,
+        }
+    })
+}
