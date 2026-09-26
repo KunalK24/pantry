@@ -29,7 +29,7 @@ describe("POST /api/recipes", () => {
     const response = await POST(request);
     const data = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
     expect(data).toEqual(recipe);
     expect(createRecipeMock).toHaveBeenCalledWith({ name: "Pad Kra Pao" });
   });

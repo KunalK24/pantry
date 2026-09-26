@@ -1,11 +1,28 @@
 import { createRecipe, getRecipe } from '@/services/recipe-service'
+import { recipeInputSchema } from '@/schemas/recipe'
 
 export async function POST(request: Request) {
     try {
         const input = await request.json()
-        const recipe = await createRecipe(input)
+        const result = recipeInputSchema.safeParse(input)
 
-        return Response.json(recipe)
+        if (!result.success) {
+            return Response.json(
+                {
+                    error: 'Invalid Recipe',
+                    details: result.error.flatten()
+                },
+                {
+                    status: 400,
+                }
+            )
+        }
+
+        const recipe = await createRecipe(result.data)
+
+        return Response.json(recipe, {
+            status: 201,
+        })
     } catch (error) {
         console.error(error)
 
