@@ -42,3 +42,13 @@ model RecipeIngredient {
 
   @@id([recipeId, ingredientId])
 }
+
+model PantryItem {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  quantity       String?
+  unit           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

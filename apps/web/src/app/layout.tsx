@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Pantry",
-  description: "Create and manage your recipes.",
+  description: "Manage your recipes and pantry.",
 };
 
 export default function RootLayout({

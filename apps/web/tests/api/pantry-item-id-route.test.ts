@@ -1,0 +1,267 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const {
+    getPantryItemByIdMock,
+    updatePantryItemMock,
+    PantryItemConflictErrorMock,
+    PantryItemNotFoundErrorMock,
+} = vi.hoisted(() => {
+    class PantryItemConflictErrorMock extends Error {}
+    class PantryItemNotFoundErrorMock extends Error {}
+
+    return {
+        getPantryItemByIdMock: vi.fn(),
+        updatePantryItemMock: vi.fn(),
+        PantryItemConflictErrorMock,
+        PantryItemNotFoundErrorMock,
+    }
+})
+
+vi.mock('@/services/pantry-item-service', () => ({
+    getPantryItemById: getPantryItemByIdMock,
+    updatePantryItem: updatePantryItemMock,
+    PantryItemConflictError: PantryItemConflictErrorMock,
+    PantryItemNotFoundError: PantryItemNotFoundErrorMock,
+}))
+
+import { GET, PUT } from '@/app/api/pantry-items/[id]/route'
+
+const pantryItemId = 'cm12345678901234567890123'
+const context = (id = pantryItemId) => ({ params: Promise.resolve({ id }) })
+const pantryItem = {
+    id: pantryItemId,
+    name: 'Olive Oil',
+    quantity: '1/2',
+    unit: 'bottle',
+    createdAt: '2026-09-28T12:00:00.000Z',
+    updatedAt: '2026-09-28T12:00:00.000Z',
+}
+
+beforeEach(() => {
+    vi.clearAllMocks()
+})
+
+afterEach(() => {
+    vi.restoreAllMocks()
+})
+
+describe('GET /api/pantry-items/[id]', () => {
+    it('returns a complete pantry item', async () => {
+        getPantryItemByIdMock.mockResolvedValue(pantryItem)
+
+        const response = await GET(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`),
+            context(),
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual(pantryItem)
+        expect(getPantryItemByIdMock).toHaveBeenCalledWith(pantryItemId)
+    })
+
+    it('returns 400 for a malformed pantry item ID', async () => {
+        const response = await GET(
+            new Request('http://localhost:3000/api/pantry-items/not-a-cuid'),
+            context('not-a-cuid'),
+        )
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Invalid pantry item ID',
+        })
+        expect(getPantryItemByIdMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when the pantry item is missing', async () => {
+        getPantryItemByIdMock.mockRejectedValue(new PantryItemNotFoundErrorMock())
+
+        const response = await GET(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`),
+            context(),
+        )
+
+        expect(response.status).toBe(404)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Pantry item not found',
+        })
+    })
+
+    it('returns a generic 500 without exposing lookup failures', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        getPantryItemByIdMock.mockRejectedValue(new Error('database details'))
+
+        const response = await GET(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`),
+            context(),
+        )
+
+        expect(response.status).toBe(500)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Internal Server Error',
+        })
+    })
+})
+
+describe('PUT /api/pantry-items/[id]', () => {
+    it('fully updates and normalizes a pantry item', async () => {
+        updatePantryItemMock.mockResolvedValue(pantryItem)
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: ' Olive\t Oil ',
+                    quantity: ' 1/2 ',
+                    unit: ' bottle ',
+                    normalizedName: 'ignored',
+                }),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual(pantryItem)
+        expect(updatePantryItemMock).toHaveBeenCalledWith(pantryItemId, {
+            name: 'Olive Oil',
+            quantity: '1/2',
+            unit: 'bottle',
+        })
+    })
+
+    it('allows blank optional fields to clear existing values', async () => {
+        updatePantryItemMock.mockResolvedValue({
+            ...pantryItem,
+            quantity: null,
+            unit: null,
+        })
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: 'Olive Oil',
+                    quantity: ' ',
+                    unit: '',
+                }),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(200)
+        expect(updatePantryItemMock).toHaveBeenCalledWith(pantryItemId, {
+            name: 'Olive Oil',
+            quantity: undefined,
+            unit: undefined,
+        })
+    })
+
+    it('returns 400 for a malformed ID before reading the body', async () => {
+        const request = new Request('http://localhost:3000/api/pantry-items/invalid', {
+            method: 'PUT',
+            body: '{',
+        })
+
+        const response = await PUT(request, context('invalid'))
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Invalid pantry item ID',
+        })
+        expect(updatePantryItemMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 400 for malformed JSON', async () => {
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: '{',
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({ error: 'Malformed JSON' })
+        expect(updatePantryItemMock).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['a blank name', { name: '   ' }],
+        ['a numeric quantity', { name: 'Salt', quantity: 2 }],
+        ['a non-string unit', { name: 'Salt', unit: false }],
+    ])('returns 400 for %s', async (_case, input) => {
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify(input),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toMatchObject({
+            error: 'Invalid pantry item',
+        })
+        expect(updatePantryItemMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when the item disappears during update', async () => {
+        updatePantryItemMock.mockRejectedValue(new PantryItemNotFoundErrorMock())
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({ name: 'Olive Oil' }),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(404)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Pantry item not found',
+        })
+    })
+
+    it('returns 409 when the renamed item conflicts', async () => {
+        updatePantryItemMock.mockRejectedValue(new PantryItemConflictErrorMock())
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({ name: 'Avocado Oil' }),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(409)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Pantry item already exists',
+        })
+    })
+
+    it('returns a generic 500 without exposing update failures', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        updatePantryItemMock.mockRejectedValue(new Error('constraint details'))
+        const request = new Request(
+            `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+            {
+                method: 'PUT',
+                body: JSON.stringify({ name: 'Olive Oil' }),
+            },
+        )
+
+        const response = await PUT(request, context())
+
+        expect(response.status).toBe(500)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Internal Server Error',
+        })
+    })
+})
