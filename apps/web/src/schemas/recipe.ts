@@ -34,3 +34,5 @@ export const recipeInputSchema = z.object({
 })
 
 export type RecipeInput = z.infer<typeof recipeInputSchema>
+
+export const recipeIdSchema = z.cuid()

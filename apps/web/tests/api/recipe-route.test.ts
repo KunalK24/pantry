@@ -1,18 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecipeMock } = vi.hoisted(() => ({
+const { createRecipeMock, getRecipeMock, listRecipesMock } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
+  getRecipeMock: vi.fn(),
+  listRecipesMock: vi.fn(),
 }));
 
 vi.mock("@/services/recipe-service", () => ({
   createRecipe: createRecipeMock,
+  getRecipe: getRecipeMock,
+  listRecipes: listRecipesMock,
 }));
 
-import { POST } from "@/app/api/recipes/route";
+import { GET, POST } from "@/app/api/recipes/route";
 
 describe("POST /api/recipes", () => {
   beforeEach(() => {
     createRecipeMock.mockReset();
+    getRecipeMock.mockReset();
+    listRecipesMock.mockReset();
   });
 
   afterEach(() => {
@@ -212,6 +218,73 @@ describe("POST /api/recipes", () => {
     });
 
     const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
+});
+
+describe("GET /api/recipes", () => {
+  beforeEach(() => {
+    getRecipeMock.mockReset();
+    listRecipesMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["an empty library", []],
+    ["a populated library", [{
+      id: "recipe_1",
+      name: "Tomato Soup",
+      description: "A quick soup",
+      updatedAt: "2026-09-25T12:00:00.000Z",
+    }]],
+  ])("returns %s", async (_case, recipes) => {
+    listRecipesMock.mockResolvedValue(recipes);
+
+    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ recipes });
+    expect(listRecipesMock).toHaveBeenCalledOnce();
+    expect(getRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves lookup by recipe name", async () => {
+    const recipe = { id: "recipe_1", name: "Tomato Soup" };
+    getRecipeMock.mockResolvedValue(recipe);
+
+    const response = await GET(new Request(
+      "http://localhost:3000/api/recipes?name=Tomato%20Soup",
+    ));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(recipe);
+    expect(getRecipeMock).toHaveBeenCalledWith("Tomato Soup");
+    expect(listRecipesMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the 400 response for an empty name query", async () => {
+    const response = await GET(new Request(
+      "http://localhost:3000/api/recipes?name=",
+    ));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ status: "error" });
+    expect(getRecipeMock).not.toHaveBeenCalled();
+    expect(listRecipesMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic 500 when listing fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    listRecipesMock.mockRejectedValue(new Error("database details"));
+
+    const response = await GET(new Request("http://localhost:3000/api/recipes"));
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

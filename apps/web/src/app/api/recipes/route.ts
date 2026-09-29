@@ -1,4 +1,4 @@
-import { createRecipe, getRecipe } from '@/services/recipe-service'
+import { createRecipe, getRecipe, listRecipes } from '@/services/recipe-service'
 import { recipeInputSchema } from '@/schemas/recipe'
 
 export async function POST(request: Request) {
@@ -56,15 +56,28 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url)
         const name = searchParams.get('name')
 
-        if (!name) {
+        if (searchParams.has('name') && !name) {
             return Response.json({ status: 'error' }, { status: 400 })
         }
 
-        const recipe = await getRecipe(name)
+        if (name) {
+            const recipe = await getRecipe(name)
 
-        return Response.json(recipe)
+            return Response.json(recipe)
+        }
+
+        const recipes = await listRecipes()
+
+        return Response.json({ recipes })
     } catch (error) {
         console.error(error)
-        return Response.json({ status: 'error' }, { status: 500 })
+        return Response.json(
+            {
+                error: 'Internal Server Error',
+            },
+            {
+                status: 500,
+            }
+        )
     }
 }
