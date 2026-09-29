@@ -2,22 +2,36 @@ import { createRecipe, getRecipe } from '@/services/recipe-service'
 import { recipeInputSchema } from '@/schemas/recipe'
 
 export async function POST(request: Request) {
+    let input: unknown
+
     try {
-        const input = await request.json()
-        const result = recipeInputSchema.safeParse(input)
+        input = await request.json()
+    } catch {
+        return Response.json(
+            {
+                error: 'Malformed JSON',
+            },
+            {
+                status: 400,
+            }
+        )
+    }
 
-        if (!result.success) {
-            return Response.json(
-                {
-                    error: 'Invalid Recipe',
-                    details: result.error.flatten()
-                },
-                {
-                    status: 400,
-                }
-            )
-        }
+    const result = recipeInputSchema.safeParse(input)
 
+    if (!result.success) {
+        return Response.json(
+            {
+                error: 'Invalid Recipe',
+                details: result.error.flatten()
+            },
+            {
+                status: 400,
+            }
+        )
+    }
+
+    try {
         const recipe = await createRecipe(result.data)
 
         return Response.json(recipe, {
@@ -28,7 +42,7 @@ export async function POST(request: Request) {
 
         return Response.json(
             {
-                status: 'error',
+                error: 'Internal Server Error',
             },
             {
                 status: 500,

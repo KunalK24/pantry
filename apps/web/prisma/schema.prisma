@@ -13,10 +13,12 @@ datasource db {
 }
 
 model Recipe {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  instructions String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   ingredients RecipeIngredient[]
 }
@@ -32,7 +34,7 @@ model RecipeIngredient {
   recipeId     String
   ingredientId String
 
-  quantity Float?
+  quantity String?
   unit     String?
 
   recipe     Recipe     @relation(fields: [recipeId], references: [id])

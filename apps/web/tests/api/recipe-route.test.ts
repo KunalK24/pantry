@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createRecipeMock } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
@@ -11,10 +11,31 @@ vi.mock("@/services/recipe-service", () => ({
 import { POST } from "@/app/api/recipes/route";
 
 describe("POST /api/recipes", () => {
-  it("creates a recipe", async () => {
+  beforeEach(() => {
+    createRecipeMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("creates a complete recipe with textual quantities", async () => {
+    const input = {
+      name: "Pad Kra Pao",
+      description: "A spicy stir-fry",
+      instructions: "Stir-fry and serve over rice.",
+      ingredients: [
+        { name: "Ground pork", quantity: "1/2", unit: "lb" },
+        { name: "Thai basil", quantity: "to taste" },
+      ],
+    };
     const recipe = {
       id: "recipe_1",
-      name: "Pad Kra Pao",
+      ...input,
+      ingredients: [
+        { name: "Ground pork", quantity: "1/2", unit: "lb" },
+        { name: "Thai basil", quantity: "to taste", unit: null },
+      ],
       createdAt: "2026-09-24T12:00:00.000Z",
       updatedAt: "2026-09-24T12:00:00.000Z",
     };
@@ -23,7 +44,7 @@ describe("POST /api/recipes", () => {
 
     const request = new Request("http://localhost:3000/api/recipes", {
       method: "POST",
-      body: JSON.stringify({ name: "Pad Kra Pao" }),
+      body: JSON.stringify(input),
     });
 
     const response = await POST(request);
@@ -31,6 +52,170 @@ describe("POST /api/recipes", () => {
 
     expect(response.status).toBe(201);
     expect(data).toEqual(recipe);
-    expect(createRecipeMock).toHaveBeenCalledWith({ name: "Pad Kra Pao" });
+    expect(createRecipeMock).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects missing ingredients", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects blank instructions", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Toast",
+        instructions: "   ",
+        ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["recipe name", {
+      name: "   ",
+      instructions: "Toast the bread.",
+      ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
+    }],
+    ["ingredient name", {
+      name: "Toast",
+      instructions: "Toast the bread.",
+      ingredients: [{ name: "   ", quantity: "2", unit: "slices" }],
+    }],
+  ])("rejects a blank %s", async (_field, input) => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["2", "1/2", "1-2", "to taste"])(
+    "accepts the textual quantity %s",
+    async (quantity) => {
+      const input = {
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "Bread", quantity }],
+      };
+      createRecipeMock.mockResolvedValue({ id: "recipe_1", ...input });
+
+      const request = new Request("http://localhost:3000/api/recipes", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(201);
+      expect(createRecipeMock).toHaveBeenCalledWith(input);
+    },
+  );
+
+  it("rejects a numeric quantity", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "Bread", quantity: 2, unit: "slices" }],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty textual quantity", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "Bread", quantity: "   " }],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate ingredient names after trimming without regard to case", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Seasoned Tomatoes",
+        instructions: "Combine everything.",
+        ingredients: [
+          { name: "Salt", quantity: "1/2", unit: "tsp" },
+          { name: " salt ", quantity: "to taste" },
+        ],
+      }),
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("Invalid Recipe");
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for malformed JSON", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: "{",
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Malformed JSON" });
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic 500 response when creation fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    createRecipeMock.mockRejectedValue(new Error("database connection failed"));
+
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
   });
 });
