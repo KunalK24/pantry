@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import CreateRecipeDialog from "@/components/CreateRecipeDialog";
+
 type RecipeSummary = {
   id: string;
   name: string;
@@ -77,8 +79,16 @@ export default function RecipeLibrary() {
     setRequestNumber((current) => current + 1);
   }
 
+  function refreshAfterCreation() {
+    setRecipes(null);
+    setError(null);
+    setRequestNumber((current) => current + 1);
+  }
+
+  let libraryContent;
+
   if (error) {
-    return (
+    libraryContent = (
       <div className="space-y-4" role="alert">
         <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
         <button
@@ -90,56 +100,53 @@ export default function RecipeLibrary() {
         </button>
       </div>
     );
-  }
-
-  if (recipes === null) {
-    return (
+  } else if (recipes === null) {
+    libraryContent = (
       <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
         Loading recipes...
       </p>
     );
-  }
-
-  if (recipes.length === 0) {
-    return (
-      <div className="space-y-4">
-        <p className="text-zinc-600 dark:text-zinc-400">
-          You have not created any recipes yet.
-        </p>
-        <Link
-          className="inline-block bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
-          href="/recipes/new"
-        >
-          Create recipe
-        </Link>
-      </div>
+  } else if (recipes.length === 0) {
+    libraryContent = (
+      <p className="text-zinc-600 dark:text-zinc-400">
+        You have not created any recipes yet.
+      </p>
+    );
+  } else {
+    libraryContent = (
+      <ul className="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        {recipes.map((recipe) => (
+          <li key={recipe.id}>
+            <Link
+              className="grid gap-2 px-1 py-5 transition-colors hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-3"
+              href={`/recipes/${recipe.id}/edit`}
+            >
+              <div className="min-w-0">
+                <h2 className="font-semibold text-zinc-950 dark:text-zinc-50">
+                  {recipe.name}
+                </h2>
+                {recipe.description ? (
+                  <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                    {recipe.description}
+                  </p>
+                ) : null}
+              </div>
+              <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                Edit recipe
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     );
   }
 
   return (
-    <ul className="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-      {recipes.map((recipe) => (
-        <li key={recipe.id}>
-          <Link
-            className="grid gap-2 px-1 py-5 transition-colors hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-3"
-            href={`/recipes/${recipe.id}/edit`}
-          >
-            <div className="min-w-0">
-              <h2 className="font-semibold text-zinc-950 dark:text-zinc-50">
-                {recipe.name}
-              </h2>
-              {recipe.description ? (
-                <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
-                  {recipe.description}
-                </p>
-              ) : null}
-            </div>
-            <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-              Edit recipe
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <CreateRecipeDialog onRecipeCreated={refreshAfterCreation} />
+      </div>
+      {libraryContent}
+    </div>
   );
 }

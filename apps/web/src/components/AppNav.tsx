@@ -4,20 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/recipes/new", label: "Create recipe" },
   { href: "/recipes", label: "Recipe library" },
   { href: "/pantry", label: "Pantry" },
   { href: "/grocery-list", label: "Grocery list" },
 ];
 
 function isLinkActive(pathname: string, href: string) {
-  if (href === "/recipes/new") {
-    return pathname === href;
-  }
-
   if (href === "/recipes") {
     return (
-      pathname === href || /^\/recipes\/[^/]+\/edit\/?$/.test(pathname)
+      pathname === href ||
+      pathname === "/recipes/new" ||
+      /^\/recipes\/[^/]+\/edit\/?$/.test(pathname)
     );
   }
 

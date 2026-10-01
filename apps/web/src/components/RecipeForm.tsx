@@ -15,9 +15,13 @@ export type RecipeFormValues = {
   ingredients: RecipeIngredientValue[];
 };
 
-type RecipeFormProps =
+type RecipeFormProps = (
   | { mode?: "create"; initialValues?: never; recipeId?: never }
-  | { mode: "edit"; initialValues: RecipeFormValues; recipeId: string };
+  | { mode: "edit"; initialValues: RecipeFormValues; recipeId: string }
+) & {
+  onSubmittingChange?: (isSubmitting: boolean) => void;
+  onSuccess?: () => void;
+};
 
 type IngredientRow = {
   id: number;
@@ -142,6 +146,7 @@ export default function RecipeForm(props: RecipeFormProps) {
     }
 
     setIsSubmitting(true);
+    props.onSubmittingChange?.(true);
 
     const recipe = {
       name: trimmedName,
@@ -149,6 +154,7 @@ export default function RecipeForm(props: RecipeFormProps) {
       instructions: trimmedInstructions,
       ingredients: normalizedIngredients,
     };
+    let wasSuccessful = false;
 
     try {
       const endpoint =
@@ -174,6 +180,7 @@ export default function RecipeForm(props: RecipeFormProps) {
       } else {
         setStatus({ type: "success", message: "Recipe updated successfully." });
       }
+      wasSuccessful = true;
     } catch {
       setStatus({
         type: "error",
@@ -181,6 +188,11 @@ export default function RecipeForm(props: RecipeFormProps) {
       });
     } finally {
       setIsSubmitting(false);
+      props.onSubmittingChange?.(false);
+    }
+
+    if (wasSuccessful) {
+      props.onSuccess?.();
     }
   }
 
