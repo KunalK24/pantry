@@ -85,6 +85,68 @@ Look for:
 - inappropriate abstractions
 - violations of established Pantry patterns
 
+## Simplicity and Over-Engineering
+
+Review the implementation for unnecessary complexity, abstraction, and code volume.
+
+Prefer for a simpler implementation that clearly satisfies the current requirement.
+
+Look for:
+
+- abstractions used only once with no clear near-term reuse
+- helper functions that make simple logic harder to follow
+- unnecessary wrapper classes or service layers
+- excessive indirection between files
+- interfaces or generic types that add little value
+- factories, registries, adapters, or strategy patterns without a current need
+- overly generic utilities created for one specific feature
+- duplicated types or transformations that could be removed
+- unnecessary state management
+- unnecessary React hooks or effects
+- components split into many files without improving readability
+- excessive error classes for simple failure cases
+- unnecessary configuration or feature flags
+- defensive code for scenarios Pantry does not currently support
+- speculative support for future requirements
+- comments or documentation that compensate for unnecessarily complicated code
+- significantly more code than the requirement appears to justify
+
+Ask:
+
+1. Could this be implemented with fewer concepts?
+2. Could a developer understand this feature by reading fewer files?
+3. Is every abstraction solving a problem that exists today?
+4. Does this code support requirements that were never requested?
+5. Would removing a layer make the implementation clearer without hurting correctness or testability?
+6. Is the implementation more general than Pantry currently needs?
+7. Is complexity being introduced for hypothetical future flexibility?
+
+Do not recommend simplification purely to reduce line count.
+
+A larger implementation is justified when the additional complexity is necessary for:
+
+- correctness
+- clear separation of responsibilities
+- type safety
+- security
+- meaningful testability
+- existing project conventions
+- an explicit current requirement
+
+When unnecessary complexity is found, identify:
+
+- the specific abstraction or code path
+- why it is unnecessary for the current requirement
+- what simpler structure could replace it
+- whether simplifying it is BLOCKING, IMPORTANT, or MINOR
+
+Treat substantial unnecessary complexity as `IMPORTANT` when it materially increases maintenance cost or makes future changes harder.
+
+Treat it as `BLOCKING` only when the complexity creates a meaningful correctness, reliability, security, or maintainability risk.
+
+Do not propose a large refactor merely because the implementation could be simpler. Prefer the smallest concrete simplification that addresses the issue.
+
+
 ### Validation
 
 Check that:

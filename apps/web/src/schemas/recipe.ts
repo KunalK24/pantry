@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { normalizeIngredientName } from '@/lib/ingredient-normalization'
+
 const optionalTrimmedString = z
     .string()
     .trim()
@@ -19,7 +21,7 @@ export const recipeInputSchema = z.object({
     const ingredientNames = new Set<string>()
 
     recipe.ingredients.forEach((ingredient, index) => {
-        const normalizedName = ingredient.name.toLowerCase()
+        const normalizedName = normalizeIngredientName(ingredient.name)
 
         if (ingredientNames.has(normalizedName)) {
             context.addIssue({

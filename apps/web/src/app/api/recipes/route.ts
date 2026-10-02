@@ -1,4 +1,4 @@
-import { createRecipe, getRecipe, listRecipes } from '@/services/recipe-service'
+import { createRecipe, listRecipes } from '@/services/recipe-service'
 import { recipeInputSchema } from '@/schemas/recipe'
 
 export async function POST(request: Request) {
@@ -51,21 +51,8 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET(request: Request) {
+export async function GET() {
     try {
-        const { searchParams } = new URL(request.url)
-        const name = searchParams.get('name')
-
-        if (searchParams.has('name') && !name) {
-            return Response.json({ status: 'error' }, { status: 400 })
-        }
-
-        if (name) {
-            const recipe = await getRecipe(name)
-
-            return Response.json(recipe)
-        }
-
         const recipes = await listRecipes()
 
         return Response.json({ recipes })

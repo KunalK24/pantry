@@ -65,14 +65,6 @@ export async function createRecipe(input: RecipeInput) {
     return flattenRecipe(recipe)
 }
 
-export async function getRecipe(name: string) {
-    return prisma.recipe.findFirst({
-        where: {
-            name,
-        }
-    })
-}
-
 export async function listRecipes() {
     return prisma.recipe.findMany({
         orderBy: {
@@ -126,7 +118,7 @@ export async function updateRecipe(id: string, input: RecipeInput) {
                 ({ ingredientId }) => ingredientId,
             )
 
-            await transaction.recipe.update({
+            const recipe = await transaction.recipe.update({
                 where: {
                     id,
                 },
@@ -134,21 +126,8 @@ export async function updateRecipe(id: string, input: RecipeInput) {
                     name: input.name,
                     description: input.description ?? null,
                     instructions: input.instructions,
-                },
-            })
-
-            await transaction.recipeIngredient.deleteMany({
-                where: {
-                    recipeId: id,
-                },
-            })
-
-            const recipe = await transaction.recipe.update({
-                where: {
-                    id,
-                },
-                data: {
                     ingredients: {
+                        deleteMany: {},
                         create: ingredientCreates(input),
                     },
                 },

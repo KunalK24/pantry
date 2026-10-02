@@ -24,7 +24,3 @@ export const pantryItemInputSchema = z.object({
 export type PantryItemInput = z.infer<typeof pantryItemInputSchema>
 
 export const pantryItemIdSchema = z.cuid()
-
-export function normalizePantryItemName(name: string) {
-    return collapseWhitespace(name).toLowerCase()
-}

@@ -182,14 +182,58 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
     expect(line.quantity).toBe("2");
   });
 
-  it("does not match synonyms", () => {
+  it("matches predetermined ingredient aliases", () => {
     const [line] = calculateGroceryLines(
       [recipe("recipe-a", [{ name: "Scallion", quantity: "2", unit: null }])],
       [pantryItem("pantry-onion", "Green onion", "1", null)],
       new Set(),
     );
 
-    expect(line).toMatchObject({ name: "Scallion", quantity: "2" });
+    expect(line).toMatchObject({ name: "Scallion", quantity: "1" });
+  });
+
+  it("requires exact units even when ingredient names are aliases", () => {
+    const [line] = calculateGroceryLines(
+      [recipe("recipe-a", [{ name: "Scallion", quantity: "2", unit: "bunches" }])],
+      [pantryItem("pantry-onion", "Green onion", "1", "bunch")],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({ name: "Scallion", quantity: "2", unit: "bunches" });
+  });
+
+  it("aggregates singular and plural aliases", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [{ name: "Scallion", quantity: "1", unit: "bunch" }]),
+        recipe("recipe-b", [{ name: "green onions", quantity: "2", unit: "bunch" }]),
+      ],
+      [],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      quantity: "3",
+      recipeIds: ["recipe-a", "recipe-b"],
+    });
+  });
+
+  it("keeps descriptive and hyphenated ingredient names distinct", () => {
+    const lines = calculateGroceryLines(
+      [recipe("recipe-a", [
+        { name: "Scallion", quantity: "1", unit: null },
+        { name: "fresh scallions", quantity: "2", unit: null },
+        { name: "green-onion", quantity: "3", unit: null },
+      ])],
+      [],
+      new Set(),
+    );
+
+    expect(lines.map(({ name, quantity }) => ({ name, quantity }))).toEqual([
+      { name: "fresh scallions", quantity: "2" },
+      { name: "Scallion", quantity: "1" },
+      { name: "green-onion", quantity: "3" },
+    ]);
   });
 
   it("keeps every unresolved occurrence separate and never subtracts pantry stock", () => {

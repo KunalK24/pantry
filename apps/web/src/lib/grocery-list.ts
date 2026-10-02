@@ -1,3 +1,5 @@
+import { normalizeIngredientName } from "@/lib/ingredient-normalization";
+
 export type RecipeForGroceryList = {
   id: string;
   name: string;
@@ -219,7 +221,7 @@ export function calculateGroceryLines(
   for (const recipe of recipes) {
     recipe.ingredients.forEach((ingredient, ingredientIndex) => {
       const name = ingredient.name.trim().replace(/\s+/g, " ");
-      const normalizedName = normalizeGroceryText(ingredient.name);
+      const normalizedName = normalizeIngredientName(ingredient.name);
       const unit = ingredient.unit?.trim().replace(/\s+/g, " ") ?? "";
       const normalizedUnit = normalizeGroceryText(ingredient.unit ?? "");
       const parsedQuantity = parseQuantity(ingredient.quantity);
@@ -278,7 +280,7 @@ export function calculateGroceryLines(
     }
 
     const key = normalizedKey(
-      normalizeGroceryText(pantryItem.name),
+      normalizeIngredientName(pantryItem.name),
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = pantryStock.get(key);
@@ -293,7 +295,7 @@ export function calculateGroceryLines(
     }
 
     const key = normalizedKey(
-      normalizeGroceryText(pantryItem.name),
+      normalizeIngredientName(pantryItem.name),
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = selectedPantryByKey.get(key) ?? [];
@@ -344,7 +346,7 @@ export function calculateGroceryLines(
     }
 
     const name = pantryItem.name.trim().replace(/\s+/g, " ");
-    const normalizedName = normalizeGroceryText(pantryItem.name);
+    const normalizedName = normalizeIngredientName(pantryItem.name);
     const unit = pantryItem.unit?.trim().replace(/\s+/g, " ") ?? "";
     const normalizedUnit = normalizeGroceryText(pantryItem.unit ?? "");
 

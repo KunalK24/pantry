@@ -1,14 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecipeMock, getRecipeMock, listRecipesMock } = vi.hoisted(() => ({
+const { createRecipeMock, listRecipesMock } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
-  getRecipeMock: vi.fn(),
   listRecipesMock: vi.fn(),
 }));
 
 vi.mock("@/services/recipe-service", () => ({
   createRecipe: createRecipeMock,
-  getRecipe: getRecipeMock,
   listRecipes: listRecipesMock,
 }));
 
@@ -17,7 +15,6 @@ import { GET, POST } from "@/app/api/recipes/route";
 describe("POST /api/recipes", () => {
   beforeEach(() => {
     createRecipeMock.mockReset();
-    getRecipeMock.mockReset();
     listRecipesMock.mockReset();
   });
 
@@ -191,6 +188,45 @@ describe("POST /api/recipes", () => {
     expect(createRecipeMock).not.toHaveBeenCalled();
   });
 
+  it("rejects alias-equivalent duplicate ingredient names", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Green Onion Pancakes",
+        instructions: "Mix and fry.",
+        ingredients: [
+          { name: "Scallions", quantity: "2", unit: "bunches" },
+          { name: "green onions", quantity: "1", unit: "bunch" },
+        ],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(createRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("does not treat descriptive ingredient phrases as aliases", async () => {
+    createRecipeMock.mockResolvedValue({ id: "recipe_1" });
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Green Onion Pancakes",
+        instructions: "Mix and fry.",
+        ingredients: [
+          { name: "Fresh scallions", quantity: "2", unit: "bunches" },
+          { name: "green onion", quantity: "1", unit: "bunch" },
+        ],
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(createRecipeMock).toHaveBeenCalledOnce();
+  });
+
   it("returns 400 for malformed JSON", async () => {
     const request = new Request("http://localhost:3000/api/recipes", {
       method: "POST",
@@ -228,7 +264,6 @@ describe("POST /api/recipes", () => {
 
 describe("GET /api/recipes", () => {
   beforeEach(() => {
-    getRecipeMock.mockReset();
     listRecipesMock.mockReset();
   });
 
@@ -247,44 +282,18 @@ describe("GET /api/recipes", () => {
   ])("returns %s", async (_case, recipes) => {
     listRecipesMock.mockResolvedValue(recipes);
 
-    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+    const response = await GET();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ recipes });
     expect(listRecipesMock).toHaveBeenCalledOnce();
-    expect(getRecipeMock).not.toHaveBeenCalled();
-  });
-
-  it("preserves lookup by recipe name", async () => {
-    const recipe = { id: "recipe_1", name: "Tomato Soup" };
-    getRecipeMock.mockResolvedValue(recipe);
-
-    const response = await GET(new Request(
-      "http://localhost:3000/api/recipes?name=Tomato%20Soup",
-    ));
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual(recipe);
-    expect(getRecipeMock).toHaveBeenCalledWith("Tomato Soup");
-    expect(listRecipesMock).not.toHaveBeenCalled();
-  });
-
-  it("preserves the 400 response for an empty name query", async () => {
-    const response = await GET(new Request(
-      "http://localhost:3000/api/recipes?name=",
-    ));
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ status: "error" });
-    expect(getRecipeMock).not.toHaveBeenCalled();
-    expect(listRecipesMock).not.toHaveBeenCalled();
   });
 
   it("returns a generic 500 when listing fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     listRecipesMock.mockRejectedValue(new Error("database details"));
 
-    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+    const response = await GET();
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({

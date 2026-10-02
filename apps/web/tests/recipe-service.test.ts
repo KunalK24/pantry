@@ -7,7 +7,6 @@ const {
   transactionMock,
   transactionFindRecipeMock,
   transactionUpdateRecipeMock,
-  transactionDeleteRecipeIngredientsMock,
   transactionDeleteIngredientsMock,
 } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
@@ -16,7 +15,6 @@ const {
   transactionMock: vi.fn(),
   transactionFindRecipeMock: vi.fn(),
   transactionUpdateRecipeMock: vi.fn(),
-  transactionDeleteRecipeIngredientsMock: vi.fn(),
   transactionDeleteIngredientsMock: vi.fn(),
 }));
 
@@ -91,9 +89,6 @@ beforeEach(() => {
     recipe: {
       findUnique: transactionFindRecipeMock,
       update: transactionUpdateRecipeMock,
-    },
-    recipeIngredient: {
-      deleteMany: transactionDeleteRecipeIngredientsMock,
     },
     ingredient: {
       deleteMany: transactionDeleteIngredientsMock,
@@ -314,10 +309,7 @@ describe("updateRecipe", () => {
         { ingredientId: "ingredient_old_2" },
       ],
     });
-    transactionUpdateRecipeMock
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce(completeRecipe);
-    transactionDeleteRecipeIngredientsMock.mockResolvedValue({ count: 2 });
+    transactionUpdateRecipeMock.mockResolvedValue(completeRecipe);
     transactionDeleteIngredientsMock.mockResolvedValue({ count: 2 });
 
     await expect(updateRecipe(completeRecipe.id, input)).resolves.toEqual(
@@ -333,21 +325,15 @@ describe("updateRecipe", () => {
         },
       },
     });
-    expect(transactionUpdateRecipeMock).toHaveBeenNthCalledWith(1, {
+    expect(transactionUpdateRecipeMock).toHaveBeenCalledOnce();
+    expect(transactionUpdateRecipeMock).toHaveBeenCalledWith({
       where: { id: completeRecipe.id },
       data: {
         name: input.name,
         description: input.description,
         instructions: input.instructions,
-      },
-    });
-    expect(transactionDeleteRecipeIngredientsMock).toHaveBeenCalledWith({
-      where: { recipeId: completeRecipe.id },
-    });
-    expect(transactionUpdateRecipeMock).toHaveBeenNthCalledWith(2, {
-      where: { id: completeRecipe.id },
-      data: {
         ingredients: {
+          deleteMany: {},
           create: [
             {
               quantity: "2 cans",
@@ -388,7 +374,6 @@ describe("updateRecipe", () => {
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
 
     expect(transactionUpdateRecipeMock).not.toHaveBeenCalled();
-    expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
   });
 
   it("reports a not-found result when the recipe disappears before updating", async () => {
@@ -410,7 +395,6 @@ describe("updateRecipe", () => {
       }),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
 
-    expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
     expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
   });
 
@@ -435,7 +419,6 @@ describe("updateRecipe", () => {
       }),
     ).rejects.toBe(prismaError);
 
-    expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
     expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
   });
 

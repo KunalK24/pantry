@@ -24,10 +24,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 import { Prisma } from '@/generated/prisma/client'
-import {
-    normalizePantryItemName,
-    pantryItemInputSchema,
-} from '@/schemas/pantry-item'
+import { pantryItemInputSchema } from '@/schemas/pantry-item'
 import {
     createPantryItem,
     getPantryItemById,
@@ -79,8 +76,6 @@ describe('pantry item validation and normalization', () => {
             quantity: '1/2',
             unit: 'bottle',
         })
-
-        expect(normalizePantryItemName('  OLIVE\t Oil ')).toBe('olive oil')
     })
 
     it('normalizes blank optional fields to undefined', () => {
@@ -93,12 +88,6 @@ describe('pantry item validation and normalization', () => {
             quantity: undefined,
             unit: undefined,
         })
-    })
-
-    it('does not apply synonym or semantic normalization', () => {
-        expect(normalizePantryItemName('Scallion')).toBe('scallion')
-        expect(normalizePantryItemName('Green Onion')).toBe('green onion')
-        expect(normalizePantryItemName('green-onion')).toBe('green-onion')
     })
 })
 
@@ -155,6 +144,21 @@ describe('createPantryItem', () => {
             },
             select: pantryItemSelect,
         })
+    })
+
+    it('persists the canonical name while preserving the display name', async () => {
+        createPantryItemMock.mockResolvedValue({ ...pantryItem, name: 'Scallions' })
+
+        await createPantryItem({ name: 'Scallions', quantity: '2', unit: 'bunches' })
+
+        expect(createPantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
+            data: {
+                name: 'Scallions',
+                normalizedName: 'green onion',
+                quantity: '2',
+                unit: 'bunches',
+            },
+        }))
     })
 
     it('translates duplicate-name races to a conflict error', async () => {
@@ -243,6 +247,19 @@ describe('updatePantryItem', () => {
             data: expect.objectContaining({
                 quantity: null,
                 unit: null,
+            }),
+        }))
+    })
+
+    it('updates an alias to its canonical name without changing its display name', async () => {
+        updatePantryItemMock.mockResolvedValue({ ...pantryItem, name: 'Scallion' })
+
+        await updatePantryItem(pantryItemId, { name: 'Scallion' })
+
+        expect(updatePantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                name: 'Scallion',
+                normalizedName: 'green onion',
             }),
         }))
     })
