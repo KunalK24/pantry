@@ -93,23 +93,12 @@ Prefer for a simpler implementation that clearly satisfies the current requireme
 
 Look for:
 
-- abstractions used only once with no clear near-term reuse
-- helper functions that make simple logic harder to follow
-- unnecessary wrapper classes or service layers
-- excessive indirection between files
-- interfaces or generic types that add little value
-- factories, registries, adapters, or strategy patterns without a current need
-- overly generic utilities created for one specific feature
-- duplicated types or transformations that could be removed
-- unnecessary state management
-- unnecessary React hooks or effects
-- components split into many files without improving readability
-- excessive error classes for simple failure cases
-- unnecessary configuration or feature flags
-- defensive code for scenarios Pantry does not currently support
-- speculative support for future requirements
-- comments or documentation that compensate for unnecessarily complicated code
-- significantly more code than the requirement appears to justify
+- abstractions, layers, or files that add indirection without clear value
+- overly generic solutions built for requirements that do not currently exist
+- unnecessary state management, configuration, wrappers, or design patterns
+- code split into excessive helpers, components, types, or classes without improving clarity
+- defensive or extensible code for hypothetical future scenarios
+- complexity that makes a straightforward feature difficult to understand or modify
 
 Ask:
 
