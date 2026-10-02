@@ -169,6 +169,58 @@ describe("calculateGroceryLines quantity arithmetic", () => {
 
     expect(line.quantity).toBe("1 1/2");
   });
+
+  it.each([
+    ["integer", "2", 3, "1", "5"],
+    ["decimal", "1.5", 2, "0.5", "2 1/2"],
+    ["fraction", "3/4", 3, "1/4", "2"],
+    ["mixed number", "1 1/2", 2, "1/2", "2 1/2"],
+  ])(
+    "multiplies a %s requirement before subtracting pantry stock",
+    (_case, quantity, multiplier, pantryQuantity, expected) => {
+      const [line] = calculateGroceryLines(
+        [recipe("recipe-a", [{ name: "Flour", quantity, unit: "cup" }])],
+        [pantryItem("pantry-flour", "Flour", pantryQuantity, "cup")],
+        new Set(),
+        new Map([["recipe-a", multiplier]]),
+      );
+
+      expect(line.quantity).toBe(expected);
+    },
+  );
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    "safely defaults invalid multiplier %s to one preparation",
+    (multiplier) => {
+      const [line] = calculateGroceryLines(
+        [recipe("recipe-a", [{ name: "Egg", quantity: "2", unit: null }])],
+        [pantryItem("pantry-egg", "Egg", "1", null)],
+        new Set(),
+        new Map([["recipe-a", multiplier]]),
+      );
+
+      expect(line.quantity).toBe("1");
+    },
+  );
+
+  it("keeps one unresolved line and warns when a recipe is repeated", () => {
+    const lines = calculateGroceryLines(
+      [recipe("recipe-a", [{ name: "Salt", quantity: "to taste", unit: null }])],
+      [pantryItem("pantry-salt", "Salt", "20", null)],
+      new Set(),
+      new Map([["recipe-a", 3]]),
+    );
+
+    expect(lines).toEqual([
+      expect.objectContaining({
+        name: "Salt",
+        quantity: "to taste",
+        recipeIds: ["recipe-a"],
+        calculation: "unresolved",
+        warning: "3 preparations require manual quantity verification.",
+      }),
+    ]);
+  });
 });
 
 describe("calculateGroceryLines matching and fallback behavior", () => {

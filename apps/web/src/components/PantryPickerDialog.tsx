@@ -18,6 +18,7 @@ export type PantryPickerLoadState =
 type PantryLibraryResponse = { items: PantryPickerOption[] };
 
 type PantryPickerDialogProps = {
+  disabled?: boolean;
   selectedItems: PantryPickerOption[];
   onCommit: (items: PantryPickerOption[]) => void;
   onLoadStateChange: (state: PantryPickerLoadState) => void;
@@ -57,6 +58,7 @@ function availableAmount(item: PantryPickerOption) {
 }
 
 export default function PantryPickerDialog({
+  disabled = false,
   selectedItems,
   onCommit,
   onLoadStateChange,
@@ -156,6 +158,8 @@ export default function PantryPickerDialog({
     <>
       <button
         className="h-10 border border-emerald-700 px-4 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:border-emerald-500 dark:text-emerald-400 dark:hover:bg-emerald-950/30 dark:focus-visible:outline-emerald-400"
+        data-pantry-picker-trigger
+        disabled={disabled}
         onClick={openDialog}
         ref={triggerRef}
         type="button"
@@ -263,7 +267,7 @@ export default function PantryPickerDialog({
             </button>
             <button
               className="bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400"
-              disabled={items === null || error !== null}
+              disabled={disabled || items === null || error !== null}
               onClick={commitSelection}
               type="button"
             >

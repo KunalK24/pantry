@@ -21,6 +21,7 @@ export type RecipePickerLoadState =
 type RecipeLibraryResponse = { recipes: RecipePickerOption[] };
 
 type RecipePickerDialogProps = {
+  disabled?: boolean;
   selectedRecipes: RecipePickerOption[];
   onCommit: (recipes: RecipePickerOption[]) => void;
   onLoadStateChange: (state: RecipePickerLoadState) => void;
@@ -76,6 +77,7 @@ function isRecipeLibraryResponse(
 }
 
 export default function RecipePickerDialog({
+  disabled = false,
   selectedRecipes,
   onCommit,
   onLoadStateChange,
@@ -188,6 +190,8 @@ export default function RecipePickerDialog({
     <>
       <button
         className="h-10 border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+        data-recipe-picker-trigger
+        disabled={disabled}
         onClick={openDialog}
         ref={triggerRef}
         type="button"
@@ -306,7 +310,7 @@ export default function RecipePickerDialog({
             </button>
             <button
               className="bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
-              disabled={recipes === null || error !== null}
+              disabled={disabled || recipes === null || error !== null}
               onClick={commitSelection}
               type="button"
             >

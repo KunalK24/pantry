@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import GroceryList from "@/components/GroceryList";
 
 export default function GroceryListPage() {
@@ -11,7 +13,15 @@ export default function GroceryListPage() {
           Build a shopping list from recipes and pantry items that are running low.
         </p>
       </div>
-      <GroceryList />
+      <Suspense
+        fallback={
+          <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+            Loading grocery list...
+          </p>
+        }
+      >
+        <GroceryList />
+      </Suspense>
     </main>
   );
 }

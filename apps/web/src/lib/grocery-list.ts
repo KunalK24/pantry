@@ -154,6 +154,10 @@ function subtract(left: Rational, right: Rational): Rational {
   )!;
 }
 
+function multiply(value: Rational, multiplier: number): Rational {
+  return rational(value.numerator * BigInt(multiplier), value.denominator)!;
+}
+
 function compare(left: Rational, right: Rational): number {
   const difference =
     left.numerator * right.denominator - right.numerator * left.denominator;
@@ -396,11 +400,18 @@ export function calculateGroceryLines(
   recipes: RecipeForGroceryList[],
   pantryItems: PantryItemForGroceryList[],
   selectedPantryItemIds: ReadonlySet<string>,
+  recipeMultipliers?: ReadonlyMap<string, number>,
 ): GroceryLineCalculation[] {
   const computedRequirements = new Map<string, ComputedRequirement>();
   const unresolvedLines: SortableGroceryLine[] = [];
 
   for (const recipe of recipes) {
+    const requestedMultiplier = recipeMultipliers?.get(recipe.id) ?? 1;
+    const multiplier =
+      Number.isSafeInteger(requestedMultiplier) && requestedMultiplier > 0
+        ? requestedMultiplier
+        : 1;
+
     recipe.ingredients.forEach((ingredient, ingredientIndex) => {
       const name = ingredient.name.trim().replace(/\s+/g, " ");
       const normalizedName = normalizeIngredientName(ingredient.name);
@@ -422,7 +433,10 @@ export function calculateGroceryLines(
           unit,
           recipeIds: [recipe.id],
           calculation: "unresolved",
-          warning: unresolvedQuantityWarning,
+          warning:
+            multiplier > 1
+              ? `${multiplier} preparations require manual quantity verification.`
+              : unresolvedQuantityWarning,
           normalizedName,
           normalizedUnit,
           sourceOrder: `${recipe.id}:${ingredientIndex.toString().padStart(8, "0")}`,
@@ -434,7 +448,10 @@ export function calculateGroceryLines(
       const existing = computedRequirements.get(key);
 
       if (existing) {
-        existing.quantity = add(existing.quantity, parsedQuantity);
+        existing.quantity = add(
+          existing.quantity,
+          multiply(parsedQuantity, multiplier),
+        );
         existing.recipeIds.add(recipe.id);
         existing.name = preferredDisplayText(existing.name, name);
         existing.unit = preferredDisplayText(existing.unit, unit);
@@ -446,7 +463,7 @@ export function calculateGroceryLines(
         normalizedName,
         unit,
         normalizedUnit,
-        quantity: parsedQuantity,
+        quantity: multiply(parsedQuantity, multiplier),
         recipeIds: new Set([recipe.id]),
       });
     });

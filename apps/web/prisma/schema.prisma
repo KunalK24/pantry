@@ -20,7 +20,9 @@ model Recipe {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ingredients RecipeIngredient[]
+  ingredients        RecipeIngredient[]
+  plannedMeals       PlannedMeal[]
+  groceryListRecipes GroceryListRecipe[]
 }
 
 model Ingredient {
@@ -51,4 +53,82 @@ model PantryItem {
   unit           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  groceryItems GroceryItem[]
+}
+
+model WeeklyPlan {
+  id        String   @id @default(cuid())
+  weekStart DateTime @unique @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meals                PlannedMeal[]
+  importedGroceryLists GroceryList[]
+}
+
+model PlannedMeal {
+  id           String @id @default(cuid())
+  weeklyPlanId String
+  recipeId     String
+  dayOffset    Int
+  position     Int
+
+  weeklyPlan WeeklyPlan @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
+  recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([weeklyPlanId, dayOffset, position])
+  @@index([recipeId])
+}
+
+model GroceryList {
+  id                   String   @id @default(cuid())
+  key                  String   @unique
+  importedWeeklyPlanId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  importedWeeklyPlan WeeklyPlan?         @relation(fields: [importedWeeklyPlanId], references: [id], onDelete: SetNull)
+  recipes            GroceryListRecipe[]
+  items              GroceryItem[]
+
+  @@index([importedWeeklyPlanId])
+}
+
+enum GroceryRecipeSource {
+  MANUAL
+  WEEKLY_PLAN
+}
+
+model GroceryListRecipe {
+  id            String              @id @default(cuid())
+  groceryListId String
+  recipeId      String
+  source        GroceryRecipeSource
+
+  groceryList GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  recipe      Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([groceryListId])
+  @@index([recipeId])
+}
+
+model GroceryItem {
+  id               String  @id @default(cuid())
+  groceryListId    String
+  pantryItemId     String?
+  lineKey          String
+  name             String
+  baseQuantity     String
+  baseUnit         String
+  quantityOverride String?
+  unitOverride     String?
+  checked          Boolean @default(false)
+  dismissed        Boolean @default(false)
+
+  groceryList GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
+  pantryItem  PantryItem? @relation(fields: [pantryItemId], references: [id], onDelete: SetNull)
+
+  @@unique([groceryListId, lineKey])
+  @@index([pantryItemId])
 }
