@@ -278,6 +278,10 @@ describe("GET /api/recipes", () => {
       name: "Tomato Soup",
       description: "A quick soup",
       updatedAt: "2026-09-25T12:00:00.000Z",
+      ingredients: [
+        { name: "Tomatoes", quantity: "2", unit: "cans" },
+        { name: "Salt", quantity: "to taste", unit: null },
+      ],
     }]],
   ])("returns %s", async (_case, recipes) => {
     listRecipesMock.mockResolvedValue(recipes);

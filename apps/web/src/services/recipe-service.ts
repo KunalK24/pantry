@@ -66,7 +66,7 @@ export async function createRecipe(input: RecipeInput) {
 }
 
 export async function listRecipes() {
-    return prisma.recipe.findMany({
+    const recipes = await prisma.recipe.findMany({
         orderBy: {
             updatedAt: 'desc',
         },
@@ -75,8 +75,28 @@ export async function listRecipes() {
             name: true,
             description: true,
             updatedAt: true,
+            ingredients: {
+                select: {
+                    quantity: true,
+                    unit: true,
+                    ingredient: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            },
         },
     })
+
+    return recipes.map(({ ingredients, ...recipe }) => ({
+        ...recipe,
+        ingredients: ingredients.map((recipeIngredient) => ({
+            name: recipeIngredient.ingredient.name,
+            quantity: recipeIngredient.quantity,
+            unit: recipeIngredient.unit,
+        })),
+    }))
 }
 
 export async function getRecipeById(id: string) {

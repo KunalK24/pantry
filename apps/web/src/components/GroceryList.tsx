@@ -5,72 +5,22 @@ import PantryPickerDialog, {
   type PantryPickerLoadState,
   type PantryPickerOption,
 } from "@/components/PantryPickerDialog";
+import RecipeRecommendationsDialog from "@/components/RecipeRecommendationsDialog";
 import RecipePickerDialog, {
+  type RecipePickerLoadState,
   type RecipePickerOption,
 } from "@/components/RecipePickerDialog";
 import {
   calculateGroceryLines,
+  calculateRecipeRecommendations,
   type GroceryLineCalculation,
   type PantryItemForGroceryList,
-  type RecipeForGroceryList,
 } from "@/lib/grocery-list";
-
-type RecipeDetailResponse = {
-  id: string;
-  name: string;
-  description: string | null;
-  instructions: string | null;
-  ingredients: Array<{
-    name: string;
-    quantity: string | null;
-    unit: string | null;
-  }>;
-  createdAt: string;
-  updatedAt: string;
-};
 
 type LineEdit = {
   quantity: string;
   unit: string;
 };
-
-function isNullableString(value: unknown): value is string | null {
-  return typeof value === "string" || value === null;
-}
-
-function isRecipeDetailResponse(
-  payload: unknown,
-): payload is RecipeDetailResponse {
-  return (
-    typeof payload === "object" &&
-    payload !== null &&
-    "id" in payload &&
-    typeof payload.id === "string" &&
-    "name" in payload &&
-    typeof payload.name === "string" &&
-    "description" in payload &&
-    isNullableString(payload.description) &&
-    "instructions" in payload &&
-    isNullableString(payload.instructions) &&
-    "ingredients" in payload &&
-    Array.isArray(payload.ingredients) &&
-    payload.ingredients.every(
-      (ingredient) =>
-        typeof ingredient === "object" &&
-        ingredient !== null &&
-        "name" in ingredient &&
-        typeof ingredient.name === "string" &&
-        "quantity" in ingredient &&
-        isNullableString(ingredient.quantity) &&
-        "unit" in ingredient &&
-        isNullableString(ingredient.unit),
-    ) &&
-    "createdAt" in payload &&
-    typeof payload.createdAt === "string" &&
-    "updatedAt" in payload &&
-    typeof payload.updatedAt === "string"
-  );
-}
 
 function sourceDescription(
   line: GroceryLineCalculation,
@@ -120,7 +70,6 @@ function manualLineIds(
 }
 
 export default function GroceryList() {
-  const recipeCache = useRef(new Map<string, RecipeForGroceryList>());
   const lastReadyCalculatedLinesRef = useRef<GroceryLineCalculation[]>([]);
   const pantryLoadStateRef = useRef<PantryPickerLoadState["status"]>(
     "loading",
@@ -136,120 +85,27 @@ export default function GroceryList() {
   );
   const [pantryLoadState, setPantryLoadState] =
     useState<PantryPickerLoadState["status"]>("loading");
-  const [recipeDetails, setRecipeDetails] = useState<
-    Record<string, RecipeForGroceryList>
-  >({});
-  const [recipeErrors, setRecipeErrors] = useState<Record<string, string>>({});
-  const [recipeRetry, setRecipeRetry] = useState(0);
+  const [allRecipes, setAllRecipes] = useState<RecipePickerOption[]>([]);
+  const [recipeLoadState, setRecipeLoadState] =
+    useState<RecipePickerLoadState["status"]>("loading");
   const [lineEdits, setLineEdits] = useState<Record<string, LineEdit>>({});
   const [checkedLineIds, setCheckedLineIds] = useState<Set<string>>(new Set());
   const [dismissedLineIds, setDismissedLineIds] = useState<Set<string>>(
     new Set(),
   );
 
-  const selectedRecipeKey = selectedRecipes
-    .map((recipe) => recipe.id)
-    .sort()
-    .join("|");
-
-  useEffect(() => {
-    const selectedIds = new Set(selectedRecipes.map((recipe) => recipe.id));
-    const controllers: AbortController[] = [];
-    let active = true;
-
-    for (const recipe of selectedRecipes) {
-      const cached = recipeCache.current.get(recipe.id);
-
-      if (cached) {
-        setRecipeDetails((current) =>
-          current[recipe.id]
-            ? current
-            : { ...current, [recipe.id]: cached },
-        );
-        continue;
-      }
-
-      const controller = new AbortController();
-      controllers.push(controller);
-
-      fetch(`/api/recipes/${recipe.id}`, { signal: controller.signal })
-        .then(async (response) => {
-          const payload: unknown = await response.json().catch(() => null);
-
-          if (!response.ok || !isRecipeDetailResponse(payload)) {
-            throw new Error(`Unable to load ${recipe.name}.`);
-          }
-
-          if (!active || !selectedIds.has(recipe.id)) return;
-
-          const detail: RecipeForGroceryList = {
-            id: payload.id,
-            name: payload.name,
-            ingredients: payload.ingredients,
-          };
-          recipeCache.current.set(recipe.id, detail);
-          setRecipeDetails((current) => ({
-            ...current,
-            [recipe.id]: detail,
-          }));
-          setRecipeErrors((current) => {
-            const next = { ...current };
-            delete next[recipe.id];
-            return next;
-          });
-        })
-        .catch((requestError: unknown) => {
-          if (
-            requestError instanceof DOMException &&
-            requestError.name === "AbortError"
-          ) {
-            return;
-          }
-
-          if (!active || !selectedIds.has(recipe.id)) return;
-
-          setRecipeErrors((current) => ({
-            ...current,
-            [recipe.id]: `Unable to load ${recipe.name}. Please try again.`,
-          }));
-        });
-    }
-
-    return () => {
-      active = false;
-      controllers.forEach((controller) => controller.abort());
-    };
-  }, [recipeRetry, selectedRecipeKey, selectedRecipes]);
-
-  const loadedRecipes = useMemo(
-    () =>
-      selectedRecipes
-        .map((recipe) => recipeDetails[recipe.id])
-        .filter((recipe): recipe is RecipeForGroceryList => Boolean(recipe)),
-    [recipeDetails, selectedRecipes],
-  );
-
-  const hasPendingRecipes = selectedRecipes.some(
-    (recipe) => !recipeDetails[recipe.id] && !recipeErrors[recipe.id],
-  );
-  const hasRecipeErrors = selectedRecipes.some(
-    (recipe) => recipeErrors[recipe.id],
-  );
-  const sourcesReady =
-    pantryLoadState === "ready" &&
-    !hasPendingRecipes &&
-    !hasRecipeErrors;
+  const sourcesReady = pantryLoadState === "ready";
 
   const calculatedLines = useMemo(
     () =>
       sourcesReady
         ? calculateGroceryLines(
-            loadedRecipes,
+            selectedRecipes,
             pantryItems,
             new Set(selectedPantryItems.map((item) => item.id)),
           )
         : [],
-    [loadedRecipes, pantryItems, selectedPantryItems, sourcesReady],
+    [pantryItems, selectedPantryItems, selectedRecipes, sourcesReady],
   );
 
   useEffect(() => {
@@ -258,14 +114,40 @@ export default function GroceryList() {
     }
   }, [calculatedLines, sourcesReady]);
 
-  const visibleLines = calculatedLines.filter(
-    (line) => !dismissedLineIds.has(line.id),
+  const visibleLines = useMemo(
+    () => calculatedLines.filter((line) => !dismissedLineIds.has(line.id)),
+    [calculatedLines, dismissedLineIds],
   );
   const recipeNames = new Map(
     selectedRecipes.map((recipe) => [recipe.id, recipe.name]),
   );
   const pantryNames = new Map(
     selectedPantryItems.map((item) => [item.id, item.name]),
+  );
+  const recommendationsReady =
+    recipeLoadState === "ready" && pantryLoadState === "ready";
+  const selectedRecipeIds = useMemo(
+    () => new Set(selectedRecipes.map((recipe) => recipe.id)),
+    [selectedRecipes],
+  );
+  const matchingRecommendations = useMemo(
+    () =>
+      recommendationsReady
+        ? calculateRecipeRecommendations(
+            allRecipes,
+            pantryItems,
+            visibleLines,
+            new Set(),
+          )
+        : [],
+    [allRecipes, pantryItems, recommendationsReady, visibleLines],
+  );
+  const recommendations = useMemo(
+    () =>
+      matchingRecommendations.filter(
+        (recommendation) => !selectedRecipeIds.has(recommendation.recipe.id),
+      ),
+    [matchingRecommendations, selectedRecipeIds],
   );
 
   function reconcileSourceChange(allowedPantryIds?: Set<string>) {
@@ -336,6 +218,25 @@ export default function GroceryList() {
     [],
   );
 
+  const handleRecipeLoadStateChange = useCallback(
+    (state: RecipePickerLoadState) => {
+      setRecipeLoadState(state.status);
+
+      if (state.status === "ready") {
+        setAllRecipes(state.recipes);
+        const recipesById = new Map(
+          state.recipes.map((recipe) => [recipe.id, recipe]),
+        );
+        setSelectedRecipes((current) =>
+          current
+            .map((recipe) => recipesById.get(recipe.id))
+            .filter((recipe): recipe is RecipePickerOption => Boolean(recipe)),
+        );
+      }
+    },
+    [],
+  );
+
   function removeRecipe(id: string) {
     reconcileSourceChange();
     setSelectedRecipes((current) =>
@@ -349,32 +250,14 @@ export default function GroceryList() {
     setSelectedPantryItems(nextItems);
   }
 
-  function retryRecipe(id: string) {
-    const retainedLineIds = manualLineIds(
-      lastReadyCalculatedLinesRef.current,
-      new Set(selectedPantryItems.map((item) => item.id)),
-    );
-    setLineEdits((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(([lineId]) =>
-          retainedLineIds.has(lineId),
-        ),
-      ),
-    );
-    setCheckedLineIds(new Set());
-    setDismissedLineIds(new Set());
-    recipeCache.current.delete(id);
-    setRecipeDetails((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    setRecipeErrors((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    setRecipeRetry((current) => current + 1);
+  function addRecommendedRecipe(id: string) {
+    if (selectedRecipeIds.has(id)) return;
+
+    const recipe = allRecipes.find((candidate) => candidate.id === id);
+    if (!recipe) return;
+
+    reconcileSourceChange();
+    setSelectedRecipes((current) => [...current, recipe]);
   }
 
   function updateLine(id: string, edit: LineEdit) {
@@ -402,18 +285,35 @@ export default function GroceryList() {
 
   const noSources =
     selectedRecipes.length === 0 && selectedPantryItems.length === 0;
+  const recommendationEmptyMessage =
+    allRecipes.length === 0
+      ? "Create a recipe to receive recommendations."
+      : pantryItems.length === 0 && visibleLines.length === 0
+        ? "Add pantry items or grocery items to receive recommendations."
+        : matchingRecommendations.length > 0 && recommendations.length === 0
+          ? "All matching recipes are already on your grocery list."
+          : "No recipes match your pantry or current grocery list.";
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap gap-3">
         <RecipePickerDialog
           onCommit={commitRecipes}
+          onLoadStateChange={handleRecipeLoadStateChange}
+          pantryItems={pantryItems}
+          pantryStatus={pantryLoadState}
           selectedRecipes={selectedRecipes}
         />
         <PantryPickerDialog
           onCommit={commitPantryItems}
           onLoadStateChange={handlePantryLoadStateChange}
           selectedItems={selectedPantryItems}
+        />
+        <RecipeRecommendationsDialog
+          disabled={!recommendationsReady}
+          emptyMessage={recommendationEmptyMessage}
+          onAddRecipe={addRecommendedRecipe}
+          recommendations={recommendations}
         />
       </div>
 
@@ -479,21 +379,6 @@ export default function GroceryList() {
         </div>
       ) : null}
 
-      {Object.entries(recipeErrors).map(([id, message]) =>
-        selectedRecipes.some((recipe) => recipe.id === id) ? (
-          <div className="flex flex-wrap items-center gap-3" key={id} role="alert">
-            <p className="text-sm text-red-700 dark:text-red-400">{message}</p>
-            <button
-              className="border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
-              onClick={() => retryRecipe(id)}
-              type="button"
-            >
-              Try again
-            </button>
-          </div>
-        ) : null,
-      )}
-
       {pantryLoadState === "loading" ? (
         <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
           Loading pantry data before calculating your grocery list...
@@ -506,9 +391,15 @@ export default function GroceryList() {
         </p>
       ) : null}
 
-      {hasPendingRecipes ? (
+      {recipeLoadState === "loading" ? (
         <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
-          Calculating recipe ingredients...
+          Loading recipes for recommendations...
+        </p>
+      ) : null}
+
+      {recipeLoadState === "error" ? (
+        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+          Recommendations are unavailable. Open Add from Recipes and try again.
         </p>
       ) : null}
 
@@ -639,10 +530,6 @@ export default function GroceryList() {
                   ? "Waiting for pantry data before calculating your grocery list."
                   : pantryLoadState === "error"
                     ? "Pantry data must load before a grocery list can be calculated."
-                : hasPendingRecipes
-                  ? "Your grocery list will appear when the selected recipes finish loading."
-                  : hasRecipeErrors
-                    ? "Retry the recipe loading errors to finish your grocery list."
                   : "Your pantry covers the selected recipes, or all generated items have been removed."}
             </p>
           </div>

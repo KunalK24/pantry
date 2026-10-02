@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateGroceryLines,
+  calculateRecipeAvailability,
+  calculateRecipeRecommendations,
   normalizeGroceryText,
+  type GroceryLineCalculation,
   type PantryItemForGroceryList,
   type RecipeForGroceryList,
 } from "@/lib/grocery-list";
@@ -21,6 +24,20 @@ function pantryItem(
   unit: string | null,
 ): PantryItemForGroceryList {
   return { id, name, quantity, unit };
+}
+
+function groceryLine(
+  id: string,
+  name: string,
+): GroceryLineCalculation {
+  return {
+    id,
+    name,
+    quantity: "1",
+    unit: "",
+    recipeIds: [],
+    calculation: "manual",
+  };
 }
 
 describe("normalizeGroceryText", () => {
@@ -393,5 +410,246 @@ describe("calculateGroceryLines stability", () => {
     );
 
     expect(reversed).toEqual(forward);
+  });
+});
+
+describe("calculateRecipeAvailability", () => {
+  it("distinguishes full, partial, missing, unresolved, and unit-mismatched coverage", () => {
+    const candidate = recipe("availability", [
+      { name: "Eggs", quantity: "2", unit: null },
+      { name: "Milk", quantity: "1", unit: "cup" },
+      { name: "Flour", quantity: "2", unit: "cup" },
+      { name: "Salt", quantity: "to taste", unit: null },
+      { name: "Pepper", quantity: "1", unit: "tsp" },
+    ]);
+    const pantry = [
+      pantryItem("eggs", " eggs ", "2", null),
+      pantryItem("milk", "MILK", "1/2", "cup"),
+      pantryItem("flour", "Flour", "2", "tbsp"),
+      pantryItem("salt", "Salt", "10", null),
+    ];
+
+    expect(calculateRecipeAvailability(candidate, pantry)).toEqual({
+      available: 1,
+      total: 5,
+      availableNames: ["Eggs"],
+    });
+    expect(calculateRecipeAvailability(candidate, [])).toEqual({
+      available: 0,
+      total: 5,
+      availableNames: [],
+    });
+  });
+
+  it("aggregates duplicate requirements and pantry records by alias and exact unit", () => {
+    const candidate = recipe("aliases", [
+      { name: "Scallion", quantity: "1", unit: "bunch" },
+      { name: " green onions ", quantity: "2", unit: "BUNCH" },
+      { name: "Scallions", quantity: "1", unit: "cup" },
+    ]);
+    const almostEnough = [
+      pantryItem("onion-a", "Green Onion", "1", "bunch"),
+      pantryItem("onion-b", "scallions", "1 1/2", " BUNCH "),
+      pantryItem("onion-c", "green onions", "1", "cup"),
+    ];
+
+    expect(calculateRecipeAvailability(candidate, almostEnough)).toEqual({
+      available: 0,
+      total: 1,
+      availableNames: [],
+    });
+
+    expect(
+      calculateRecipeAvailability(candidate, [
+        ...almostEnough,
+        pantryItem("onion-d", "Scallion", "1/2", "bunch"),
+      ]),
+    ).toEqual({
+      available: 1,
+      total: 1,
+      availableNames: ["Scallion"],
+    });
+  });
+
+  it("makes a normalized name unavailable when any duplicate requirement is unresolved", () => {
+    const candidate = recipe("mixed", [
+      { name: "Salt", quantity: "1", unit: "tsp" },
+      { name: " salt ", quantity: null, unit: "tsp" },
+    ]);
+
+    expect(
+      calculateRecipeAvailability(candidate, [
+        pantryItem("salt", "Salt", "20", "tsp"),
+      ]),
+    ).toEqual({ available: 0, total: 1, availableNames: [] });
+  });
+});
+
+describe("calculateRecipeRecommendations", () => {
+  it("ranks pantry-only matches by fewest missing ingredients, then coverage ratio", () => {
+    const recipes = [
+      recipe("wide", [
+        { name: "Egg", quantity: "1", unit: null },
+        { name: "Cheese", quantity: "1", unit: null },
+        { name: "Bacon", quantity: "1", unit: null },
+        { name: "Potato", quantity: "1", unit: null },
+      ]),
+      recipe("focused", [
+        { name: "Egg", quantity: "1", unit: null },
+        { name: "Toast", quantity: "1", unit: null },
+      ]),
+      recipe("best-ratio", [
+        { name: "Egg", quantity: "1", unit: null },
+        { name: "Cheese", quantity: "1", unit: null },
+        { name: "Toast", quantity: "1", unit: null },
+      ]),
+    ];
+    const pantry = [
+      pantryItem("egg", "Egg", "1", null),
+      pantryItem("cheese", "Cheese", "1", null),
+    ];
+
+    const recommendations = calculateRecipeRecommendations(
+      recipes,
+      pantry,
+      [],
+      new Set(),
+    );
+
+    expect(recommendations.map(({ recipe: item }) => item.id)).toEqual([
+      "best-ratio",
+      "focused",
+      "wide",
+    ]);
+    expect(recommendations[0]).toMatchObject({
+      pantryCoveredNames: ["Cheese", "Egg"],
+      groceryOverlapNames: [],
+      missingNames: ["Toast"],
+      total: 3,
+    });
+  });
+
+  it("uses visible grocery names without requiring selected recipes or matching units", () => {
+    const recipes = [
+      recipe("fewer-missing", [
+        { name: "Tortilla", quantity: "4", unit: "large" },
+        { name: "Cheese", quantity: "2", unit: "cups" },
+        { name: "Salsa", quantity: "1", unit: "jar" },
+      ]),
+      recipe("more-overlap", [
+        { name: "Egg", quantity: "2", unit: null },
+        { name: "Tortilla", quantity: "2", unit: "small" },
+        { name: "Bacon", quantity: "1", unit: "pack" },
+        { name: "Potato", quantity: "2", unit: null },
+        { name: "Onion", quantity: "1", unit: null },
+      ]),
+    ];
+
+    const recommendations = calculateRecipeRecommendations(
+      recipes,
+      [],
+      [groceryLine("egg", "EGG"), groceryLine("tortilla", " tortilla ")],
+      new Set(),
+    );
+
+    expect(recommendations.map(({ recipe: item }) => item.id)).toEqual([
+      "fewer-missing",
+      "more-overlap",
+    ]);
+    expect(recommendations[0].groceryOverlapNames).toEqual(["Tortilla"]);
+    expect(recommendations[1].groceryOverlapNames).toEqual([
+      "Egg",
+      "Tortilla",
+    ]);
+  });
+
+  it("classifies pantry coverage before duplicate grocery overlap", () => {
+    const [recommendation] = calculateRecipeRecommendations(
+      [recipe("combined", [
+        { name: "Scallions", quantity: "2", unit: "bunch" },
+        { name: "Rice", quantity: "1", unit: "cup" },
+        { name: "Lime", quantity: "1", unit: null },
+      ])],
+      [pantryItem("onion", "Green onion", "2", "bunch")],
+      [
+        groceryLine("onion-line", "Scallion"),
+        groceryLine("rice-line", "RICE"),
+      ],
+      new Set(),
+    );
+
+    expect(recommendation).toMatchObject({
+      pantryCoveredNames: ["Scallions"],
+      groceryOverlapNames: ["Rice"],
+      missingNames: ["Lime"],
+      total: 3,
+    });
+  });
+
+  it("excludes selected and zero-match recipes while returning every match", () => {
+    const recommendations = calculateRecipeRecommendations(
+      [
+        recipe("selected", [{ name: "Egg", quantity: "1", unit: null }]),
+        recipe("match-a", [{ name: "Egg", quantity: "2", unit: null }]),
+        recipe("match-b", [{ name: "Egg", quantity: "3", unit: null }]),
+        recipe("no-match", [{ name: "Flour", quantity: "1", unit: "cup" }]),
+      ],
+      [],
+      [groceryLine("egg", "Egg")],
+      new Set(["selected"]),
+    );
+
+    expect(recommendations.map(({ recipe: item }) => item.id)).toEqual([
+      "match-a",
+      "match-b",
+    ]);
+  });
+
+  it("applies grocery, recipe-name, and recipe-id tie breakers deterministically", () => {
+    const recommendations = calculateRecipeRecommendations(
+      [
+        { ...recipe("id-b", [
+          { name: "Egg", quantity: "1", unit: null },
+          { name: "Salt", quantity: "1", unit: null },
+        ]), name: "Same" },
+        { ...recipe("pantry", [
+          { name: "Egg", quantity: "1", unit: null },
+          { name: "Salt", quantity: "1", unit: null },
+        ]), name: "A pantry match" },
+        { ...recipe("id-a", [
+          { name: "Egg", quantity: "1", unit: null },
+          { name: "Salt", quantity: "1", unit: null },
+        ]), name: "Same" },
+        { ...recipe("named", [
+          { name: "Egg", quantity: "2", unit: null },
+          { name: "Salt", quantity: "1", unit: null },
+        ]), name: "Before Same" },
+      ],
+      [pantryItem("egg", "Egg", "1", null)],
+      [groceryLine("salt", "Salt"), groceryLine("egg", "Egg")],
+      new Set(),
+    );
+
+    expect(recommendations.map(({ recipe: item }) => item.id)).toEqual([
+      "named",
+      "pantry",
+      "id-a",
+      "id-b",
+    ]);
+    expect(recommendations[0]).toMatchObject({
+      pantryCoveredNames: [],
+      groceryOverlapNames: ["Egg", "Salt"],
+    });
+  });
+
+  it("returns no recommendations when pantry and visible lines have no overlap", () => {
+    expect(
+      calculateRecipeRecommendations(
+        [recipe("bread", [{ name: "Flour", quantity: "2", unit: "cup" }])],
+        [pantryItem("egg", "Egg", "12", null)],
+        [groceryLine("milk", "Milk")],
+        new Set(),
+      ),
+    ).toEqual([]);
   });
 });

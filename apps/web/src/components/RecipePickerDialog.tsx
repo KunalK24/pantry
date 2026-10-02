@@ -1,20 +1,49 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-export type RecipePickerOption = {
-  id: string;
-  name: string;
+import {
+  calculateRecipeAvailability,
+  type PantryItemForGroceryList,
+  type RecipeForGroceryList,
+} from "@/lib/grocery-list";
+
+export type RecipePickerOption = RecipeForGroceryList & {
   description: string | null;
   updatedAt: string;
 };
+
+export type RecipePickerLoadState =
+  | { status: "loading" }
+  | { status: "ready"; recipes: RecipePickerOption[] }
+  | { status: "error" };
 
 type RecipeLibraryResponse = { recipes: RecipePickerOption[] };
 
 type RecipePickerDialogProps = {
   selectedRecipes: RecipePickerOption[];
   onCommit: (recipes: RecipePickerOption[]) => void;
+  onLoadStateChange: (state: RecipePickerLoadState) => void;
+  pantryItems: PantryItemForGroceryList[];
+  pantryStatus: "loading" | "ready" | "error";
 };
+
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
+
+function isIngredient(value: unknown) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "quantity" in value &&
+    isNullableString(value.quantity) &&
+    "unit" in value &&
+    isNullableString(value.unit)
+  );
+}
 
 function isRecipeOption(value: unknown): value is RecipePickerOption {
   return (
@@ -27,7 +56,10 @@ function isRecipeOption(value: unknown): value is RecipePickerOption {
     "description" in value &&
     (typeof value.description === "string" || value.description === null) &&
     "updatedAt" in value &&
-    typeof value.updatedAt === "string"
+    typeof value.updatedAt === "string" &&
+    "ingredients" in value &&
+    Array.isArray(value.ingredients) &&
+    value.ingredients.every(isIngredient)
   );
 }
 
@@ -46,6 +78,9 @@ function isRecipeLibraryResponse(
 export default function RecipePickerDialog({
   selectedRecipes,
   onCommit,
+  onLoadStateChange,
+  pantryItems,
+  pantryStatus,
 }: RecipePickerDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -58,6 +93,9 @@ export default function RecipePickerDialog({
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+
+    onLoadStateChange({ status: "loading" });
 
     fetch("/api/recipes", { signal: controller.signal })
       .then(async (response) => {
@@ -67,7 +105,10 @@ export default function RecipePickerDialog({
           throw new Error("Unable to load your recipes.");
         }
 
+        if (!active) return;
+
         setRecipes(payload.recipes);
+        onLoadStateChange({ status: "ready", recipes: payload.recipes });
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -78,12 +119,29 @@ export default function RecipePickerDialog({
           return;
         }
 
+        if (!active) return;
+
         setRecipes(null);
         setError("Unable to load your recipes. Please try again.");
+        onLoadStateChange({ status: "error" });
       });
 
-    return () => controller.abort();
-  }, [requestNumber]);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [onLoadStateChange, requestNumber]);
+
+  const availabilityByRecipeId = useMemo(
+    () =>
+      new Map(
+        (recipes ?? []).map((recipe) => [
+          recipe.id,
+          calculateRecipeAvailability(recipe, pantryItems),
+        ]),
+      ),
+    [pantryItems, recipes],
+  );
 
   function openDialog() {
     setDraftIds(new Set(selectedRecipes.map((recipe) => recipe.id)));
@@ -122,6 +180,7 @@ export default function RecipePickerDialog({
   function retry() {
     setRecipes(null);
     setError(null);
+    onLoadStateChange({ status: "loading" });
     setRequestNumber((current) => current + 1);
   }
 
@@ -215,6 +274,19 @@ export default function RecipePickerDialog({
                               {recipe.description}
                             </span>
                           ) : null}
+                          {pantryStatus === "ready" ? (
+                            <span className="mt-1 block text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                              {availabilityByRecipeId.get(recipe.id)?.available ?? 0}/
+                              {availabilityByRecipeId.get(recipe.id)?.total ?? 0}{" "}
+                              ingredients available
+                            </span>
+                          ) : (
+                            <span className="mt-1 block text-xs text-zinc-500">
+                              {pantryStatus === "loading"
+                                ? "Checking pantry availability..."
+                                : "Pantry availability unavailable"}
+                            </span>
+                          )}
                         </span>
                       </label>
                     </li>

@@ -28,6 +28,20 @@ export type GroceryLineCalculation = {
   warning?: string;
 };
 
+export type RecipeAvailability = {
+  available: number;
+  total: number;
+  availableNames: string[];
+};
+
+export type RecipeRecommendation = {
+  recipe: RecipeForGroceryList;
+  pantryCoveredNames: string[];
+  groceryOverlapNames: string[];
+  missingNames: string[];
+  total: number;
+};
+
 type Rational = {
   numerator: bigint;
   denominator: bigint;
@@ -210,6 +224,174 @@ function stripSortFields(line: SortableGroceryLine): GroceryLineCalculation {
   };
 }
 
+function buildPantryStock(pantryItems: PantryItemForGroceryList[]) {
+  const pantryStock = new Map<string, Rational>();
+
+  for (const pantryItem of pantryItems) {
+    const quantity = parseQuantity(pantryItem.quantity);
+
+    if (!quantity) {
+      continue;
+    }
+
+    const key = normalizedKey(
+      normalizeIngredientName(pantryItem.name),
+      normalizeGroceryText(pantryItem.unit ?? ""),
+    );
+    const existing = pantryStock.get(key);
+    pantryStock.set(key, existing ? add(existing, quantity) : quantity);
+  }
+
+  return pantryStock;
+}
+
+function recipeRequirementsByName(recipe: RecipeForGroceryList) {
+  const requirements = new Map<
+    string,
+    {
+      displayName: string;
+      quantities: Map<string, Rational>;
+      unresolved: boolean;
+    }
+  >();
+
+  for (const ingredient of recipe.ingredients) {
+    const normalizedName = normalizeIngredientName(ingredient.name);
+    const displayName = ingredient.name.trim().replace(/\s+/g, " ");
+    const normalizedUnit = normalizeGroceryText(ingredient.unit ?? "");
+    const parsedQuantity = parseQuantity(ingredient.quantity);
+    const current = requirements.get(normalizedName) ?? {
+      displayName,
+      quantities: new Map<string, Rational>(),
+      unresolved: false,
+    };
+
+    current.displayName = preferredDisplayText(current.displayName, displayName);
+
+    if (!parsedQuantity) {
+      current.unresolved = true;
+    } else {
+      const existing = current.quantities.get(normalizedUnit);
+      current.quantities.set(
+        normalizedUnit,
+        existing ? add(existing, parsedQuantity) : parsedQuantity,
+      );
+    }
+
+    requirements.set(normalizedName, current);
+  }
+
+  return requirements;
+}
+
+export function calculateRecipeAvailability(
+  recipe: RecipeForGroceryList,
+  pantryItems: PantryItemForGroceryList[],
+): RecipeAvailability {
+  const pantryStock = buildPantryStock(pantryItems);
+  const requirements = recipeRequirementsByName(recipe);
+  const availableNames: string[] = [];
+
+  for (const [normalizedName, requirement] of requirements) {
+    const isAvailable =
+      !requirement.unresolved &&
+      [...requirement.quantities].every(([unit, quantity]) => {
+        const available = pantryStock.get(normalizedKey(normalizedName, unit));
+        return available !== undefined && compare(available, quantity) >= 0;
+      });
+
+    if (isAvailable) {
+      availableNames.push(requirement.displayName);
+    }
+  }
+
+  return {
+    available: availableNames.length,
+    total: requirements.size,
+    availableNames: availableNames.sort((left, right) =>
+      compareText(
+        normalizeIngredientName(left),
+        normalizeIngredientName(right),
+      ),
+    ),
+  };
+}
+
+export function calculateRecipeRecommendations(
+  recipes: RecipeForGroceryList[],
+  pantryItems: PantryItemForGroceryList[],
+  visibleGroceryLines: GroceryLineCalculation[],
+  selectedRecipeIds: ReadonlySet<string>,
+): RecipeRecommendation[] {
+  const groceryNames = new Set(
+    visibleGroceryLines.map((line) => normalizeIngredientName(line.name)),
+  );
+
+  return recipes
+    .filter((recipe) => !selectedRecipeIds.has(recipe.id))
+    .map((recipe) => {
+      const requirements = recipeRequirementsByName(recipe);
+      const pantryNames = new Set(
+        calculateRecipeAvailability(recipe, pantryItems).availableNames.map(
+          normalizeIngredientName,
+        ),
+      );
+      const pantryCoveredNames: string[] = [];
+      const groceryOverlapNames: string[] = [];
+      const missingNames: string[] = [];
+
+      for (const [normalizedName, requirement] of requirements) {
+        if (pantryNames.has(normalizedName)) {
+          pantryCoveredNames.push(requirement.displayName);
+        } else if (groceryNames.has(normalizedName)) {
+          groceryOverlapNames.push(requirement.displayName);
+        } else {
+          missingNames.push(requirement.displayName);
+        }
+      }
+
+      const sortNames = (names: string[]) =>
+        names.sort((left, right) =>
+          compareText(
+            normalizeIngredientName(left),
+            normalizeIngredientName(right),
+          ),
+        );
+
+      return {
+        recipe,
+        pantryCoveredNames: sortNames(pantryCoveredNames),
+        groceryOverlapNames: sortNames(groceryOverlapNames),
+        missingNames: sortNames(missingNames),
+        total: requirements.size,
+      };
+    })
+    .filter(
+      (recommendation) =>
+        recommendation.pantryCoveredNames.length +
+          recommendation.groceryOverlapNames.length >
+        0,
+    )
+    .sort((left, right) => {
+      const leftCovered =
+        left.pantryCoveredNames.length + left.groceryOverlapNames.length;
+      const rightCovered =
+        right.pantryCoveredNames.length + right.groceryOverlapNames.length;
+
+      return (
+        left.missingNames.length - right.missingNames.length ||
+        rightCovered * left.total - leftCovered * right.total ||
+        right.groceryOverlapNames.length - left.groceryOverlapNames.length ||
+        right.pantryCoveredNames.length - left.pantryCoveredNames.length ||
+        compareText(
+          left.recipe.name.toLowerCase(),
+          right.recipe.name.toLowerCase(),
+        ) ||
+        compareText(left.recipe.id, right.recipe.id)
+      );
+    });
+}
+
 export function calculateGroceryLines(
   recipes: RecipeForGroceryList[],
   pantryItems: PantryItemForGroceryList[],
@@ -270,22 +452,7 @@ export function calculateGroceryLines(
     });
   }
 
-  const pantryStock = new Map<string, Rational>();
-
-  for (const pantryItem of pantryItems) {
-    const quantity = parseQuantity(pantryItem.quantity);
-
-    if (!quantity) {
-      continue;
-    }
-
-    const key = normalizedKey(
-      normalizeIngredientName(pantryItem.name),
-      normalizeGroceryText(pantryItem.unit ?? ""),
-    );
-    const existing = pantryStock.get(key);
-    pantryStock.set(key, existing ? add(existing, quantity) : quantity);
-  }
+  const pantryStock = buildPantryStock(pantryItems);
 
   const selectedPantryByKey = new Map<string, PantryItemForGroceryList[]>();
 

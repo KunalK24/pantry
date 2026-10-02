@@ -237,23 +237,53 @@ describe("createRecipe", () => {
 
 describe("listRecipes", () => {
   it("returns recipe summaries using newest-updated ordering", async () => {
-    const recipes = [
+    const persistedRecipes = [
       {
         id: "recipe_2",
         name: "New recipe",
         description: null,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
+        ingredients: [
+          {
+            quantity: "2",
+            unit: "large",
+            ingredient: { name: "Eggs" },
+          },
+        ],
       },
       {
         id: "recipe_1",
         name: "Old recipe",
         description: "Earlier",
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
+        ingredients: [
+          {
+            quantity: "to taste",
+            unit: null,
+            ingredient: { name: "Salt" },
+          },
+        ],
       },
     ];
-    findManyRecipesMock.mockResolvedValue(recipes);
+    findManyRecipesMock.mockResolvedValue(persistedRecipes);
 
-    await expect(listRecipes()).resolves.toEqual(recipes);
+    await expect(listRecipes()).resolves.toEqual([
+      {
+        id: "recipe_2",
+        name: "New recipe",
+        description: null,
+        updatedAt: new Date("2026-09-25T12:00:00.000Z"),
+        ingredients: [{ name: "Eggs", quantity: "2", unit: "large" }],
+      },
+      {
+        id: "recipe_1",
+        name: "Old recipe",
+        description: "Earlier",
+        updatedAt: new Date("2026-09-24T12:00:00.000Z"),
+        ingredients: [{ name: "Salt", quantity: "to taste", unit: null }],
+      },
+    ]);
+    expect(findManyRecipesMock).toHaveBeenCalledOnce();
     expect(findManyRecipesMock).toHaveBeenCalledWith({
       orderBy: { updatedAt: "desc" },
       select: {
@@ -261,6 +291,15 @@ describe("listRecipes", () => {
         name: true,
         description: true,
         updatedAt: true,
+        ingredients: {
+          select: {
+            quantity: true,
+            unit: true,
+            ingredient: {
+              select: { name: true },
+            },
+          },
+        },
       },
     });
   });
