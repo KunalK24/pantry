@@ -12,6 +12,7 @@
     "pantry:normalize": "tsx scripts/normalize-pantry-items.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.25.0",
     "@prisma/adapter-neon": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "dotenv": "^18.0.3",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import CreateRecipeDialog from "@/components/CreateRecipeDialog";
+import ImportRecipeDialog from "@/components/ImportRecipeDialog";
 import {
   calculateRecipeAvailability,
   type PantryItemForGroceryList,
@@ -248,7 +249,8 @@ export default function RecipeLibrary() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        <ImportRecipeDialog onRecipeCreated={refreshAfterCreation} />
         <CreateRecipeDialog onRecipeCreated={refreshAfterCreation} />
       </div>
       {pantryError ? (

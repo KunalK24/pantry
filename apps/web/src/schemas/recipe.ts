@@ -35,6 +35,12 @@ export const recipeInputSchema = z.object({
     })
 })
 
+export const recipeInputRequestSchema = z.object({
+    text: z.string().trim().min(1).max(20000),
+})
+
 export type RecipeInput = z.infer<typeof recipeInputSchema>
+
+export type RecipeInputRequest = z.infer<typeof recipeInputRequestSchema>
 
 export const recipeIdSchema = z.cuid()

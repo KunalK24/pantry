@@ -1,0 +1,43 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+
+import ImportRecipeDialog from '@/components/ImportRecipeDialog'
+import RecipeForm from '@/components/RecipeForm'
+
+describe('recipe import UI', () => {
+    it('renders the recipe import action and its native dialog', () => {
+        const markup = renderToStaticMarkup(
+            <ImportRecipeDialog onRecipeCreated={() => undefined} />,
+        )
+
+        expect(markup).toContain('Import recipe')
+        expect(markup).toContain('<dialog')
+        expect(markup).toContain('aria-labelledby="import-recipe-dialog-title"')
+    })
+
+    it('prefills the create form with a parsed recipe draft', () => {
+        const markup = renderToStaticMarkup(
+            <RecipeForm
+                initialValues={{
+                    name: 'French Toast',
+                    description: 'A quick breakfast',
+                    instructions: 'Whisk, soak, and cook.',
+                    ingredients: [
+                        { name: 'Bread', quantity: '2', unit: 'slices' },
+                        { name: 'Egg', quantity: '1' },
+                    ],
+                }}
+            />,
+        )
+
+        expect(markup).toContain('value="French Toast"')
+        expect(markup).toContain('A quick breakfast')
+        expect(markup).toContain('Whisk, soak, and cook.')
+        expect(markup).toContain('value="Bread"')
+        expect(markup).toContain('value="2"')
+        expect(markup).toContain('value="slices"')
+        expect(markup).toContain('value="Egg"')
+        expect(markup).toContain('value="1"')
+        expect(markup).toContain('Save recipe')
+    })
+})

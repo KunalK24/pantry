@@ -16,7 +16,11 @@ export type RecipeFormValues = {
 };
 
 type RecipeFormProps = (
-  | { mode?: "create"; initialValues?: never; recipeId?: never }
+  | {
+      mode?: "create";
+      initialValues?: RecipeFormValues;
+      recipeId?: never;
+    }
   | { mode: "edit"; initialValues: RecipeFormValues; recipeId: string }
 ) & {
   onSubmittingChange?: (isSubmitting: boolean) => void;
@@ -70,7 +74,7 @@ function responseErrorMessage(payload: unknown) {
 
 export default function RecipeForm(props: RecipeFormProps) {
   const mode = props.mode ?? "create";
-  const initialValues = mode === "edit" ? props.initialValues : undefined;
+  const initialValues = props.initialValues;
   const initialRows = initialIngredientRows(initialValues);
   const nextIngredientId = useRef(initialRows.length);
   const [name, setName] = useState(initialValues?.name ?? "");
