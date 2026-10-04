@@ -212,10 +212,7 @@ export default function RecipeLibrary() {
 
           return (
             <li key={recipe.id}>
-              <Link
-                className="grid gap-2 px-1 py-5 transition-colors hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-3"
-                href={`/recipes/${recipe.id}/edit`}
-              >
+              <div className="grid gap-2 px-1 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-3">
                 <div className="min-w-0">
                   <h2 className="font-semibold text-zinc-950 dark:text-zinc-50">
                     {recipe.name}
@@ -236,10 +233,13 @@ export default function RecipeLibrary() {
                     </p>
                   ) : null}
                 </div>
-                <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                <Link
+                  className="-mx-2 w-fit px-2 py-1 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-100"
+                  href={`/recipes/${recipe.id}/edit`}
+                >
                   Edit recipe
-                </span>
-              </Link>
+                </Link>
+              </div>
             </li>
           );
         })}

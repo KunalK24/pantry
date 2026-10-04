@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+    deletePantryItemMock,
     getPantryItemByIdMock,
     updatePantryItemMock,
     PantryItemConflictErrorMock,
@@ -10,6 +11,7 @@ const {
     class PantryItemNotFoundErrorMock extends Error {}
 
     return {
+        deletePantryItemMock: vi.fn(),
         getPantryItemByIdMock: vi.fn(),
         updatePantryItemMock: vi.fn(),
         PantryItemConflictErrorMock,
@@ -18,13 +20,14 @@ const {
 })
 
 vi.mock('@/services/pantry-item-service', () => ({
+    deletePantryItem: deletePantryItemMock,
     getPantryItemById: getPantryItemByIdMock,
     updatePantryItem: updatePantryItemMock,
     PantryItemConflictError: PantryItemConflictErrorMock,
     PantryItemNotFoundError: PantryItemNotFoundErrorMock,
 }))
 
-import { GET, PUT } from '@/app/api/pantry-items/[id]/route'
+import { DELETE, GET, PUT } from '@/app/api/pantry-items/[id]/route'
 
 const pantryItemId = 'cm12345678901234567890123'
 const context = (id = pantryItemId) => ({ params: Promise.resolve({ id }) })
@@ -258,6 +261,72 @@ describe('PUT /api/pantry-items/[id]', () => {
         )
 
         const response = await PUT(request, context())
+
+        expect(response.status).toBe(500)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Internal Server Error',
+        })
+    })
+})
+
+describe('DELETE /api/pantry-items/[id]', () => {
+    it('deletes and returns the pantry item', async () => {
+        deletePantryItemMock.mockResolvedValue(pantryItem)
+
+        const response = await DELETE(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`, {
+                method: 'DELETE',
+            }),
+            context(),
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual(pantryItem)
+        expect(deletePantryItemMock).toHaveBeenCalledOnce()
+        expect(deletePantryItemMock).toHaveBeenCalledWith(pantryItemId)
+    })
+
+    it('returns 400 for a malformed pantry item ID', async () => {
+        const response = await DELETE(
+            new Request('http://localhost:3000/api/pantry-items/not-a-cuid', {
+                method: 'DELETE',
+            }),
+            context('not-a-cuid'),
+        )
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Invalid pantry item ID',
+        })
+        expect(deletePantryItemMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when the pantry item is missing', async () => {
+        deletePantryItemMock.mockRejectedValue(new PantryItemNotFoundErrorMock())
+
+        const response = await DELETE(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`, {
+                method: 'DELETE',
+            }),
+            context(),
+        )
+
+        expect(response.status).toBe(404)
+        await expect(response.json()).resolves.toEqual({
+            error: 'Pantry item not found',
+        })
+    })
+
+    it('returns a generic 500 without exposing deletion failures', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        deletePantryItemMock.mockRejectedValue(new Error('database details'))
+
+        const response = await DELETE(
+            new Request(`http://localhost:3000/api/pantry-items/${pantryItemId}`, {
+                method: 'DELETE',
+            }),
+            context(),
+        )
 
         expect(response.status).toBe(500)
         await expect(response.json()).resolves.toEqual({

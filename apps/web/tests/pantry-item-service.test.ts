@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
     createPantryItemMock,
+    deletePantryItemMock,
     findManyPantryItemsMock,
     findPantryItemByIdMock,
     updatePantryItemMock,
 } = vi.hoisted(() => ({
     createPantryItemMock: vi.fn(),
+    deletePantryItemMock: vi.fn(),
     findManyPantryItemsMock: vi.fn(),
     findPantryItemByIdMock: vi.fn(),
     updatePantryItemMock: vi.fn(),
@@ -16,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
     prisma: {
         pantryItem: {
             create: createPantryItemMock,
+            delete: deletePantryItemMock,
             findMany: findManyPantryItemsMock,
             findUnique: findPantryItemByIdMock,
             update: updatePantryItemMock,
@@ -27,6 +30,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { pantryItemInputSchema } from '@/schemas/pantry-item'
 import {
     createPantryItem,
+    deletePantryItem,
     getPantryItemById,
     listPantryItems,
     PantryItemConflictError,
@@ -284,5 +288,37 @@ describe('updatePantryItem', () => {
 
         await expect(updatePantryItem(pantryItemId, { name: 'Olive Oil' }))
             .rejects.toBe(error)
+    })
+})
+
+describe('deletePantryItem', () => {
+    it('deletes and returns the pantry item by ID', async () => {
+        deletePantryItemMock.mockResolvedValue(pantryItem)
+
+        const deletedItem = await deletePantryItem(pantryItemId)
+
+        expect(deletedItem).toEqual(pantryItem)
+        expect(deletedItem).not.toHaveProperty('normalizedName')
+        expect(deletePantryItemMock).toHaveBeenCalledOnce()
+        expect(deletePantryItemMock).toHaveBeenCalledWith({
+            where: {
+                id: pantryItemId,
+            },
+            select: pantryItemSelect,
+        })
+    })
+
+    it('translates a missing-record deletion to a not-found error', async () => {
+        deletePantryItemMock.mockRejectedValue(knownPrismaError('P2025'))
+
+        await expect(deletePantryItem(pantryItemId))
+            .rejects.toBeInstanceOf(PantryItemNotFoundError)
+    })
+
+    it('propagates unrelated deletion failures unchanged', async () => {
+        const error = new Error('connection closed')
+        deletePantryItemMock.mockRejectedValue(error)
+
+        await expect(deletePantryItem(pantryItemId)).rejects.toBe(error)
     })
 })

@@ -3,6 +3,7 @@ import {
     pantryItemInputSchema,
 } from '@/schemas/pantry-item'
 import {
+    deletePantryItem,
     getPantryItemById,
     PantryItemConflictError,
     PantryItemNotFoundError,
@@ -130,6 +131,29 @@ export async function PUT(request: Request, context: PantryItemRouteContext) {
 
         if (error instanceof PantryItemConflictError) {
             return pantryItemConflictResponse()
+        }
+
+        return internalServerErrorResponse(error)
+    }
+}
+
+export async function DELETE(_request: Request, context: PantryItemRouteContext) {
+    const { id } = await context.params
+    const idResult = pantryItemIdSchema.safeParse(id)
+
+    if (!idResult.success) {
+        return invalidPantryItemIdResponse()
+    }
+
+    try {
+        const item = await deletePantryItem(idResult.data)
+
+        return Response.json(item, {
+            status: 200,
+        })
+    } catch (error) {
+        if (error instanceof PantryItemNotFoundError) {
+            return pantryItemNotFoundResponse()
         }
 
         return internalServerErrorResponse(error)

@@ -100,3 +100,20 @@ export async function updatePantryItem(id: string, input: PantryItemInput) {
         throw error
     }
 }
+
+export async function deletePantryItem(id: string) {
+    try {
+        return await prisma.pantryItem.delete({
+            where: {
+                id,
+            },
+            select: pantryItemPublicSelect,
+        })
+    } catch (error) {
+        if (isKnownPrismaError(error, 'P2025')) {
+            throw new PantryItemNotFoundError(id)
+        }
+
+        throw error
+    }
+}
