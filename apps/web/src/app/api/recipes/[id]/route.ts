@@ -3,6 +3,7 @@ import {
     getRecipeById,
     RecipeNotFoundError,
     updateRecipe,
+    deleteRecipe,
 } from '@/services/recipe-service'
 
 type RecipeRouteContext = {
@@ -108,6 +109,29 @@ export async function PUT(request: Request, context: RecipeRouteContext) {
         const recipe = await updateRecipe(idResult.data, result.data)
 
         return Response.json(recipe)
+    } catch (error) {
+        if (error instanceof RecipeNotFoundError) {
+            return recipeNotFoundResponse()
+        }
+
+        return internalServerErrorResponse(error)
+    }
+}
+
+export async function DELETE(_request: Request, context: RecipeRouteContext) {
+    const { id } = await context.params
+    const idResult = recipeIdSchema.safeParse(id)
+
+    if (!idResult.success) {
+        return invalidRecipeIdResponse()
+    }
+
+    try {
+        const recipe = await deleteRecipe(idResult.data)
+
+        return Response.json(recipe, {
+            status: 200,
+        })
     } catch (error) {
         if (error instanceof RecipeNotFoundError) {
             return recipeNotFoundResponse()

@@ -7,6 +7,8 @@ const {
   transactionMock,
   transactionFindRecipeMock,
   transactionUpdateRecipeMock,
+  transactionDeleteRecipeIngredientsMock,
+  transactionDeleteRecipeMock,
   transactionDeleteIngredientsMock,
 } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
@@ -15,6 +17,8 @@ const {
   transactionMock: vi.fn(),
   transactionFindRecipeMock: vi.fn(),
   transactionUpdateRecipeMock: vi.fn(),
+  transactionDeleteRecipeIngredientsMock: vi.fn(),
+  transactionDeleteRecipeMock: vi.fn(),
   transactionDeleteIngredientsMock: vi.fn(),
 }));
 
@@ -31,6 +35,7 @@ vi.mock("@/lib/prisma", () => ({
 
 import {
   createRecipe,
+  deleteRecipe,
   getRecipeById,
   listRecipes,
   RecipeNotFoundError,
@@ -89,6 +94,10 @@ beforeEach(() => {
     recipe: {
       findUnique: transactionFindRecipeMock,
       update: transactionUpdateRecipeMock,
+      delete: transactionDeleteRecipeMock,
+    },
+    recipeIngredient: {
+      deleteMany: transactionDeleteRecipeIngredientsMock,
     },
     ingredient: {
       deleteMany: transactionDeleteIngredientsMock,
@@ -471,5 +480,86 @@ describe("updateRecipe", () => {
         ingredients: [{ name: "Salt", quantity: "to taste" }],
       }),
     ).rejects.toThrow("transaction rolled back");
+  });
+});
+
+describe("deleteRecipe", () => {
+  it("deletes joins before the recipe, cleans up only orphaned ingredients, and returns the flattened recipe", async () => {
+    transactionFindRecipeMock.mockResolvedValue(completeRecipe);
+    transactionDeleteRecipeIngredientsMock.mockResolvedValue({ count: 2 });
+    transactionDeleteRecipeMock.mockResolvedValue(completeRecipe);
+    transactionDeleteIngredientsMock.mockResolvedValue({ count: 1 });
+
+    await expect(deleteRecipe(completeRecipe.id)).resolves.toEqual(
+      flattenedRecipe,
+    );
+
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(transactionFindRecipeMock).toHaveBeenCalledWith({
+      where: { id: completeRecipe.id },
+      include: {
+        ingredients: {
+          include: { ingredient: true },
+        },
+      },
+    });
+    expect(transactionDeleteRecipeIngredientsMock).toHaveBeenCalledWith({
+      where: { recipeId: completeRecipe.id },
+    });
+    expect(transactionDeleteRecipeMock).toHaveBeenCalledWith({
+      where: { id: completeRecipe.id },
+    });
+    expect(transactionDeleteIngredientsMock).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["ingredient_new_1", "ingredient_new_2"] },
+        recipes: { none: {} },
+      },
+    });
+    expect(
+      transactionDeleteRecipeIngredientsMock.mock.invocationCallOrder[0],
+    ).toBeLessThan(transactionDeleteRecipeMock.mock.invocationCallOrder[0]);
+    expect(
+      transactionDeleteRecipeMock.mock.invocationCallOrder[0],
+    ).toBeLessThan(transactionDeleteIngredientsMock.mock.invocationCallOrder[0]);
+  });
+
+  it("throws the domain error before deleting when the recipe does not exist", async () => {
+    transactionFindRecipeMock.mockResolvedValue(null);
+
+    await expect(deleteRecipe(completeRecipe.id)).rejects.toBeInstanceOf(
+      RecipeNotFoundError,
+    );
+
+    expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
+    expect(transactionDeleteRecipeMock).not.toHaveBeenCalled();
+    expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
+  });
+
+  it("maps a P2025 deletion failure to RecipeNotFoundError", async () => {
+    transactionFindRecipeMock.mockResolvedValue(completeRecipe);
+    transactionDeleteRecipeMock.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Record to delete not found", {
+        code: "P2025",
+        clientVersion: "7.10.0",
+      }),
+    );
+
+    await expect(deleteRecipe(completeRecipe.id)).rejects.toBeInstanceOf(
+      RecipeNotFoundError,
+    );
+
+    expect(transactionDeleteRecipeIngredientsMock).toHaveBeenCalledOnce();
+    expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
+  });
+
+  it("propagates unexpected database errors unchanged", async () => {
+    const databaseError = new Error("database unavailable");
+    transactionFindRecipeMock.mockRejectedValue(databaseError);
+
+    await expect(deleteRecipe(completeRecipe.id)).rejects.toBe(databaseError);
+
+    expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
+    expect(transactionDeleteRecipeMock).not.toHaveBeenCalled();
+    expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
   });
 });

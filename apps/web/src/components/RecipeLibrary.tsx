@@ -98,6 +98,8 @@ export default function RecipeLibrary() {
   >(null);
   const [pantryError, setPantryError] = useState(false);
   const [pantryRequestNumber, setPantryRequestNumber] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -175,6 +177,52 @@ export default function RecipeLibrary() {
     setPantryRequestNumber((current) => current + 1);
   }
 
+  async function handleDeleteRecipe(recipe: RecipeSummary) {
+    if (deletingId !== null) return;
+
+    const confirmed = window.confirm(
+      `Delete ${recipe.name} from your recipe library?`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(recipe.id);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => null);
+
+        const message =
+          typeof payload === "object" &&
+          payload !== null &&
+          "error" in payload &&
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to delete the recipe.";
+
+        throw new Error(message);
+      }
+
+      setRecipes(
+        (current) =>
+          current?.filter((currentRecipe) => currentRecipe.id !== recipe.id) ??
+          null,
+      );
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete the recipe.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   let libraryContent;
 
   if (error) {
@@ -233,12 +281,23 @@ export default function RecipeLibrary() {
                     </p>
                   ) : null}
                 </div>
-                <Link
-                  className="-mx-2 w-fit px-2 py-1 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-100"
-                  href={`/recipes/${recipe.id}/edit`}
-                >
-                  Edit recipe
-                </Link>
+                <div className="flex flex-nowrap items-center gap-2">
+                  <Link
+                    className="-mx-2 w-fit px-2 py-1 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50 dark:focus-visible:outline-zinc-100"
+                    href={`/recipes/${recipe.id}/edit`}
+                  >
+                    Edit recipe
+                  </Link>
+                  <button
+                    aria-label={`Delete ${recipe.name}`}
+                    className="px-2 py-1 text-sm font-medium text-red-700"
+                    disabled={deletingId === recipe.id}
+                    onClick={() => void handleDeleteRecipe(recipe)}
+                    type="button"
+                  >
+                    {deletingId === recipe.id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               </div>
             </li>
           );
@@ -266,6 +325,11 @@ export default function RecipeLibrary() {
             Try again
           </button>
         </div>
+      ) : null}
+      {deleteError ? (
+        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+          {deleteError}
+        </p>
       ) : null}
       {libraryContent}
     </div>

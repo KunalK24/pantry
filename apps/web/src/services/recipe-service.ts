@@ -49,6 +49,11 @@ export class RecipeNotFoundError extends Error {
     }
 }
 
+function isKnownPrismaError(error: unknown, code: string) {
+    return error instanceof Prisma.PrismaClientKnownRequestError
+        && error.code === code
+}
+
 export async function createRecipe(input: RecipeInput) {
     const recipe = await prisma.recipe.create({
         data: {
@@ -174,6 +179,60 @@ export async function updateRecipe(id: string, input: RecipeInput) {
             error instanceof Prisma.PrismaClientKnownRequestError
             && error.code === 'P2025'
         ) {
+            throw new RecipeNotFoundError(id)
+        }
+
+        throw error
+    }
+}
+
+export async function deleteRecipe(id: string) {
+    try {
+        return await prisma.$transaction(async (transaction) => {
+            const recipe = await transaction.recipe.findUnique({
+                where: {
+                    id,
+                },
+                include: recipeWithIngredients,
+            })
+
+            if (!recipe) {
+                throw new RecipeNotFoundError(id)
+            }
+
+            const ingredientIds = recipe.ingredients.map(
+                ({ ingredientId }) => ingredientId,
+            )
+
+            await transaction.recipeIngredient.deleteMany({
+                where: {
+                    recipeId: id,
+                },
+            })
+
+            await transaction.recipe.delete({
+                where: {
+                    id,
+                },
+            })
+
+            if (ingredientIds.length > 0) {
+                await transaction.ingredient.deleteMany({
+                    where: {
+                        id: {
+                            in: ingredientIds,
+                        },
+                        recipes: {
+                            none: {},
+                        },
+                    },
+                })
+            }
+
+            return flattenRecipe(recipe)
+        })
+    } catch (error) {
+        if (isKnownPrismaError(error, 'P2025')) {
             throw new RecipeNotFoundError(id)
         }
 

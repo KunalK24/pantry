@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   getRecipeByIdMock,
   updateRecipeMock,
+  deleteRecipeMock,
   RecipeNotFoundErrorMock,
 } = vi.hoisted(() => {
   class RecipeNotFoundErrorMock extends Error {}
@@ -10,6 +11,7 @@ const {
   return {
     getRecipeByIdMock: vi.fn(),
     updateRecipeMock: vi.fn(),
+    deleteRecipeMock: vi.fn(),
     RecipeNotFoundErrorMock,
   };
 });
@@ -17,10 +19,11 @@ const {
 vi.mock("@/services/recipe-service", () => ({
   getRecipeById: getRecipeByIdMock,
   updateRecipe: updateRecipeMock,
+  deleteRecipe: deleteRecipeMock,
   RecipeNotFoundError: RecipeNotFoundErrorMock,
 }));
 
-import { GET, PUT } from "@/app/api/recipes/[id]/route";
+import { DELETE, GET, PUT } from "@/app/api/recipes/[id]/route";
 
 const recipeId = "cm12345678901234567890123";
 const context = (id = recipeId) => ({ params: Promise.resolve({ id }) });
@@ -49,6 +52,7 @@ const recipe = {
 beforeEach(() => {
   getRecipeByIdMock.mockReset();
   updateRecipeMock.mockReset();
+  deleteRecipeMock.mockReset();
 });
 
 afterEach(() => {
@@ -184,6 +188,64 @@ describe("PUT /api/recipes/[id]", () => {
     });
 
     const response = await PUT(request, context());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
+});
+
+describe("DELETE /api/recipes/[id]", () => {
+  it("returns the deleted recipe", async () => {
+    deleteRecipeMock.mockResolvedValue(recipe);
+    const request = new Request(
+      `http://localhost:3000/api/recipes/${recipeId}`,
+      { method: "DELETE" },
+    );
+
+    const response = await DELETE(request, context());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(recipe);
+    expect(deleteRecipeMock).toHaveBeenCalledWith(recipeId);
+  });
+
+  it("returns 400 for a malformed recipe ID without calling the service", async () => {
+    const request = new Request(
+      "http://localhost:3000/api/recipes/not-a-cuid",
+      { method: "DELETE" },
+    );
+
+    const response = await DELETE(request, context("not-a-cuid"));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid recipe ID" });
+    expect(deleteRecipeMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the recipe does not exist", async () => {
+    deleteRecipeMock.mockRejectedValue(new RecipeNotFoundErrorMock());
+    const request = new Request(
+      `http://localhost:3000/api/recipes/${recipeId}`,
+      { method: "DELETE" },
+    );
+
+    const response = await DELETE(request, context());
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Recipe not found" });
+  });
+
+  it("returns a generic 500 for unexpected deletion failures", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    deleteRecipeMock.mockRejectedValue(new Error("database details"));
+    const request = new Request(
+      `http://localhost:3000/api/recipes/${recipeId}`,
+      { method: "DELETE" },
+    );
+
+    const response = await DELETE(request, context());
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
