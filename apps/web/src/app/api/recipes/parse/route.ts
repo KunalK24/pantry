@@ -7,8 +7,12 @@ import {
 
 const errorResponses: Record<RecipeImportErrorCode, { message: string; status: number }> = {
     invalid_extraction: {
-        message: 'The pasted text could not be converted into a valid recipe',
+        message: 'The recipe source could not be converted into a valid recipe',
         status: 422,
+    },
+    invalid_source: {
+        message: 'Invalid recipe import source',
+        status: 400,
     },
     rate_limited: {
         message: 'Recipe import is temporarily rate limited',

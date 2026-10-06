@@ -40,11 +40,79 @@ describe('POST /api/recipes/parse', () => {
         }
         importRecipeMock.mockResolvedValue(draft)
 
+        const response = await POST(createRequest(JSON.stringify({
+            type: 'text',
+            text: 'Toast recipe',
+        })))
+
+        expect(response.status).toBe(200)
+        await expect(response.json()).resolves.toEqual({ draft })
+        expect(importRecipeMock).toHaveBeenCalledWith({
+            type: 'text',
+            text: 'Toast recipe',
+        })
+    })
+
+    it('preserves legacy text-only import requests', async () => {
+        const draft = {
+            name: 'Toast',
+            instructions: 'Toast the bread.',
+            ingredients: [{ name: 'Bread', quantity: '2', unit: 'slices' }],
+        }
+        importRecipeMock.mockResolvedValue(draft)
+
         const response = await POST(createRequest(JSON.stringify({ text: 'Toast recipe' })))
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ draft })
-        expect(importRecipeMock).toHaveBeenCalledWith({ text: 'Toast recipe' })
+        expect(importRecipeMock).toHaveBeenCalledWith({
+            type: 'text',
+            text: 'Toast recipe',
+        })
+    })
+
+    it('accepts valid image import requests', async () => {
+        const draft = {
+            name: 'Toast',
+            instructions: 'Toast the bread.',
+            ingredients: [{ name: 'Bread', quantity: '2', unit: 'slices' }],
+        }
+        importRecipeMock.mockResolvedValue(draft)
+        const image = {
+            mimeType: 'image/webp',
+            data: Buffer.from('image').toString('base64'),
+        }
+
+        const response = await POST(createRequest(JSON.stringify({
+            type: 'image',
+            image,
+        })))
+
+        expect(response.status).toBe(200)
+        expect(importRecipeMock).toHaveBeenCalledWith({
+            type: 'image',
+            image,
+        })
+    })
+
+    it('accepts valid URL import requests', async () => {
+        const draft = {
+            name: 'Toast',
+            instructions: 'Toast the bread.',
+            ingredients: [{ name: 'Bread', quantity: '2', unit: 'slices' }],
+        }
+        importRecipeMock.mockResolvedValue(draft)
+
+        const response = await POST(createRequest(JSON.stringify({
+            type: 'url',
+            url: 'https://example.com/recipe',
+        })))
+
+        expect(response.status).toBe(200)
+        expect(importRecipeMock).toHaveBeenCalledWith({
+            type: 'url',
+            url: 'https://example.com/recipe',
+        })
     })
 
     it('returns 400 for malformed JSON', async () => {
@@ -60,6 +128,27 @@ describe('POST /api/recipes/parse', () => {
         ['blank text', { text: '   ' }],
         ['a non-string text field', { text: 42 }],
         ['text over the size limit', { text: 'a'.repeat(20_001) }],
+        ['an unknown import type', { type: 'pdf', text: 'Recipe text' }],
+        ['unsupported image MIME type', {
+            type: 'image',
+            image: {
+                mimeType: 'image/gif',
+                data: Buffer.from('image').toString('base64'),
+            },
+        }],
+        ['missing image data', {
+            type: 'image',
+            image: {
+                mimeType: 'image/png',
+                data: '',
+            },
+        }],
+        ['a non-http URL', { type: 'url', url: 'ftp://example.com/recipe' }],
+        ['an invalid URL', { type: 'url', url: 'not a url' }],
+        ['a URL over the size limit', {
+            type: 'url',
+            url: `https://example.com/${'a'.repeat(2049)}`,
+        }],
     ])('returns 400 for %s', async (_case, body) => {
         const response = await POST(createRequest(JSON.stringify(body)))
 
@@ -81,11 +170,15 @@ describe('POST /api/recipes/parse', () => {
         })))
 
         expect(response.status).toBe(200)
-        expect(importRecipeMock).toHaveBeenCalledWith({ text: textAtLimit })
+        expect(importRecipeMock).toHaveBeenCalledWith({
+            type: 'text',
+            text: textAtLimit,
+        })
     })
 
     it.each([
-        ['invalid_extraction', 422, 'The pasted text could not be converted into a valid recipe'],
+        ['invalid_extraction', 422, 'The recipe source could not be converted into a valid recipe'],
+        ['invalid_source', 400, 'Invalid recipe import source'],
         ['rate_limited', 429, 'Recipe import is temporarily rate limited'],
         ['not_configured', 503, 'Recipe import is not configured'],
         ['provider_failure', 502, 'Recipe import provider is unavailable'],

@@ -35,7 +35,55 @@ export const recipeInputSchema = z.object({
     })
 })
 
-export const recipeInputRequestSchema = z.object({
+const typedRecipeInputRequestSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('text'),
+        text: z.string().trim().min(1).max(20000),
+    }),
+    z.object({
+        type: z.literal('image'),
+        image: z.object({
+            mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+            data: z.string().trim().min(1),
+        }),
+    }),
+    z.object({
+        type: z.literal('url'),
+        url: z.string()
+            .trim()
+            .max(2048)
+            .url()
+            .refine((value) => {
+                let protocol: string
+
+                try {
+                    protocol = new URL(value).protocol
+                } catch {
+                    return false
+                }
+
+                return protocol === 'http:' || protocol === 'https:'
+            }, 'URL must use http or https'),
+    }),
+])
+
+export const recipeInputRequestSchema = z.preprocess((value) => {
+    if (
+        typeof value === 'object'
+        && value !== null
+        && !('type' in value)
+        && 'text' in value
+    ) {
+        return {
+            ...value,
+            type: 'text',
+        }
+    }
+
+    return value
+}, typedRecipeInputRequestSchema)
+
+export const legacyRecipeInputRequestSchema = z.object({
     text: z.string().trim().min(1).max(20000),
 })
 

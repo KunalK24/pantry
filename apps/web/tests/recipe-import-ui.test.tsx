@@ -5,7 +5,7 @@ import ImportRecipeDialog from '@/components/ImportRecipeDialog'
 import RecipeForm from '@/components/RecipeForm'
 
 describe('recipe import UI', () => {
-    it('renders the recipe import action and its native dialog', () => {
+    it('renders the recipe import action, native dialog, and source modes', () => {
         const markup = renderToStaticMarkup(
             <ImportRecipeDialog onRecipeCreated={() => undefined} />,
         )
@@ -13,6 +13,13 @@ describe('recipe import UI', () => {
         expect(markup).toContain('Import recipe')
         expect(markup).toContain('<dialog')
         expect(markup).toContain('aria-labelledby="import-recipe-dialog-title"')
+        expect(markup).toContain('name="recipe-import-mode"')
+        expect(markup).toContain('value="text"')
+        expect(markup).toContain('value="image"')
+        expect(markup).toContain('value="url"')
+        expect(markup).toContain('Recipe text')
+        expect(markup).toContain('Recipe sources are sent to Google Gemini for conversion.')
+        expect(markup).toContain('Review recipe')
     })
 
     it('prefills the create form with a parsed recipe draft', () => {
