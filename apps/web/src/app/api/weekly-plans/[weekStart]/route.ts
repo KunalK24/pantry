@@ -1,4 +1,5 @@
 import { weekStartSchema, weeklyPlanInputSchema } from '@/schemas/weekly-plan'
+import { currentUserId } from '@/lib/current-user'
 import {
     getWeeklyPlan,
     saveWeeklyPlan,
@@ -36,7 +37,7 @@ export async function GET(_request: Request, context: WeeklyPlanRouteContext) {
     }
 
     try {
-        const plan = await getWeeklyPlan(weekStartResult.data)
+        const plan = await getWeeklyPlan(currentUserId, weekStartResult.data)
         return Response.json({ plan })
     } catch (error) {
         return internalServerErrorResponse(error)
@@ -77,7 +78,7 @@ export async function PUT(request: Request, context: WeeklyPlanRouteContext) {
     }
 
     try {
-        const plan = await saveWeeklyPlan(weekStartResult.data, inputResult.data)
+        const plan = await saveWeeklyPlan(currentUserId, weekStartResult.data, inputResult.data)
         return Response.json({ plan })
     } catch (error) {
         if (error instanceof WeeklyPlanReferenceError) {

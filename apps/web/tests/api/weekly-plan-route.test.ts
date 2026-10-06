@@ -23,6 +23,7 @@ vi.mock('@/services/weekly-plan-service', () => ({
 import { GET, PUT } from '@/app/api/weekly-plans/[weekStart]/route'
 
 const recipeId = 'cm12345678901234567890123'
+const userId = 'dev-user'
 const weekStart = '2026-09-28'
 const context = (value = weekStart) => ({ params: Promise.resolve({ weekStart: value }) })
 const plan = {
@@ -62,7 +63,7 @@ describe('GET /api/weekly-plans/[weekStart]', () => {
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ plan: savedPlan })
-        expect(getWeeklyPlanMock).toHaveBeenCalledWith(weekStart)
+        expect(getWeeklyPlanMock).toHaveBeenCalledWith(userId, weekStart)
     })
 })
 
@@ -84,7 +85,7 @@ describe('PUT /api/weekly-plans/[weekStart]', () => {
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ plan })
-        expect(saveWeeklyPlanMock).toHaveBeenCalledWith(weekStart, input)
+        expect(saveWeeklyPlanMock).toHaveBeenCalledWith(userId, weekStart, input)
     })
 
     it.each([

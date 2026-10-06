@@ -50,6 +50,7 @@ const recipeId = 'cm12345678901234567890123'
 const pantryItemId = 'cm22345678901234567890123'
 const weeklyPlanId = 'cm32345678901234567890123'
 const groceryListId = 'cm42345678901234567890123'
+const userId = 'cm52345678901234567890123'
 const updatedAt = new Date('2026-10-01T12:00:00.000Z')
 
 const groceryListSelect = {
@@ -136,16 +137,21 @@ describe('getActiveGroceryList', () => {
     it('returns the singleton snapshot in deterministic order', async () => {
         findGroceryListMock.mockResolvedValue(persistedList)
 
-        await expect(getActiveGroceryList()).resolves.toEqual(persistedList)
+        await expect(getActiveGroceryList(userId)).resolves.toEqual(persistedList)
         expect(findGroceryListMock).toHaveBeenCalledWith({
-            where: { key: 'active' },
+            where: {
+                userId_key: {
+                    userId,
+                    key: 'active',
+                },
+            },
             select: groceryListSelect,
         })
     })
 
     it('returns null when the active list has not been saved', async () => {
         findGroceryListMock.mockResolvedValue(null)
-        await expect(getActiveGroceryList()).resolves.toBeNull()
+        await expect(getActiveGroceryList(userId)).resolves.toBeNull()
     })
 })
 
@@ -157,20 +163,25 @@ describe('saveActiveGroceryList', () => {
         upsertGroceryListMock.mockResolvedValue({ id: groceryListId })
         findSavedGroceryListMock.mockResolvedValue(persistedList)
 
-        await expect(saveActiveGroceryList(input)).resolves.toEqual(persistedList)
+        await expect(saveActiveGroceryList(userId, input)).resolves.toEqual(persistedList)
 
         expect(countRecipesMock).toHaveBeenCalledWith({
-            where: { id: { in: [recipeId] } },
+            where: { userId, id: { in: [recipeId] } },
         })
         expect(countPantryItemsMock).toHaveBeenCalledWith({
-            where: { id: { in: [pantryItemId] } },
+            where: { userId, id: { in: [pantryItemId] } },
         })
         expect(countWeeklyPlansMock).toHaveBeenCalledWith({
-            where: { id: weeklyPlanId },
+            where: { userId, id: weeklyPlanId },
         })
         expect(upsertGroceryListMock).toHaveBeenCalledWith({
-            where: { key: 'active' },
-            create: { key: 'active', importedWeeklyPlanId: weeklyPlanId },
+            where: {
+                userId_key: {
+                    userId,
+                    key: 'active',
+                },
+            },
+            create: { userId, key: 'active', importedWeeklyPlanId: weeklyPlanId },
             update: { importedWeeklyPlanId: weeklyPlanId },
             select: { id: true },
         })
@@ -201,7 +212,7 @@ describe('saveActiveGroceryList', () => {
             items: [],
         })
 
-        await saveActiveGroceryList({
+        await saveActiveGroceryList(userId, {
             importedWeeklyPlanId: null,
             recipes: [],
             items: [],
@@ -223,7 +234,7 @@ describe('saveActiveGroceryList', () => {
         countPantryItemsMock.mockResolvedValue(counts.pantry)
         countWeeklyPlansMock.mockResolvedValue(counts.plan)
 
-        await expect(saveActiveGroceryList(input))
+        await expect(saveActiveGroceryList(userId, input))
             .rejects.toBeInstanceOf(GroceryListReferenceError)
         expect(upsertGroceryListMock).not.toHaveBeenCalled()
     })
@@ -240,7 +251,7 @@ describe('saveActiveGroceryList', () => {
             { code: 'P2003', clientVersion: '7.10.0' },
         ))
 
-        await expect(saveActiveGroceryList(input))
+        await expect(saveActiveGroceryList(userId, input))
             .rejects.toBeInstanceOf(GroceryListReferenceError)
     })
 })
@@ -249,9 +260,9 @@ describe('clearActiveGroceryList', () => {
     it('idempotently deletes by the active singleton key', async () => {
         deleteGroceryListMock.mockResolvedValue({ count: 0 })
 
-        await expect(clearActiveGroceryList()).resolves.toBeUndefined()
+        await expect(clearActiveGroceryList(userId)).resolves.toBeUndefined()
         expect(deleteGroceryListMock).toHaveBeenCalledWith({
-            where: { key: 'active' },
+            where: { userId, key: 'active' },
         })
     })
 })

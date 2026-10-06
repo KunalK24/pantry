@@ -1,5 +1,6 @@
 import { createRecipe, listRecipes } from '@/services/recipe-service'
 import { recipeInputSchema } from '@/schemas/recipe'
+import { currentUserId } from '@/lib/current-user'
 
 export async function POST(request: Request) {
     let input: unknown
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const recipe = await createRecipe(result.data)
+        const recipe = await createRecipe(currentUserId, result.data)
 
         return Response.json(recipe, {
             status: 201,
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
     try {
-        const recipes = await listRecipes()
+        const recipes = await listRecipes(currentUserId)
 
         return Response.json({ recipes })
     } catch (error) {

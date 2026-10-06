@@ -38,6 +38,7 @@ const recipeId = 'cm12345678901234567890123'
 const secondRecipeId = 'cm22345678901234567890123'
 const planId = 'cm32345678901234567890123'
 const mealId = 'cm42345678901234567890123'
+const userId = 'cm52345678901234567890123'
 const weekStart = '2026-09-28'
 const weekStartDate = new Date('2026-09-28T00:00:00.000Z')
 const updatedAt = new Date('2026-10-01T12:00:00.000Z')
@@ -92,12 +93,17 @@ describe('getWeeklyPlan', () => {
     it('returns a serialized plan with ordered meals', async () => {
         findWeeklyPlanMock.mockResolvedValue(persistedPlan)
 
-        await expect(getWeeklyPlan(weekStart)).resolves.toEqual({
+        await expect(getWeeklyPlan(userId, weekStart)).resolves.toEqual({
             ...persistedPlan,
             weekStart,
         })
         expect(findWeeklyPlanMock).toHaveBeenCalledWith({
-            where: { weekStart: weekStartDate },
+            where: {
+                userId_weekStart: {
+                    userId,
+                    weekStart: weekStartDate,
+                },
+            },
             select: weeklyPlanSelect,
         })
     })
@@ -105,7 +111,7 @@ describe('getWeeklyPlan', () => {
     it('returns null for an uncreated week', async () => {
         findWeeklyPlanMock.mockResolvedValue(null)
 
-        await expect(getWeeklyPlan(weekStart)).resolves.toBeNull()
+        await expect(getWeeklyPlan(userId, weekStart)).resolves.toBeNull()
     })
 })
 
@@ -122,18 +128,23 @@ describe('saveWeeklyPlan', () => {
         upsertWeeklyPlanMock.mockResolvedValue({ id: planId })
         findSavedWeeklyPlanMock.mockResolvedValue(persistedPlan)
 
-        await expect(saveWeeklyPlan(weekStart, input)).resolves.toEqual({
+        await expect(saveWeeklyPlan(userId, weekStart, input)).resolves.toEqual({
             ...persistedPlan,
             weekStart,
         })
 
         expect(transactionMock).toHaveBeenCalledOnce()
         expect(countRecipesMock).toHaveBeenCalledWith({
-            where: { id: { in: [recipeId, secondRecipeId] } },
+            where: { userId, id: { in: [recipeId, secondRecipeId] } },
         })
         expect(upsertWeeklyPlanMock).toHaveBeenCalledWith({
-            where: { weekStart: weekStartDate },
-            create: { weekStart: weekStartDate },
+            where: {
+                userId_weekStart: {
+                    userId,
+                    weekStart: weekStartDate,
+                },
+            },
+            create: { userId, weekStart: weekStartDate },
             update: { updatedAt: expect.any(Date) },
             select: { id: true },
         })
@@ -153,7 +164,7 @@ describe('saveWeeklyPlan', () => {
         upsertWeeklyPlanMock.mockResolvedValue({ id: planId })
         findSavedWeeklyPlanMock.mockResolvedValue({ ...persistedPlan, meals: [] })
 
-        await saveWeeklyPlan(weekStart, { meals: [] })
+        await saveWeeklyPlan(userId, weekStart, { meals: [] })
 
         expect(countRecipesMock).not.toHaveBeenCalled()
         expect(createMealsMock).not.toHaveBeenCalled()
@@ -163,7 +174,7 @@ describe('saveWeeklyPlan', () => {
     it('rejects an unknown recipe before replacing the plan', async () => {
         countRecipesMock.mockResolvedValue(0)
 
-        await expect(saveWeeklyPlan(weekStart, {
+        await expect(saveWeeklyPlan(userId, weekStart, {
             meals: [{ recipeId, dayOffset: 0, position: 0 }],
         })).rejects.toBeInstanceOf(WeeklyPlanReferenceError)
 
@@ -180,7 +191,7 @@ describe('saveWeeklyPlan', () => {
             { code: 'P2003', clientVersion: '7.10.0' },
         ))
 
-        await expect(saveWeeklyPlan(weekStart, {
+        await expect(saveWeeklyPlan(userId, weekStart, {
             meals: [{ recipeId, dayOffset: 0, position: 0 }],
         })).rejects.toBeInstanceOf(WeeklyPlanReferenceError)
     })

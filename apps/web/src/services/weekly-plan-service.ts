@@ -47,10 +47,13 @@ function isForeignKeyError(error: unknown) {
         && error.code === 'P2003'
 }
 
-export async function getWeeklyPlan(weekStart: string) {
+export async function getWeeklyPlan(userId: string, weekStart: string) {
     const plan = await prisma.weeklyPlan.findUnique({
         where: {
-            weekStart: weekStartToDate(weekStart),
+            userId_weekStart: {
+                userId,
+                weekStart: weekStartToDate(weekStart),
+            },
         },
         select: weeklyPlanSelect,
     })
@@ -59,6 +62,7 @@ export async function getWeeklyPlan(weekStart: string) {
 }
 
 export async function saveWeeklyPlan(
+    userId: string,
     weekStart: string,
     input: WeeklyPlanInput,
 ) {
@@ -70,6 +74,7 @@ export async function saveWeeklyPlan(
             if (recipeIds.length > 0) {
                 const recipeCount = await transaction.recipe.count({
                     where: {
+                        userId,
                         id: {
                             in: recipeIds,
                         },
@@ -83,9 +88,13 @@ export async function saveWeeklyPlan(
 
             const savedPlan = await transaction.weeklyPlan.upsert({
                 where: {
-                    weekStart: weekStartDate,
+                    userId_weekStart: {
+                        userId,
+                        weekStart: weekStartDate,
+                    },
                 },
                 create: {
+                    userId,
                     weekStart: weekStartDate,
                 },
                 update: {

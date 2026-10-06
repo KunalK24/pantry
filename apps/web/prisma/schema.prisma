@@ -23,6 +23,11 @@ model Recipe {
   ingredients        RecipeIngredient[]
   plannedMeals       PlannedMeal[]
   groceryListRecipes GroceryListRecipe[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Ingredient {
@@ -48,23 +53,34 @@ model RecipeIngredient {
 model PantryItem {
   id             String   @id @default(cuid())
   name           String
-  normalizedName String   @unique
+  normalizedName String
   quantity       String?
   unit           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   groceryItems GroceryItem[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, normalizedName])
+  @@index([userId])
 }
 
 model WeeklyPlan {
   id        String   @id @default(cuid())
-  weekStart DateTime @unique @db.Date
+  weekStart DateTime @db.Date
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   meals                PlannedMeal[]
   importedGroceryLists GroceryList[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
 }
 
 model PlannedMeal {
@@ -83,7 +99,7 @@ model PlannedMeal {
 
 model GroceryList {
   id                   String   @id @default(cuid())
-  key                  String   @unique
+  key                  String
   importedWeeklyPlanId String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -92,7 +108,11 @@ model GroceryList {
   recipes            GroceryListRecipe[]
   items              GroceryItem[]
 
-  @@index([importedWeeklyPlanId])
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, importedWeeklyPlanId])
 }
 
 enum GroceryRecipeSource {
@@ -131,4 +151,31 @@ model GroceryItem {
 
   @@unique([groceryListId, lineKey])
   @@index([pantryItemId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  recipes      Recipe[]
+  pantryItems  PantryItem[]
+  weeklyPlans  WeeklyPlan[]
+  groceryLists GroceryList[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

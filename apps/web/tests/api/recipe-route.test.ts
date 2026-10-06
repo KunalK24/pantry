@@ -12,6 +12,8 @@ vi.mock("@/services/recipe-service", () => ({
 
 import { GET, POST } from "@/app/api/recipes/route";
 
+const userId = "dev-user";
+
 describe("POST /api/recipes", () => {
   beforeEach(() => {
     createRecipeMock.mockReset();
@@ -55,7 +57,7 @@ describe("POST /api/recipes", () => {
 
     expect(response.status).toBe(201);
     expect(data).toEqual(recipe);
-    expect(createRecipeMock).toHaveBeenCalledWith(input);
+    expect(createRecipeMock).toHaveBeenCalledWith(userId, input);
   });
 
   it("rejects missing ingredients", async () => {
@@ -131,7 +133,7 @@ describe("POST /api/recipes", () => {
       const response = await POST(request);
 
       expect(response.status).toBe(201);
-      expect(createRecipeMock).toHaveBeenCalledWith(input);
+      expect(createRecipeMock).toHaveBeenCalledWith(userId, input);
     },
   );
 

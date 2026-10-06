@@ -26,6 +26,7 @@ vi.mock("@/services/recipe-service", () => ({
 import { DELETE, GET, PUT } from "@/app/api/recipes/[id]/route";
 
 const recipeId = "cm12345678901234567890123";
+const userId = "dev-user";
 const context = (id = recipeId) => ({ params: Promise.resolve({ id }) });
 const input = {
   name: "Updated Tomato Soup",
@@ -70,7 +71,7 @@ describe("GET /api/recipes/[id]", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(recipe);
-    expect(getRecipeByIdMock).toHaveBeenCalledWith(recipeId);
+    expect(getRecipeByIdMock).toHaveBeenCalledWith(userId, recipeId);
   });
 
   it("returns 400 for a malformed recipe ID", async () => {
@@ -124,7 +125,7 @@ describe("PUT /api/recipes/[id]", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(recipe);
-    expect(updateRecipeMock).toHaveBeenCalledWith(recipeId, input);
+    expect(updateRecipeMock).toHaveBeenCalledWith(userId, recipeId, input);
   });
 
   it("returns 400 for a malformed ID before reading the body", async () => {
@@ -208,7 +209,7 @@ describe("DELETE /api/recipes/[id]", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(recipe);
-    expect(deleteRecipeMock).toHaveBeenCalledWith(recipeId);
+    expect(deleteRecipeMock).toHaveBeenCalledWith(userId, recipeId);
   });
 
   it("returns 400 for a malformed recipe ID without calling the service", async () => {

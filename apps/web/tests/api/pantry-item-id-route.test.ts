@@ -30,6 +30,7 @@ vi.mock('@/services/pantry-item-service', () => ({
 import { DELETE, GET, PUT } from '@/app/api/pantry-items/[id]/route'
 
 const pantryItemId = 'cm12345678901234567890123'
+const userId = 'dev-user'
 const context = (id = pantryItemId) => ({ params: Promise.resolve({ id }) })
 const pantryItem = {
     id: pantryItemId,
@@ -59,7 +60,7 @@ describe('GET /api/pantry-items/[id]', () => {
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual(pantryItem)
-        expect(getPantryItemByIdMock).toHaveBeenCalledWith(pantryItemId)
+        expect(getPantryItemByIdMock).toHaveBeenCalledWith(userId, pantryItemId)
     })
 
     it('returns 400 for a malformed pantry item ID', async () => {
@@ -125,7 +126,7 @@ describe('PUT /api/pantry-items/[id]', () => {
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual(pantryItem)
-        expect(updatePantryItemMock).toHaveBeenCalledWith(pantryItemId, {
+        expect(updatePantryItemMock).toHaveBeenCalledWith(userId, pantryItemId, {
             name: 'Olive Oil',
             quantity: '1/2',
             unit: 'bottle',
@@ -153,7 +154,7 @@ describe('PUT /api/pantry-items/[id]', () => {
         const response = await PUT(request, context())
 
         expect(response.status).toBe(200)
-        expect(updatePantryItemMock).toHaveBeenCalledWith(pantryItemId, {
+        expect(updatePantryItemMock).toHaveBeenCalledWith(userId, pantryItemId, {
             name: 'Olive Oil',
             quantity: undefined,
             unit: undefined,
@@ -283,7 +284,7 @@ describe('DELETE /api/pantry-items/[id]', () => {
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual(pantryItem)
         expect(deletePantryItemMock).toHaveBeenCalledOnce()
-        expect(deletePantryItemMock).toHaveBeenCalledWith(pantryItemId)
+        expect(deletePantryItemMock).toHaveBeenCalledWith(userId, pantryItemId)
     })
 
     it('returns 400 for a malformed pantry item ID', async () => {

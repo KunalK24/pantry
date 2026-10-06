@@ -49,16 +49,19 @@ function isForeignKeyError(error: unknown) {
         && error.code === 'P2003'
 }
 
-export async function getActiveGroceryList() {
+export async function getActiveGroceryList(userId: string) {
     return prisma.groceryList.findUnique({
         where: {
-            key: activeListKey,
+            userId_key: {
+                userId,
+                key: activeListKey,
+            },
         },
         select: groceryListSelect,
     })
 }
 
-export async function saveActiveGroceryList(input: GroceryListInput) {
+export async function saveActiveGroceryList(userId: string, input: GroceryListInput) {
     const recipeIds = [...new Set(input.recipes.map(({ recipeId }) => recipeId))]
     const pantryItemIds = [...new Set(input.items.flatMap(({ pantryItemId }) => (
         pantryItemId ? [pantryItemId] : []
@@ -69,6 +72,7 @@ export async function saveActiveGroceryList(input: GroceryListInput) {
             if (recipeIds.length > 0) {
                 const recipeCount = await transaction.recipe.count({
                     where: {
+                        userId,
                         id: {
                             in: recipeIds,
                         },
@@ -83,6 +87,7 @@ export async function saveActiveGroceryList(input: GroceryListInput) {
             if (pantryItemIds.length > 0) {
                 const pantryItemCount = await transaction.pantryItem.count({
                     where: {
+                        userId,
                         id: {
                             in: pantryItemIds,
                         },
@@ -97,6 +102,7 @@ export async function saveActiveGroceryList(input: GroceryListInput) {
             if (input.importedWeeklyPlanId) {
                 const weeklyPlanCount = await transaction.weeklyPlan.count({
                     where: {
+                        userId,
                         id: input.importedWeeklyPlanId,
                     },
                 })
@@ -108,9 +114,13 @@ export async function saveActiveGroceryList(input: GroceryListInput) {
 
             const list = await transaction.groceryList.upsert({
                 where: {
-                    key: activeListKey,
+                    userId_key: {
+                        userId,
+                        key: activeListKey,
+                    },
                 },
                 create: {
+                    userId,
                     key: activeListKey,
                     importedWeeklyPlanId: input.importedWeeklyPlanId,
                 },
@@ -167,9 +177,10 @@ export async function saveActiveGroceryList(input: GroceryListInput) {
     }
 }
 
-export async function clearActiveGroceryList() {
+export async function clearActiveGroceryList(userId: string) {
     await prisma.groceryList.deleteMany({
         where: {
+            userId,
             key: activeListKey,
         },
     })

@@ -2,6 +2,7 @@ import {
     pantryItemIdSchema,
     pantryItemInputSchema,
 } from '@/schemas/pantry-item'
+import { currentUserId } from '@/lib/current-user'
 import {
     deletePantryItem,
     getPantryItemById,
@@ -71,7 +72,7 @@ export async function GET(_request: Request, context: PantryItemRouteContext) {
     }
 
     try {
-        const item = await getPantryItemById(idResult.data)
+        const item = await getPantryItemById(currentUserId, idResult.data)
 
         return Response.json(item)
     } catch (error) {
@@ -121,7 +122,7 @@ export async function PUT(request: Request, context: PantryItemRouteContext) {
     }
 
     try {
-        const item = await updatePantryItem(idResult.data, result.data)
+        const item = await updatePantryItem(currentUserId, idResult.data, result.data)
 
         return Response.json(item)
     } catch (error) {
@@ -146,7 +147,7 @@ export async function DELETE(_request: Request, context: PantryItemRouteContext)
     }
 
     try {
-        const item = await deletePantryItem(idResult.data)
+        const item = await deletePantryItem(currentUserId, idResult.data)
 
         return Response.json(item, {
             status: 200,

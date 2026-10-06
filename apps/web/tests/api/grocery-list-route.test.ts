@@ -27,6 +27,7 @@ import { DELETE, GET, PUT } from '@/app/api/grocery-list/route'
 
 const recipeId = 'cm12345678901234567890123'
 const pantryItemId = 'cm22345678901234567890123'
+const userId = 'dev-user'
 const input = {
     importedWeeklyPlanId: null,
     recipes: [
@@ -96,7 +97,7 @@ describe('PUT /api/grocery-list', () => {
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ list })
-        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(input)
+        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(userId, input)
     })
 
     it('accepts an empty base quantity for a manual pantry line', async () => {
@@ -119,7 +120,7 @@ describe('PUT /api/grocery-list', () => {
         const response = await PUT(request)
 
         expect(response.status).toBe(200)
-        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(manualPantryInput)
+        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(userId, manualPantryInput)
     })
 
     it.each([

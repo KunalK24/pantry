@@ -48,6 +48,7 @@ const pantryItemSelect = {
 }
 
 const pantryItemId = 'cm12345678901234567890123'
+const userId = 'cm22345678901234567890123'
 const pantryItem = {
     id: pantryItemId,
     name: 'Olive Oil',
@@ -99,8 +100,11 @@ describe('listPantryItems', () => {
     it('returns public fields ordered by normalized name', async () => {
         findManyPantryItemsMock.mockResolvedValue([pantryItem])
 
-        await expect(listPantryItems()).resolves.toEqual([pantryItem])
+        await expect(listPantryItems(userId)).resolves.toEqual([pantryItem])
         expect(findManyPantryItemsMock).toHaveBeenCalledWith({
+            where: {
+                userId,
+            },
             orderBy: {
                 normalizedName: 'asc',
             },
@@ -113,7 +117,7 @@ describe('createPantryItem', () => {
     it('creates an item with a normalized name and textual quantity', async () => {
         createPantryItemMock.mockResolvedValue(pantryItem)
 
-        await expect(createPantryItem({
+        await expect(createPantryItem(userId, {
             name: 'Olive Oil',
             quantity: '1/2',
             unit: 'bottle',
@@ -121,6 +125,7 @@ describe('createPantryItem', () => {
 
         expect(createPantryItemMock).toHaveBeenCalledWith({
             data: {
+                userId,
                 name: 'Olive Oil',
                 normalizedName: 'olive oil',
                 quantity: '1/2',
@@ -137,10 +142,11 @@ describe('createPantryItem', () => {
             unit: null,
         })
 
-        await createPantryItem({ name: 'Salt' })
+        await createPantryItem(userId, { name: 'Salt' })
 
         expect(createPantryItemMock).toHaveBeenCalledWith({
             data: {
+                userId,
                 name: 'Salt',
                 normalizedName: 'salt',
                 quantity: null,
@@ -153,10 +159,11 @@ describe('createPantryItem', () => {
     it('persists the canonical name while preserving the display name', async () => {
         createPantryItemMock.mockResolvedValue({ ...pantryItem, name: 'Scallions' })
 
-        await createPantryItem({ name: 'Scallions', quantity: '2', unit: 'bunches' })
+        await createPantryItem(userId, { name: 'Scallions', quantity: '2', unit: 'bunches' })
 
         expect(createPantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
             data: {
+                userId,
                 name: 'Scallions',
                 normalizedName: 'green onion',
                 quantity: '2',
@@ -168,7 +175,7 @@ describe('createPantryItem', () => {
     it('translates duplicate-name races to a conflict error', async () => {
         createPantryItemMock.mockRejectedValue(knownPrismaError('P2002'))
 
-        await expect(createPantryItem({ name: 'Olive Oil' }))
+        await expect(createPantryItem(userId, { name: 'Olive Oil' }))
             .rejects.toBeInstanceOf(PantryItemConflictError)
     })
 
@@ -176,14 +183,14 @@ describe('createPantryItem', () => {
         const error = knownPrismaError('P2003')
         createPantryItemMock.mockRejectedValue(error)
 
-        await expect(createPantryItem({ name: 'Olive Oil' })).rejects.toBe(error)
+        await expect(createPantryItem(userId, { name: 'Olive Oil' })).rejects.toBe(error)
     })
 
     it('does not translate a create P2025 into a not-found domain error', async () => {
         const error = knownPrismaError('P2025')
         createPantryItemMock.mockRejectedValue(error)
 
-        await expect(createPantryItem({ name: 'Olive Oil' })).rejects.toBe(error)
+        await expect(createPantryItem(userId, { name: 'Olive Oil' })).rejects.toBe(error)
     })
 })
 
@@ -191,10 +198,11 @@ describe('getPantryItemById', () => {
     it('returns a pantry item without its normalized name', async () => {
         findPantryItemByIdMock.mockResolvedValue(pantryItem)
 
-        await expect(getPantryItemById(pantryItemId)).resolves.toEqual(pantryItem)
+        await expect(getPantryItemById(userId, pantryItemId)).resolves.toEqual(pantryItem)
         expect(findPantryItemByIdMock).toHaveBeenCalledWith({
             where: {
                 id: pantryItemId,
+                userId,
             },
             select: pantryItemSelect,
         })
@@ -203,7 +211,7 @@ describe('getPantryItemById', () => {
     it('throws a domain error when the item does not exist', async () => {
         findPantryItemByIdMock.mockResolvedValue(null)
 
-        await expect(getPantryItemById(pantryItemId))
+        await expect(getPantryItemById(userId, pantryItemId))
             .rejects.toBeInstanceOf(PantryItemNotFoundError)
     })
 })
@@ -218,7 +226,7 @@ describe('updatePantryItem', () => {
         }
         updatePantryItemMock.mockResolvedValue(updatedItem)
 
-        await expect(updatePantryItem(pantryItemId, {
+        await expect(updatePantryItem(userId, pantryItemId, {
             name: 'Extra Virgin Olive Oil',
             quantity: 'one large',
             unit: 'bottle',
@@ -227,6 +235,7 @@ describe('updatePantryItem', () => {
         expect(updatePantryItemMock).toHaveBeenCalledWith({
             where: {
                 id: pantryItemId,
+                userId,
             },
             data: {
                 name: 'Extra Virgin Olive Oil',
@@ -245,7 +254,7 @@ describe('updatePantryItem', () => {
             unit: null,
         })
 
-        await updatePantryItem(pantryItemId, { name: 'Olive Oil' })
+        await updatePantryItem(userId, pantryItemId, { name: 'Olive Oil' })
 
         expect(updatePantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
             data: expect.objectContaining({
@@ -258,7 +267,7 @@ describe('updatePantryItem', () => {
     it('updates an alias to its canonical name without changing its display name', async () => {
         updatePantryItemMock.mockResolvedValue({ ...pantryItem, name: 'Scallion' })
 
-        await updatePantryItem(pantryItemId, { name: 'Scallion' })
+        await updatePantryItem(userId, pantryItemId, { name: 'Scallion' })
 
         expect(updatePantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
             data: expect.objectContaining({
@@ -271,14 +280,14 @@ describe('updatePantryItem', () => {
     it('translates a missing-record race to a not-found error', async () => {
         updatePantryItemMock.mockRejectedValue(knownPrismaError('P2025'))
 
-        await expect(updatePantryItem(pantryItemId, { name: 'Olive Oil' }))
+        await expect(updatePantryItem(userId, pantryItemId, { name: 'Olive Oil' }))
             .rejects.toBeInstanceOf(PantryItemNotFoundError)
     })
 
     it('translates a duplicate rename to a conflict error', async () => {
         updatePantryItemMock.mockRejectedValue(knownPrismaError('P2002'))
 
-        await expect(updatePantryItem(pantryItemId, { name: 'Avocado Oil' }))
+        await expect(updatePantryItem(userId, pantryItemId, { name: 'Avocado Oil' }))
             .rejects.toBeInstanceOf(PantryItemConflictError)
     })
 
@@ -286,7 +295,7 @@ describe('updatePantryItem', () => {
         const error = new Error('connection closed')
         updatePantryItemMock.mockRejectedValue(error)
 
-        await expect(updatePantryItem(pantryItemId, { name: 'Olive Oil' }))
+        await expect(updatePantryItem(userId, pantryItemId, { name: 'Olive Oil' }))
             .rejects.toBe(error)
     })
 })
@@ -295,7 +304,7 @@ describe('deletePantryItem', () => {
     it('deletes and returns the pantry item by ID', async () => {
         deletePantryItemMock.mockResolvedValue(pantryItem)
 
-        const deletedItem = await deletePantryItem(pantryItemId)
+        const deletedItem = await deletePantryItem(userId, pantryItemId)
 
         expect(deletedItem).toEqual(pantryItem)
         expect(deletedItem).not.toHaveProperty('normalizedName')
@@ -303,6 +312,7 @@ describe('deletePantryItem', () => {
         expect(deletePantryItemMock).toHaveBeenCalledWith({
             where: {
                 id: pantryItemId,
+                userId,
             },
             select: pantryItemSelect,
         })
@@ -311,7 +321,7 @@ describe('deletePantryItem', () => {
     it('translates a missing-record deletion to a not-found error', async () => {
         deletePantryItemMock.mockRejectedValue(knownPrismaError('P2025'))
 
-        await expect(deletePantryItem(pantryItemId))
+        await expect(deletePantryItem(userId, pantryItemId))
             .rejects.toBeInstanceOf(PantryItemNotFoundError)
     })
 
@@ -319,6 +329,6 @@ describe('deletePantryItem', () => {
         const error = new Error('connection closed')
         deletePantryItemMock.mockRejectedValue(error)
 
-        await expect(deletePantryItem(pantryItemId)).rejects.toBe(error)
+        await expect(deletePantryItem(userId, pantryItemId)).rejects.toBe(error)
     })
 })

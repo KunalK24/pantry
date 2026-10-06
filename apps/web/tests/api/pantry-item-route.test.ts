@@ -22,6 +22,7 @@ vi.mock('@/services/pantry-item-service', () => ({
 
 import { GET, POST } from '@/app/api/pantry-items/route'
 
+const userId = 'dev-user'
 const pantryItem = {
     id: 'cm12345678901234567890123',
     name: 'Olive Oil',
@@ -83,7 +84,7 @@ describe('POST /api/pantry-items', () => {
 
         expect(response.status).toBe(201)
         await expect(response.json()).resolves.toEqual(pantryItem)
-        expect(createPantryItemMock).toHaveBeenCalledWith({
+        expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
             name: 'Olive Oil',
             quantity: '1/2',
             unit: 'bottle',
@@ -108,7 +109,7 @@ describe('POST /api/pantry-items', () => {
         const response = await POST(request)
 
         expect(response.status).toBe(201)
-        expect(createPantryItemMock).toHaveBeenCalledWith({
+        expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
             name: 'Salt',
             quantity: undefined,
             unit: undefined,

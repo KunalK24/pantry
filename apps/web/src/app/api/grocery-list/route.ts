@@ -1,4 +1,5 @@
 import { groceryListInputSchema } from '@/schemas/grocery-list'
+import { currentUserId } from '@/lib/current-user'
 import {
     clearActiveGroceryList,
     getActiveGroceryList,
@@ -17,7 +18,7 @@ function internalServerErrorResponse(error: unknown) {
 
 export async function GET() {
     try {
-        const list = await getActiveGroceryList()
+        const list = await getActiveGroceryList(currentUserId)
         return Response.json({ list })
     } catch (error) {
         return internalServerErrorResponse(error)
@@ -49,7 +50,7 @@ export async function PUT(request: Request) {
     }
 
     try {
-        const list = await saveActiveGroceryList(inputResult.data)
+        const list = await saveActiveGroceryList(currentUserId, inputResult.data)
         return Response.json({ list })
     } catch (error) {
         if (error instanceof GroceryListReferenceError) {
@@ -65,7 +66,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE() {
     try {
-        await clearActiveGroceryList()
+        await clearActiveGroceryList(currentUserId)
         return new Response(null, { status: 204 })
     } catch (error) {
         return internalServerErrorResponse(error)

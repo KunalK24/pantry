@@ -54,9 +54,10 @@ function isKnownPrismaError(error: unknown, code: string) {
         && error.code === code
 }
 
-export async function createRecipe(input: RecipeInput) {
+export async function createRecipe(userId: string, input: RecipeInput) {
     const recipe = await prisma.recipe.create({
         data: {
+            userId,
             name: input.name,
             description: input.description ?? null,
             instructions: input.instructions,
@@ -70,8 +71,11 @@ export async function createRecipe(input: RecipeInput) {
     return flattenRecipe(recipe)
 }
 
-export async function listRecipes() {
+export async function listRecipes(userId: string) {
     const recipes = await prisma.recipe.findMany({
+        where: {
+            userId,
+        },
         orderBy: {
             updatedAt: 'desc',
         },
@@ -104,10 +108,11 @@ export async function listRecipes() {
     }))
 }
 
-export async function getRecipeById(id: string) {
+export async function getRecipeById(userId: string, id: string) {
     const recipe = await prisma.recipe.findUnique({
         where: {
             id,
+            userId,
         },
         include: recipeWithIngredients,
     })
@@ -119,12 +124,13 @@ export async function getRecipeById(id: string) {
     return flattenRecipe(recipe)
 }
 
-export async function updateRecipe(id: string, input: RecipeInput) {
+export async function updateRecipe(userId: string, id: string, input: RecipeInput) {
     try {
         return await prisma.$transaction(async (transaction) => {
             const existingRecipe = await transaction.recipe.findUnique({
                 where: {
                     id,
+                    userId,
                 },
                 select: {
                     ingredients: {
@@ -146,6 +152,7 @@ export async function updateRecipe(id: string, input: RecipeInput) {
             const recipe = await transaction.recipe.update({
                 where: {
                     id,
+                    userId,
                 },
                 data: {
                     name: input.name,
@@ -186,12 +193,13 @@ export async function updateRecipe(id: string, input: RecipeInput) {
     }
 }
 
-export async function deleteRecipe(id: string) {
+export async function deleteRecipe(userId: string, id: string) {
     try {
         return await prisma.$transaction(async (transaction) => {
             const recipe = await transaction.recipe.findUnique({
                 where: {
                     id,
+                    userId,
                 },
                 include: recipeWithIngredients,
             })
@@ -213,6 +221,7 @@ export async function deleteRecipe(id: string) {
             await transaction.recipe.delete({
                 where: {
                     id,
+                    userId,
                 },
             })
 

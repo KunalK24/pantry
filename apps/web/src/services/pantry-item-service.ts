@@ -40,8 +40,11 @@ function isKnownPrismaError(error: unknown, code: string) {
         && error.code === code
 }
 
-export async function listPantryItems() {
+export async function listPantryItems(userId: string) {
     return prisma.pantryItem.findMany({
+        where: {
+            userId,
+        },
         orderBy: {
             normalizedName: 'asc',
         },
@@ -49,10 +52,13 @@ export async function listPantryItems() {
     })
 }
 
-export async function createPantryItem(input: PantryItemInput) {
+export async function createPantryItem(userId: string, input: PantryItemInput) {
     try {
         return await prisma.pantryItem.create({
-            data: pantryItemData(input),
+            data: {
+                userId,
+                ...pantryItemData(input),
+            },
             select: pantryItemPublicSelect,
         })
     } catch (error) {
@@ -64,10 +70,11 @@ export async function createPantryItem(input: PantryItemInput) {
     }
 }
 
-export async function getPantryItemById(id: string) {
+export async function getPantryItemById(userId: string, id: string) {
     const item = await prisma.pantryItem.findUnique({
         where: {
             id,
+            userId,
         },
         select: pantryItemPublicSelect,
     })
@@ -79,11 +86,12 @@ export async function getPantryItemById(id: string) {
     return item
 }
 
-export async function updatePantryItem(id: string, input: PantryItemInput) {
+export async function updatePantryItem(userId: string, id: string, input: PantryItemInput) {
     try {
         return await prisma.pantryItem.update({
             where: {
                 id,
+                userId,
             },
             data: pantryItemData(input),
             select: pantryItemPublicSelect,
@@ -101,11 +109,12 @@ export async function updatePantryItem(id: string, input: PantryItemInput) {
     }
 }
 
-export async function deletePantryItem(id: string) {
+export async function deletePantryItem(userId: string, id: string) {
     try {
         return await prisma.pantryItem.delete({
             where: {
                 id,
+                userId,
             },
             select: pantryItemPublicSelect,
         })

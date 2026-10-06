@@ -1,4 +1,5 @@
 import { recipeIdSchema, recipeInputSchema } from '@/schemas/recipe'
+import { currentUserId } from '@/lib/current-user'
 import {
     getRecipeById,
     RecipeNotFoundError,
@@ -56,7 +57,7 @@ export async function GET(_request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await getRecipeById(idResult.data)
+        const recipe = await getRecipeById(currentUserId, idResult.data)
 
         return Response.json(recipe)
     } catch (error) {
@@ -106,7 +107,7 @@ export async function PUT(request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await updateRecipe(idResult.data, result.data)
+        const recipe = await updateRecipe(currentUserId, idResult.data, result.data)
 
         return Response.json(recipe)
     } catch (error) {
@@ -127,7 +128,7 @@ export async function DELETE(_request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await deleteRecipe(idResult.data)
+        const recipe = await deleteRecipe(currentUserId, idResult.data)
 
         return Response.json(recipe, {
             status: 200,

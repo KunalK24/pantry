@@ -43,6 +43,8 @@ import {
 } from "@/services/recipe-service";
 import { Prisma } from "@/generated/prisma/client";
 
+const userId = "cm92345678901234567890123";
+
 const completeRecipe = {
   id: "cm12345678901234567890123",
   name: "Tomato Soup",
@@ -162,7 +164,7 @@ describe("createRecipe", () => {
 
     createRecipeMock.mockResolvedValue(persistedRecipe);
 
-    await expect(createRecipe({
+    await expect(createRecipe(userId, {
       name: "Tomato Soup",
       description: "A quick soup",
       instructions: "Simmer until warm.",
@@ -189,6 +191,7 @@ describe("createRecipe", () => {
 
     expect(createRecipeMock).toHaveBeenCalledWith({
       data: {
+        userId,
         name: "Tomato Soup",
         description: "A quick soup",
         instructions: "Simmer until warm.",
@@ -276,7 +279,7 @@ describe("listRecipes", () => {
     ];
     findManyRecipesMock.mockResolvedValue(persistedRecipes);
 
-    await expect(listRecipes()).resolves.toEqual([
+    await expect(listRecipes(userId)).resolves.toEqual([
       {
         id: "recipe_2",
         name: "New recipe",
@@ -294,6 +297,9 @@ describe("listRecipes", () => {
     ]);
     expect(findManyRecipesMock).toHaveBeenCalledOnce();
     expect(findManyRecipesMock).toHaveBeenCalledWith({
+      where: {
+        userId,
+      },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
@@ -318,9 +324,9 @@ describe("getRecipeById", () => {
   it("loads and flattens a complete recipe", async () => {
     findRecipeByIdMock.mockResolvedValue(completeRecipe);
 
-    await expect(getRecipeById(completeRecipe.id)).resolves.toEqual(flattenedRecipe);
+    await expect(getRecipeById(userId, completeRecipe.id)).resolves.toEqual(flattenedRecipe);
     expect(findRecipeByIdMock).toHaveBeenCalledWith({
-      where: { id: completeRecipe.id },
+      where: { id: completeRecipe.id, userId },
       include: {
         ingredients: {
           include: {
@@ -334,7 +340,7 @@ describe("getRecipeById", () => {
   it("throws the domain error when the recipe does not exist", async () => {
     findRecipeByIdMock.mockResolvedValue(null);
 
-    await expect(getRecipeById(completeRecipe.id)).rejects.toBeInstanceOf(
+    await expect(getRecipeById(userId, completeRecipe.id)).rejects.toBeInstanceOf(
       RecipeNotFoundError,
     );
   });
@@ -360,13 +366,13 @@ describe("updateRecipe", () => {
     transactionUpdateRecipeMock.mockResolvedValue(completeRecipe);
     transactionDeleteIngredientsMock.mockResolvedValue({ count: 2 });
 
-    await expect(updateRecipe(completeRecipe.id, input)).resolves.toEqual(
+    await expect(updateRecipe(userId, completeRecipe.id, input)).resolves.toEqual(
       flattenedRecipe,
     );
 
     expect(transactionMock).toHaveBeenCalledOnce();
     expect(transactionFindRecipeMock).toHaveBeenCalledWith({
-      where: { id: completeRecipe.id },
+      where: { id: completeRecipe.id, userId },
       select: {
         ingredients: {
           select: { ingredientId: true },
@@ -375,7 +381,7 @@ describe("updateRecipe", () => {
     });
     expect(transactionUpdateRecipeMock).toHaveBeenCalledOnce();
     expect(transactionUpdateRecipeMock).toHaveBeenCalledWith({
-      where: { id: completeRecipe.id },
+      where: { id: completeRecipe.id, userId },
       data: {
         name: input.name,
         description: input.description,
@@ -414,7 +420,7 @@ describe("updateRecipe", () => {
     transactionFindRecipeMock.mockResolvedValue(null);
 
     await expect(
-      updateRecipe(completeRecipe.id, {
+      updateRecipe(userId, completeRecipe.id, {
         name: "Missing",
         instructions: "None",
         ingredients: [{ name: "Salt", quantity: "to taste" }],
@@ -436,7 +442,7 @@ describe("updateRecipe", () => {
     );
 
     await expect(
-      updateRecipe(completeRecipe.id, {
+      updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
         instructions: "Simmer.",
         ingredients: [{ name: "Salt", quantity: "to taste" }],
@@ -460,7 +466,7 @@ describe("updateRecipe", () => {
     transactionUpdateRecipeMock.mockRejectedValue(prismaError);
 
     await expect(
-      updateRecipe(completeRecipe.id, {
+      updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
         instructions: "Simmer.",
         ingredients: [{ name: "Salt", quantity: "to taste" }],
@@ -474,7 +480,7 @@ describe("updateRecipe", () => {
     transactionMock.mockRejectedValue(new Error("transaction rolled back"));
 
     await expect(
-      updateRecipe(completeRecipe.id, {
+      updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
         instructions: "Simmer.",
         ingredients: [{ name: "Salt", quantity: "to taste" }],
@@ -490,13 +496,13 @@ describe("deleteRecipe", () => {
     transactionDeleteRecipeMock.mockResolvedValue(completeRecipe);
     transactionDeleteIngredientsMock.mockResolvedValue({ count: 1 });
 
-    await expect(deleteRecipe(completeRecipe.id)).resolves.toEqual(
+    await expect(deleteRecipe(userId, completeRecipe.id)).resolves.toEqual(
       flattenedRecipe,
     );
 
     expect(transactionMock).toHaveBeenCalledOnce();
     expect(transactionFindRecipeMock).toHaveBeenCalledWith({
-      where: { id: completeRecipe.id },
+      where: { id: completeRecipe.id, userId },
       include: {
         ingredients: {
           include: { ingredient: true },
@@ -507,7 +513,7 @@ describe("deleteRecipe", () => {
       where: { recipeId: completeRecipe.id },
     });
     expect(transactionDeleteRecipeMock).toHaveBeenCalledWith({
-      where: { id: completeRecipe.id },
+      where: { id: completeRecipe.id, userId },
     });
     expect(transactionDeleteIngredientsMock).toHaveBeenCalledWith({
       where: {
@@ -526,7 +532,7 @@ describe("deleteRecipe", () => {
   it("throws the domain error before deleting when the recipe does not exist", async () => {
     transactionFindRecipeMock.mockResolvedValue(null);
 
-    await expect(deleteRecipe(completeRecipe.id)).rejects.toBeInstanceOf(
+    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBeInstanceOf(
       RecipeNotFoundError,
     );
 
@@ -544,7 +550,7 @@ describe("deleteRecipe", () => {
       }),
     );
 
-    await expect(deleteRecipe(completeRecipe.id)).rejects.toBeInstanceOf(
+    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBeInstanceOf(
       RecipeNotFoundError,
     );
 
@@ -556,7 +562,7 @@ describe("deleteRecipe", () => {
     const databaseError = new Error("database unavailable");
     transactionFindRecipeMock.mockRejectedValue(databaseError);
 
-    await expect(deleteRecipe(completeRecipe.id)).rejects.toBe(databaseError);
+    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBe(databaseError);
 
     expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
     expect(transactionDeleteRecipeMock).not.toHaveBeenCalled();
