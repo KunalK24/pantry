@@ -9,6 +9,8 @@ import { recipeInputSchema } from "@/schemas/recipe";
 
 type ImportRecipeDialogProps = {
   onRecipeCreated: () => void;
+  triggerClassName?: string;
+  triggerLabel?: string;
 };
 
 type DialogStep = "paste" | "review";
@@ -74,6 +76,8 @@ function readFileAsDataUrl(file: File) {
 
 export default function ImportRecipeDialog({
   onRecipeCreated,
+  triggerClassName,
+  triggerLabel = "Import recipe",
 }: ImportRecipeDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -294,17 +298,20 @@ export default function ImportRecipeDialog({
   return (
     <>
       <button
-        className="border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+        className={
+          triggerClassName ??
+          "rounded-xl border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+        }
         onClick={openDialog}
         ref={triggerRef}
         type="button"
       >
-        Import recipe
+        {triggerLabel}
       </button>
 
       <dialog
         aria-labelledby="import-recipe-dialog-title"
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto border border-zinc-300 bg-white p-0 text-zinc-950 backdrop:bg-black/50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onCancel={(event) => {
           if (isBusy()) {
             event.preventDefault();
@@ -319,16 +326,16 @@ export default function ImportRecipeDialog({
         ref={dialogRef}
       >
         <div className="p-5 sm:p-7">
-          <div className="mb-6 flex items-center justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800">
+          <div className="mb-6 flex items-center justify-between gap-4 border-b border-[#e5e1d8] pb-4">
             <h2
-              className="text-lg font-semibold"
+              className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]"
               id="import-recipe-dialog-title"
             >
               Import recipe
             </h2>
             <button
               aria-label="Close import recipe dialog"
-              className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isParsing || isSaving}
               onClick={closeDialog}
               type="button"
@@ -340,13 +347,13 @@ export default function ImportRecipeDialog({
           {step === "paste" ? (
             <form className="space-y-5" onSubmit={handleParse}>
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                <legend className="text-sm font-bold text-[#334238]">
                   Import from
                 </legend>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {importModeOptions.map((option) => (
                     <label
-                      className="flex cursor-pointer items-center gap-2 border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors has-[:checked]:border-zinc-950 has-[:checked]:bg-zinc-100 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:bg-zinc-900"
+                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#6f7a71] transition-colors has-[:checked]:border-[#35644f] has-[:checked]:bg-[#e8f1e9] has-[:checked]:text-[#285843] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
                       key={option.value}
                     >
                       <input
@@ -368,7 +375,7 @@ export default function ImportRecipeDialog({
               <div>
                 {importMode === "text" ? (
                   <label
-                    className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                    className="text-sm font-bold text-[#334238]"
                     htmlFor="recipe-source-text"
                   >
                     Recipe text
@@ -376,7 +383,7 @@ export default function ImportRecipeDialog({
                 ) : null}
                 {importMode === "image" ? (
                   <label
-                    className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                    className="text-sm font-bold text-[#334238]"
                     htmlFor="recipe-source-image"
                   >
                     Recipe image
@@ -384,14 +391,14 @@ export default function ImportRecipeDialog({
                 ) : null}
                 {importMode === "url" ? (
                   <label
-                    className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                    className="text-sm font-bold text-[#334238]"
                     htmlFor="recipe-source-url"
                   >
                     Recipe URL
                   </label>
                 ) : null}
                 <p
-                  className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
+                  className="mt-1 text-xs font-semibold text-[#8b958c]"
                   id="recipe-import-disclosure"
                 >
                   Recipe sources are sent to Google Gemini for conversion.
@@ -403,7 +410,7 @@ export default function ImportRecipeDialog({
                         ? "recipe-import-disclosure recipe-import-error"
                         : "recipe-import-disclosure"
                     }
-                    className="mt-1 min-h-64 w-full resize-y border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition-colors focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/15 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-200 dark:focus:ring-zinc-200/20 dark:disabled:bg-zinc-900"
+                    className="mt-1 min-h-64 w-full resize-y rounded-xl border border-[#d8d3c8] bg-white px-3 py-2 text-sm text-[#24342b] outline-none transition-colors placeholder:text-[#9aa39b] focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:bg-[#f4f1e8]"
                     disabled={isParsing}
                     id="recipe-source-text"
                     maxLength={20000}
@@ -425,7 +432,7 @@ export default function ImportRecipeDialog({
                         ? "recipe-import-disclosure recipe-import-error"
                         : "recipe-import-disclosure"
                     }
-                    className="mt-1 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 file:mr-3 file:border-0 file:bg-zinc-950 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:file:bg-zinc-100 dark:file:text-zinc-950 dark:disabled:bg-zinc-900"
+                    className="mt-1 w-full rounded-xl border border-[#d8d3c8] bg-white px-3 py-2 text-sm text-[#24342b] file:mr-3 file:rounded-lg file:border-0 file:bg-[#35644f] file:px-3 file:py-1.5 file:text-sm file:font-bold file:text-white disabled:cursor-not-allowed disabled:bg-[#f4f1e8]"
                     disabled={isParsing}
                     id="recipe-source-image"
                     onChange={handleImageChange}
@@ -441,7 +448,7 @@ export default function ImportRecipeDialog({
                         ? "recipe-import-disclosure recipe-import-error"
                         : "recipe-import-disclosure"
                     }
-                    className="mt-1 h-11 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition-colors focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/15 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-200 dark:focus:ring-zinc-200/20 dark:disabled:bg-zinc-900"
+                    className="mt-1 h-11 w-full rounded-xl border border-[#d8d3c8] bg-white px-3 py-2 text-sm text-[#24342b] outline-none transition-colors placeholder:text-[#9aa39b] focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:bg-[#f4f1e8]"
                     disabled={isParsing}
                     id="recipe-source-url"
                     maxLength={2048}
@@ -459,7 +466,7 @@ export default function ImportRecipeDialog({
 
               {error ? (
                 <p
-                  className="text-sm font-medium text-red-700 dark:text-red-400"
+                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
                   id="recipe-import-error"
                   role="alert"
                 >
@@ -469,7 +476,7 @@ export default function ImportRecipeDialog({
 
               {isParsing ? (
                 <p
-                  className="text-sm text-zinc-600 dark:text-zinc-400"
+                  className="text-sm font-semibold text-[#6f7a71]"
                   role="status"
                 >
                   Converting recipe...
@@ -477,7 +484,7 @@ export default function ImportRecipeDialog({
               ) : null}
 
               <button
-                className="h-11 bg-zinc-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+                className="min-h-11 rounded-xl bg-[#35644f] px-5 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isParsing}
                 type="submit"
               >
@@ -487,7 +494,7 @@ export default function ImportRecipeDialog({
           ) : draft ? (
             <div className="space-y-6">
               <button
-                className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSaving}
                 onClick={returnToPaste}
                 type="button"
@@ -502,9 +509,9 @@ export default function ImportRecipeDialog({
             </div>
           ) : null}
 
-          <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <div className="mt-6 border-t border-[#e5e1d8] pt-4">
             <button
-              className="border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isParsing || isSaving}
               onClick={closeDialog}
               type="button"

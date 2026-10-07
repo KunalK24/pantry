@@ -124,17 +124,19 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
   if (error) {
     return (
       <div className="space-y-4" role="alert">
-        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          {error}
+        </p>
         <div className="flex flex-wrap gap-3">
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+            className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
             onClick={retry}
             type="button"
           >
             Try again
           </button>
           <Link
-            className="px-3 py-2 text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+            className="rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
             href="/recipes"
           >
             Back to recipe library
@@ -146,7 +148,7 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
 
   if (!recipe) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+      <p className="text-sm font-semibold text-[#6f7a71]" role="status">
         Loading recipe...
       </p>
     );

@@ -110,17 +110,19 @@ export default function PantryItemEditor({
   if (error) {
     return (
       <div className="space-y-4" role="alert">
-        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          {error}
+        </p>
         <div className="flex flex-wrap gap-3">
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+            className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
             onClick={retry}
             type="button"
           >
             Try again
           </button>
           <Link
-            className="px-3 py-2 text-sm font-medium text-zinc-700 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:text-zinc-300 dark:focus-visible:outline-zinc-100"
+            className="rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
             href="/pantry"
           >
             Back to pantry
@@ -132,7 +134,7 @@ export default function PantryItemEditor({
 
   if (!item) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+      <p className="text-sm font-semibold text-[#6f7a71]" role="status">
         Loading pantry item...
       </p>
     );

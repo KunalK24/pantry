@@ -6,10 +6,14 @@ import RecipeForm from "@/components/RecipeForm";
 
 type CreateRecipeDialogProps = {
   onRecipeCreated: () => void;
+  triggerClassName?: string;
+  triggerLabel?: string;
 };
 
 export default function CreateRecipeDialog({
   onRecipeCreated,
+  triggerClassName,
+  triggerLabel = "Create recipe",
 }: CreateRecipeDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -72,17 +76,20 @@ export default function CreateRecipeDialog({
   return (
     <>
       <button
-        className="bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white dark:focus-visible:outline-zinc-100"
+        className={
+          triggerClassName ??
+          "inline-flex min-h-11 items-center rounded-xl bg-[#35644f] px-5 text-[0.9rem] font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+        }
         onClick={openDialog}
         ref={triggerRef}
         type="button"
       >
-        Create recipe
+        {triggerLabel}
       </button>
 
       <dialog
         aria-labelledby="create-recipe-dialog-title"
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto border border-zinc-300 bg-white p-0 text-zinc-950 backdrop:bg-black/50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onClick={(event) => {
           if (
             event.target === event.currentTarget &&
@@ -101,16 +108,16 @@ export default function CreateRecipeDialog({
       >
         {isOpen ? (
           <div className="p-5 sm:p-7">
-            <div className="mb-6 flex items-center justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800">
+            <div className="mb-6 flex items-center justify-between gap-4 border-b border-[#e5e1d8] pb-4">
               <h2
-                className="text-lg font-semibold"
+                className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]"
                 id="create-recipe-dialog-title"
               >
                 Create recipe
               </h2>
               <button
                 aria-label="Close create recipe dialog"
-                className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
                 onClick={closeDialog}
                 type="button"
@@ -127,9 +134,9 @@ export default function CreateRecipeDialog({
               onSuccess={() => handleCreated(openGeneration)}
             />
 
-            <div className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <div className="mt-6 border-t border-[#e5e1d8] pt-4">
               <button
-                className="border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
                 onClick={closeDialog}
                 type="button"

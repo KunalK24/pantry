@@ -189,20 +189,20 @@ export default function RecipePickerDialog({
   return (
     <>
       <button
-        className="h-10 border border-zinc-300 px-4 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+        className="min-h-10 rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
         data-recipe-picker-trigger
         disabled={disabled}
         onClick={openDialog}
         ref={triggerRef}
         type="button"
       >
-        Add from Recipes
+        Add from recipes
       </button>
 
       <dialog
         aria-describedby="recipe-picker-description"
         aria-labelledby="recipe-picker-title"
-        className="m-auto max-h-[min(38rem,calc(100dvh-2rem))] w-[min(34rem,calc(100vw-2rem))] border border-zinc-300 bg-white p-0 text-zinc-950 shadow-xl backdrop:bg-black/50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        className="m-auto max-h-[min(38rem,calc(100dvh-2rem))] w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onClick={(event) => {
           if (event.target === event.currentTarget) closeDialog();
         }}
@@ -210,13 +210,13 @@ export default function RecipePickerDialog({
         ref={dialogRef}
       >
         <div className="flex max-h-[min(38rem,calc(100dvh-2rem))] flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+          <div className="flex items-start justify-between gap-4 border-b border-[#e5e1d8] px-5 py-4">
             <div>
-              <h2 className="text-lg font-semibold" id="recipe-picker-title">
-                Add from Recipes
+              <h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]" id="recipe-picker-title">
+                Add from recipes
               </h2>
               <p
-                className="mt-1 text-sm text-zinc-600 dark:text-zinc-400"
+                className="mt-1 text-sm leading-6 text-[#6f7a71]"
                 id="recipe-picker-description"
               >
                 Select recipes to calculate the ingredients you still need.
@@ -224,7 +224,7 @@ export default function RecipePickerDialog({
             </div>
             <button
               aria-label="Close recipe picker"
-              className="px-2 py-1 text-sm font-medium text-zinc-600 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:text-zinc-400 dark:hover:text-white dark:focus-visible:outline-zinc-100"
+              className="rounded-lg px-2 py-1 text-sm font-bold text-[#6f7a71] hover:bg-[#edf3ed] hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
               onClick={closeDialog}
               ref={closeRef}
               type="button"
@@ -236,11 +236,11 @@ export default function RecipePickerDialog({
           <div className="min-h-28 flex-1 overflow-y-auto px-5 py-4">
             {error ? (
               <div className="space-y-3" role="alert">
-                <p className="text-sm text-red-700 dark:text-red-400">
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
                   {error}
                 </p>
                 <button
-                  className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                  className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                   onClick={retry}
                   type="button"
                 >
@@ -248,44 +248,44 @@ export default function RecipePickerDialog({
                 </button>
               </div>
             ) : recipes === null ? (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+              <p className="text-sm font-semibold text-[#6f7a71]" role="status">
                 Loading recipes...
               </p>
             ) : recipes.length === 0 ? (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="text-sm font-semibold text-[#6f7a71]">
                 You have not created any recipes yet.
               </p>
             ) : (
               <fieldset>
                 <legend className="sr-only">Recipes</legend>
-                <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                <ul className="divide-y divide-[#e5e1d8] border-y border-[#e5e1d8]">
                   {recipes.map((recipe, index) => (
                     <li key={recipe.id}>
-                      <label className="flex cursor-pointer items-start gap-3 py-3">
+                      <label className="flex cursor-pointer items-start gap-3 py-4 transition-colors hover:bg-[#f4f1e8]">
                         <input
                           checked={draftIds.has(recipe.id)}
-                          className="mt-1 size-4 accent-zinc-950 dark:accent-zinc-100"
+                          className="mt-1 size-5 accent-[#35644f]"
                           onChange={() => toggleRecipe(recipe.id)}
                           ref={index === 0 ? firstOptionRef : undefined}
                           type="checkbox"
                         />
                         <span className="min-w-0">
-                          <span className="block text-sm font-medium">
+                          <span className="block text-sm font-bold text-[#24342b]">
                             {recipe.name}
                           </span>
                           {recipe.description ? (
-                            <span className="mt-1 line-clamp-2 block text-sm text-zinc-600 dark:text-zinc-400">
+                            <span className="mt-1 line-clamp-2 block text-sm text-[#6f7a71]">
                               {recipe.description}
                             </span>
                           ) : null}
                           {pantryStatus === "ready" ? (
-                            <span className="mt-1 block text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                            <span className="mt-1 block text-xs font-bold text-[#35644f]">
                               {availabilityByRecipeId.get(recipe.id)?.available ?? 0}/
                               {availabilityByRecipeId.get(recipe.id)?.total ?? 0}{" "}
                               ingredients available
                             </span>
                           ) : (
-                            <span className="mt-1 block text-xs text-zinc-500">
+                            <span className="mt-1 block text-xs font-semibold text-[#8b958c]">
                               {pantryStatus === "loading"
                                 ? "Checking pantry availability..."
                                 : "Pantry availability unavailable"}
@@ -300,16 +300,16 @@ export default function RecipePickerDialog({
             )}
           </div>
 
-          <div className="flex flex-wrap justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-[#e5e1d8] px-5 py-4">
             <button
-              className="border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
               onClick={closeDialog}
               type="button"
             >
               Cancel
             </button>
             <button
-              className="bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+              className="rounded-xl bg-[#35644f] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={disabled || recipes === null || error !== null}
               onClick={commitSelection}
               type="button"

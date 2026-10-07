@@ -1002,8 +1002,8 @@ export default function GroceryList() {
           : "No recipes match your pantry or current grocery list.";
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-7">
+      <div className="flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4">
         <RecipePickerDialog
           disabled={
             mutating || (!initialized && recipeLoadState !== "error")
@@ -1030,12 +1030,12 @@ export default function GroceryList() {
         />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {dirty ? (
-            <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+            <span className="text-sm font-semibold text-[#9b5f34]">
               Unsaved changes
             </span>
           ) : null}
           <button
-            className="h-10 bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+            className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!dirty || !sourcesReady || mutating}
             onClick={() => void saveList()}
             type="button"
@@ -1043,7 +1043,7 @@ export default function GroceryList() {
             {saving ? "Saving..." : "Save grocery list"}
           </button>
           <button
-            className="h-10 border border-red-300 px-4 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+            className="min-h-10 rounded-xl border border-[#d8c5bd] bg-white px-4 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!initialized || mutating}
             onClick={() => void clearList()}
             type="button"
@@ -1054,16 +1054,16 @@ export default function GroceryList() {
       </div>
 
       {listLoadState === "loading" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]" role="status">
           Loading your grocery list...
         </p>
       ) : listLoadState === "error" ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm text-red-700 dark:text-red-400">
+          <p className="text-sm font-semibold text-red-800">
             Unable to load your grocery list. Nothing has been changed.
           </p>
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
             onClick={retryListLoad}
             type="button"
           >
@@ -1073,28 +1073,28 @@ export default function GroceryList() {
       ) : null}
 
       {saveError ? (
-        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+        <p className="text-sm font-semibold text-red-800" role="alert">
           {saveError}
         </p>
       ) : null}
       {clearError ? (
-        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+        <p className="text-sm font-semibold text-red-800" role="alert">
           {clearError}
         </p>
       ) : null}
       {importing ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="text-sm font-semibold text-[#69736b]" role="status">
           Importing weekly plan...
         </p>
       ) : null}
       {importError ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm text-red-700 dark:text-red-400">
+          <p className="text-sm font-semibold text-red-800">
             {importError}
           </p>
           {requestedImportWeek && isStrictMonday(requestedImportWeek) ? (
             <button
-              className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 disabled:opacity-50"
               disabled={mutating}
               onClick={retryImport}
               type="button"
@@ -1106,7 +1106,7 @@ export default function GroceryList() {
       ) : null}
       {importConfirmation ? (
         <p
-          className="text-sm font-medium text-emerald-700 dark:text-emerald-400"
+          className="text-sm font-bold text-[#35644f]"
           role="status"
         >
           {importConfirmation}
@@ -1114,10 +1114,13 @@ export default function GroceryList() {
       ) : null}
 
       {initialized && (effectiveRecipes.length || selectedPantryItems.length) ? (
-        <div className="grid gap-6 border-y border-zinc-200 py-5 dark:border-zinc-800 md:grid-cols-2">
+        <div className="grid gap-5 border-y border-[#e5e1d8] py-5 md:grid-cols-2">
           {effectiveRecipes.length ? (
             <section aria-labelledby="selected-recipes-title">
-              <h2 className="text-sm font-semibold" id="selected-recipes-title">
+              <h2
+                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
+                id="selected-recipes-title"
+              >
                 Recipes
               </h2>
               <ul className="mt-3 flex flex-wrap gap-2">
@@ -1125,7 +1128,7 @@ export default function GroceryList() {
                   const count = recipeCounts.get(recipe.id) ?? 1;
                   return (
                     <li
-                      className="flex max-w-full items-center gap-2 border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+                      className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
                       key={recipe.id}
                     >
                       <span className="truncate">
@@ -1133,7 +1136,7 @@ export default function GroceryList() {
                       </span>
                       <button
                         aria-label={`Remove every ${recipe.name} preparation from grocery list`}
-                        className="font-medium text-zinc-500 hover:text-red-700 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-red-400"
+                        className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
                         data-recipe-source-remove
                         disabled={mutating}
                         onClick={() => removeRecipe(recipe.id)}
@@ -1149,19 +1152,22 @@ export default function GroceryList() {
           ) : null}
           {selectedPantryItems.length ? (
             <section aria-labelledby="selected-pantry-title">
-              <h2 className="text-sm font-semibold" id="selected-pantry-title">
+              <h2
+                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
+                id="selected-pantry-title"
+              >
                 Pantry items
               </h2>
               <ul className="mt-3 flex flex-wrap gap-2">
                 {selectedPantryItems.map((item) => (
                   <li
-                    className="flex max-w-full items-center gap-2 border border-emerald-700/50 px-3 py-1.5 text-sm dark:border-emerald-500/50"
+                    className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
                     key={item.id}
                   >
                     <span className="truncate">{item.name}</span>
                     <button
                       aria-label={`Remove ${item.name} from grocery list sources`}
-                      className="font-medium text-emerald-700 hover:text-red-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:text-red-400"
+                      className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
                       data-pantry-source-remove
                       disabled={mutating}
                       onClick={() => removePantryItem(item.id)}
@@ -1178,22 +1184,22 @@ export default function GroceryList() {
       ) : null}
 
       {pantryLoadState === "loading" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="text-sm font-semibold text-[#69736b]" role="status">
           Loading pantry data...
         </p>
       ) : null}
       {pantryLoadState === "error" ? (
-        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+        <p className="text-sm font-semibold text-red-800" role="alert">
           Unable to load pantry data. Open Add from Pantry and try again.
         </p>
       ) : null}
       {recipeLoadState === "loading" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="text-sm font-semibold text-[#69736b]" role="status">
           Loading recipes...
         </p>
       ) : null}
       {recipeLoadState === "error" ? (
-        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+        <p className="text-sm font-semibold text-red-800" role="alert">
           Unable to load recipes. Open Add from Recipes and try again.
         </p>
       ) : null}
@@ -1202,7 +1208,7 @@ export default function GroceryList() {
         <section aria-labelledby="grocery-items-title">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2
-              className="text-lg font-semibold"
+              className="[font-family:Georgia,serif] text-[1.8rem] font-bold leading-tight text-[#24342b]"
               data-grocery-items-heading
               id="grocery-items-title"
               tabIndex={-1}
@@ -1210,13 +1216,13 @@ export default function GroceryList() {
               Items to buy
             </h2>
             {visibleLines.length ? (
-              <span className="text-sm text-zinc-500">
+              <span className="text-sm font-semibold text-[#78837b]">
                 {visibleLines.length} {visibleLines.length === 1 ? "item" : "items"}
               </span>
             ) : null}
           </div>
           {visibleLines.length ? (
-            <ul className="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
               {visibleLines.map((line, index) => {
                 const state =
                   reconciledLineStates[line.id] ?? defaultLineState(line);
@@ -1231,40 +1237,49 @@ export default function GroceryList() {
 
                 return (
                   <li
-                    className="grid gap-4 py-5 sm:grid-cols-[auto_minmax(0,1fr)_minmax(7rem,0.45fr)_minmax(7rem,0.45fr)_auto] sm:items-end"
+                    className="grid gap-4 py-5 sm:grid-cols-[auto_minmax(0,1fr)_minmax(7rem,0.42fr)_minmax(7rem,0.42fr)_auto] sm:items-center"
                     key={line.id}
                   >
-                    <div className="flex items-center sm:h-10">
-                      <input
-                        aria-label={`Mark ${line.name} as purchased`}
-                        checked={state.checked}
-                        className="size-5 accent-zinc-950 disabled:opacity-50 dark:accent-zinc-100"
-                        disabled={mutating}
-                        onChange={() => toggleLine(line)}
-                        type="checkbox"
+                    <button
+                      aria-label={`Mark ${line.name} as purchased`}
+                      aria-pressed={state.checked}
+                      className={`flex size-7 items-center justify-center rounded-full border text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50 ${
+                        state.checked
+                          ? "border-[#35644f] bg-[#35644f] text-white"
+                          : "border-[#c9cfc7] bg-[#fbfaf6] text-transparent hover:border-[#35644f]"
+                      }`}
+                      disabled={mutating}
+                      onClick={() => toggleLine(line)}
+                      type="button"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`block h-3 w-1.5 rotate-45 border-b-2 border-r-2 ${
+                          state.checked ? "border-white" : "border-transparent"
+                        }`}
                       />
-                    </div>
+                    </button>
                     <div className="min-w-0 self-center">
                       <p
-                        className={`font-medium ${
+                        className={`text-base font-bold ${
                           state.checked
-                            ? "text-zinc-500 line-through"
-                            : "text-zinc-950 dark:text-zinc-50"
+                            ? "text-[#9aa49c] line-through"
+                            : "text-[#24342b]"
                         }`}
                       >
                         {line.name}
                       </p>
                       {source ? (
-                        <p className="mt-1 text-xs text-zinc-500">{source}</p>
+                        <p className="mt-1 text-xs font-medium text-[#8b958c]">{source}</p>
                       ) : null}
                       {line.warning ? (
-                        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                        <p className="mt-1 text-xs font-semibold text-[#9b5f34]">
                           {line.warning}
                         </p>
                       ) : null}
                       {hasOverride ? (
                         <button
-                          className="mt-2 text-xs font-semibold text-zinc-700 underline disabled:opacity-50 dark:text-zinc-300"
+                          className="mt-2 rounded-md text-xs font-bold text-[#35644f] underline decoration-[#b9c7b8] underline-offset-4 transition-colors hover:text-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
                           disabled={mutating}
                           onClick={() => resetCalculatedAmount(line)}
                           type="button"
@@ -1275,13 +1290,13 @@ export default function GroceryList() {
                     </div>
                     <div>
                       <label
-                        className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                        className="text-xs font-bold uppercase tracking-[0.12em] text-[#939c92]"
                         htmlFor={`grocery-quantity-${index}`}
                       >
                         Quantity
                       </label>
                       <input
-                        className="mt-1 h-10 w-full border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950"
+                        className="mt-1 h-10 w-full rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-3 text-sm font-semibold text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={mutating}
                         id={`grocery-quantity-${index}`}
                         onChange={(event) =>
@@ -1296,13 +1311,13 @@ export default function GroceryList() {
                     </div>
                     <div>
                       <label
-                        className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                        className="text-xs font-bold uppercase tracking-[0.12em] text-[#939c92]"
                         htmlFor={`grocery-unit-${index}`}
                       >
                         Unit
                       </label>
                       <input
-                        className="mt-1 h-10 w-full border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950"
+                        className="mt-1 h-10 w-full rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-3 text-sm font-semibold text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={mutating}
                         id={`grocery-unit-${index}`}
                         onChange={(event) =>
@@ -1317,7 +1332,7 @@ export default function GroceryList() {
                     </div>
                     <button
                       aria-label={`Remove ${line.name} from grocery list`}
-                      className="h-10 border border-red-300 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                      className="h-10 rounded-xl px-3 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
                       data-grocery-line-remove
                       disabled={mutating}
                       onClick={() => dismissLine(line)}
@@ -1330,8 +1345,8 @@ export default function GroceryList() {
               })}
             </ul>
           ) : (
-            <div className="border-y border-zinc-200 py-8 dark:border-zinc-800">
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            <div className="border-y border-dashed border-[#d8d3c8] py-8 text-center">
+              <p className="text-sm font-semibold text-[#6f7a71]">
                 {noSources
                   ? "Add recipes or low pantry items to start your grocery list."
                   : "Your pantry covers the selected recipes, or all generated items have been removed."}

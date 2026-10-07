@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+
+import CreatePantryItemDialog from "@/components/CreatePantryItemDialog";
+import EditPantryItemDialog from "@/components/EditPantryItemDialog";
 
 type PantryItemSummary = {
   id: string;
@@ -46,12 +48,21 @@ function pantryAmount(item: PantryItemSummary) {
   return [item.quantity, item.unit].filter(Boolean).join(" ");
 }
 
-export default function PantryLibrary() {
+type PantryLibraryProps = {
+  onPantryItemCreated?: () => void;
+  refreshSignal?: number;
+};
+
+export default function PantryLibrary({
+  onPantryItemCreated,
+  refreshSignal = 0,
+}: PantryLibraryProps) {
   const [items, setItems] = useState<PantryItemSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState(0);
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<PantryItemSummary | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,7 +91,7 @@ export default function PantryLibrary() {
       });
 
     return () => controller.abort();
-  }, [requestNumber]);
+  }, [requestNumber, refreshSignal]);
 
   function retry() {
     setItems(null);
@@ -89,53 +100,53 @@ export default function PantryLibrary() {
   }
 
   async function handleDeletePantryItem(item: PantryItemSummary) {
-    if (deletingId !== null) return
+    if (deletingId !== null) return;
 
-    const confirmed = window.confirm(`Delete ${item.name} from your pantry?`)
-    if (!confirmed) return
+    const confirmed = window.confirm(`Delete ${item.name} from your pantry?`);
+    if (!confirmed) return;
 
-    setDeletingId(item.id)
-    setDeleteError(null)
+    setDeletingId(item.id);
+    setDeleteError(null);
 
     try {
       const response = await fetch(`/api/pantry-items/${item.id}`, {
         method: "DELETE",
-      })
+      });
 
       if (!response.ok) {
-        const payload: unknown = await response.json().catch(() => null)
+        const payload: unknown = await response.json().catch(() => null);
 
         const message =
-          typeof payload === 'object' &&
+          typeof payload === "object" &&
           payload !== null &&
           "error" in payload &&
           typeof payload.error === "string"
             ? payload.error
-            : "Unable to delete the pantry item."
+            : "Unable to delete the pantry item.";
 
-        throw new Error(message)
+        throw new Error(message);
       }
 
       setItems((current) =>
         current?.filter((currentItem) => currentItem.id !== item.id) ?? null,
-      )
+      );
     } catch (error) {
       setDeleteError(
         error instanceof Error
           ? error.message
-          : "Unable to delete the pantry item."
-      )
+          : "Unable to delete the pantry item.",
+      );
     } finally {
-      setDeletingId(null)
+      setDeletingId(null);
     }
   }
 
   if (error) {
     return (
-      <div className="space-y-4" role="alert">
-        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+      <div className="space-y-4 border-y border-red-200 py-5" role="alert">
+        <p className="text-sm font-semibold text-red-800">{error}</p>
         <button
-          className="border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+          className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
           onClick={retry}
           type="button"
         >
@@ -147,7 +158,10 @@ export default function PantryLibrary() {
 
   if (items === null) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+      <p
+        className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
+        role="status"
+      >
         Loading pantry...
       </p>
     );
@@ -155,16 +169,19 @@ export default function PantryLibrary() {
 
   if (items.length === 0) {
     return (
-      <div className="space-y-4">
-        <p className="text-zinc-600 dark:text-zinc-400">
+      <div className="space-y-4 border-y border-dashed border-[#d8d3c8] py-8 text-center">
+        <h2 className="[font-family:Georgia,serif] text-xl font-bold text-[#24342b]">
+          Your pantry is ready.
+        </h2>
+        <p className="mx-auto max-w-md text-sm leading-6 text-[#6f7a71]">
           Your pantry is empty. Add an ingredient you have on hand.
         </p>
-        <Link
-          className="inline-block bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 dark:focus-visible:outline-emerald-400"
-          href="/pantry/new"
-        >
-          Add pantry item
-        </Link>
+        <CreatePantryItemDialog
+          onPantryItemCreated={() => {
+            retry();
+            onPantryItemCreated?.();
+          }}
+        />
       </div>
     );
   }
@@ -172,46 +189,85 @@ export default function PantryLibrary() {
   return (
     <>
       {deleteError ? (
-        <p className="mb-4 text-sm text-red-700 dark:text-red-400" role="alert">
+        <p
+          className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+          role="alert"
+        >
           {deleteError}
         </p>
       ) : null}
-      <ul className="divide-y divide-zinc-200 border-y border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
         {items.map((item) => {
           const amount = pantryAmount(item);
 
           return (
             <li key={item.id}>
-              <div className="grid gap-2 px-1 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-3">
+              <div className="grid gap-4 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div className="min-w-0">
-                  <h2 className="font-semibold text-zinc-950 dark:text-zinc-50">
-                    {item.name}
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-bold uppercase tracking-[0.14em] text-[#c5745a]">
+                      Ingredient
+                    </span>
+                    {amount ? (
+                      <>
+                        <span aria-hidden="true" className="text-[#d6d0c4]">
+                          •
+                        </span>
+                        <span className="font-semibold text-[#78837b]">
+                          {amount}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                  <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b] md:text-[1.8rem]">
+                    <button
+                      className="rounded-md text-left transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
+                      onClick={() => setEditingItem(item)}
+                      type="button"
+                    >
+                      {item.name}
+                    </button>
                   </h2>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {amount || "Amount not specified"}
-                  </p>
+                  {!amount ? (
+                    <p className="mt-2 text-sm leading-6 text-[#7b857d]">
+                      Amount not specified
+                    </p>
+                  ) : null}
                 </div>
-                <div className="flex flex-nowrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  <button
+                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    onClick={() => setEditingItem(item)}
+                    type="button"
+                  >
+                    Edit
+                  </button>
                   <button
                     aria-label={`Delete ${item.name}`}
-                    className="px-2 py-1 text-sm font-medium text-red-700"
+                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={deletingId === item.id}
                     onClick={() => void handleDeletePantryItem(item)}
+                    type="button"
                   >
                     {deletingId === item.id ? "Deleting..." : "Delete"}
                   </button>
-                  <Link
-                    className="-mx-2 w-fit px-2 py-1 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50 hover:text-emerald-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300 dark:focus-visible:outline-emerald-400"
-                    href={`/pantry/${item.id}/edit`}
-                  >
-                    Edit item
-                  </Link>
                 </div>
               </div>
             </li>
           );
         })}
       </ul>
+      {editingItem ? (
+        <EditPantryItemDialog
+          itemId={editingItem.id}
+          itemName={editingItem.name}
+          onClose={() => setEditingItem(null)}
+          onPantryItemUpdated={() => {
+            retry();
+            onPantryItemCreated?.();
+          }}
+        />
+      ) : null}
     </>
   );
 }

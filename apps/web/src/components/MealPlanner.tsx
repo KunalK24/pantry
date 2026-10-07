@@ -382,21 +382,36 @@ export default function MealPlanner() {
     draftMeals.length === 0;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-y border-zinc-200 py-4 dark:border-zinc-800">
+    <div className="space-y-7">
+      <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
+            {rangeFormatter.format(weekDates[0])} - {rangeFormatter.format(weekDates[6])}
+          </p>
+          <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
+            This week
+          </h1>
+          <p className="mt-4 max-w-2xl text-lg leading-7 text-[#6f7a71]">
+            Plan recipes for the week and add their ingredients to your grocery
+            list.
+          </p>
+        </div>
+      </header>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e1d8] py-4">
         <button
-          className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+          className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving}
           onClick={() => navigateWeek(-1)}
           type="button"
         >
           Previous week
         </button>
-        <p className="text-center text-sm font-semibold">
+        <p className="text-center text-sm font-bold text-[#69736b]">
           {rangeFormatter.format(weekDates[0])} - {rangeFormatter.format(weekDates[6])}
         </p>
         <button
-          className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
+          className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving}
           onClick={() => navigateWeek(1)}
           type="button"
@@ -406,16 +421,16 @@ export default function MealPlanner() {
       </div>
 
       {recipeLoadState === "loading" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="text-sm font-semibold text-[#69736b]" role="status">
           Loading recipes...
         </p>
       ) : recipeLoadState === "error" ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm text-red-700 dark:text-red-400">
+          <p className="text-sm font-semibold text-red-800">
             Unable to load recipes. Your plan has been preserved.
           </p>
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
             onClick={() => {
               recipesReadyRef.current = false;
               setRecipeLoadState("loading");
@@ -427,8 +442,8 @@ export default function MealPlanner() {
           </button>
         </div>
       ) : recipes.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          <Link className="font-semibold underline" href="/recipes">
+        <p className="text-sm font-semibold text-[#6f7a71]">
+          <Link className="font-bold text-[#35644f] underline" href="/recipes">
             Create a recipe
           </Link>{" "}
           before planning meals.
@@ -436,16 +451,16 @@ export default function MealPlanner() {
       ) : null}
 
       {visiblePlanLoadState === "loading" ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400" role="status">
+        <p className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]" role="status">
           Loading weekly plan...
         </p>
       ) : visiblePlanLoadState === "error" ? (
         <div className="space-y-3" role="alert">
-          <p className="text-sm text-red-700 dark:text-red-400">
+          <p className="text-sm font-semibold text-red-800">
             Unable to load this weekly plan.
           </p>
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800"
             onClick={() => {
               planReadyRef.current = false;
               setPlanLoadState("loading");
@@ -458,50 +473,56 @@ export default function MealPlanner() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        <ol className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
           {weekDates.map((date, dayOffset) => {
             const dayMeals = draftMeals.filter(
               (meal) => meal.dayOffset === dayOffset,
             );
 
             return (
-              <section
-                className="border-t border-zinc-200 pt-4 dark:border-zinc-800"
+              <li
+                className="grid gap-4 py-5 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center"
                 key={date.toISOString()}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-semibold">{dayFormatter.format(date)}</h2>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      {dateFormatter.format(date)}
-                    </p>
-                  </div>
-                  <button
-                    className="border border-zinc-300 px-3 py-2 text-sm font-semibold hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900 dark:focus-visible:outline-zinc-100"
-                    data-add-meal-day={dayOffset}
-                    disabled={addMealDisabled}
-                    onClick={() => setPickerDay(dayOffset)}
-                    type="button"
-                  >
-                    Add meal
-                  </button>
+                <div className="flex items-baseline gap-3 md:block">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78837b]">
+                    {dayFormatter.format(date)}
+                  </p>
+                  <p className="[font-family:Georgia,serif] text-[2rem] font-bold leading-none text-[#78837b] md:mt-2">
+                    {dateFormatter.format(date)}
+                  </p>
                 </div>
 
                 {dayMeals.length === 0 ? (
-                  <p className="mt-4 text-sm text-zinc-500">No meals planned</p>
+                  <div className="rounded-xl border border-dashed border-[#d8d3c8] px-4 py-4 text-center">
+                    <button
+                      className="inline-flex min-h-10 items-center rounded-xl px-4 text-sm font-bold text-[#939c92] transition-colors hover:bg-[#edf3ed] hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+                      data-add-meal-day={dayOffset}
+                      disabled={addMealDisabled}
+                      onClick={() => setPickerDay(dayOffset)}
+                      type="button"
+                    >
+                      + Add a meal
+                    </button>
+                  </div>
                 ) : (
-                  <ol className="mt-4 divide-y divide-zinc-200 dark:divide-zinc-800">
+                  <ol className="divide-y divide-[#ebe7dd]">
                     {dayMeals.map((meal) => (
                       <li
-                        className="flex items-center justify-between gap-4 py-3"
+                        className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                         key={meal.key}
                       >
-                        <span className="min-w-0 truncate text-sm font-medium">
-                          {recipeById.get(meal.recipeId)?.name ??
-                            "Recipe details unavailable"}
-                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#c5745a]">
+                            Meal
+                          </p>
+                          <p className="[font-family:Georgia,serif] text-[1.6rem] font-bold leading-tight text-[#24342b]">
+                            {recipeById.get(meal.recipeId)?.name ??
+                              "Recipe details unavailable"}
+                          </p>
+                        </div>
                         <button
-                          className="shrink-0 px-2 py-1 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                          className="shrink-0 rounded-lg px-3 py-2 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
                           data-meal-remove-day={dayOffset}
                           disabled={mutationsDisabled}
                           onClick={() => removeMeal(meal.key)}
@@ -513,25 +534,36 @@ export default function MealPlanner() {
                     ))}
                   </ol>
                 )}
-              </section>
+                {dayMeals.length === 0 ? null : (
+                  <button
+                    className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+                    data-add-meal-day={dayOffset}
+                    disabled={addMealDisabled}
+                    onClick={() => setPickerDay(dayOffset)}
+                    type="button"
+                  >
+                    Add meal
+                  </button>
+                )}
+              </li>
             );
           })}
-        </div>
+        </ol>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e1d8] pt-5">
         <div aria-live="polite" className="min-h-5 text-sm">
           {dirty ? (
-            <span className="font-medium text-amber-700 dark:text-amber-400">
+            <span className="font-bold text-[#9b5f34]">
               Unsaved changes
             </span>
           ) : planReady ? (
-            <span className="text-zinc-500">Plan saved</span>
+            <span className="font-semibold text-[#78837b]">Plan saved</span>
           ) : null}
         </div>
         <div className="flex flex-wrap gap-3">
           <button
-            className="border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!dirty || !planReady || saving}
             onClick={() => void savePlan()}
             type="button"
@@ -539,7 +571,7 @@ export default function MealPlanner() {
             {saving ? "Saving..." : "Save plan"}
           </button>
           <button
-            className="bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+            className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={groceryDisabled}
             onClick={() => void addWeekToGroceryList()}
             type="button"
@@ -551,9 +583,9 @@ export default function MealPlanner() {
 
       {saveError && planReady ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm text-red-700 dark:text-red-400">{saveError}</p>
+          <p className="text-sm font-semibold text-red-800">{saveError}</p>
           <button
-            className="border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 disabled:opacity-50"
             disabled={saving}
             onClick={() => void savePlan()}
             type="button"
