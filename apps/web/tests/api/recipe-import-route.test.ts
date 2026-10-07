@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { importRecipeMock, MockRecipeImportError } = vi.hoisted(() => {
+const { importRecipeMock, MockRecipeImportError, requireAuthMock } = vi.hoisted(() => {
     class MockRecipeImportError extends Error {
         constructor(public readonly code: string) {
             super(code)
@@ -10,6 +10,7 @@ const { importRecipeMock, MockRecipeImportError } = vi.hoisted(() => {
     return {
         importRecipeMock: vi.fn(),
         MockRecipeImportError,
+        requireAuthMock: vi.fn(),
     }
 })
 
@@ -18,7 +19,13 @@ vi.mock('@/services/recipe-import-service', () => ({
     RecipeImportError: MockRecipeImportError,
 }))
 
+vi.mock('@/lib/auth', () => ({
+    requireAuth: requireAuthMock,
+}))
+
 import { POST } from '@/app/api/recipes/parse/route'
+
+const authUser = { id: 'auth-user', email: 'cook@example.com' }
 
 function createRequest(body: string) {
     return new Request('http://localhost:3000/api/recipes/parse', {
@@ -29,6 +36,8 @@ function createRequest(body: string) {
 
 beforeEach(() => {
     importRecipeMock.mockReset()
+    requireAuthMock.mockReset()
+    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
 })
 
 describe('POST /api/recipes/parse', () => {
@@ -200,5 +209,18 @@ describe('POST /api/recipes/parse', () => {
 
         expect(response.status).toBe(500)
         await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
+    })
+
+    it('returns 401 when unauthenticated', async () => {
+        requireAuthMock.mockResolvedValue({
+            user: null,
+            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+        })
+
+        const response = await POST(createRequest(JSON.stringify({ text: 'Recipe text' })))
+
+        expect(response.status).toBe(401)
+        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+        expect(importRecipeMock).not.toHaveBeenCalled()
     })
 })

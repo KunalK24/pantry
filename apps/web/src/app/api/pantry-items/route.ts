@@ -1,5 +1,5 @@
 import { pantryItemInputSchema } from '@/schemas/pantry-item'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 import {
     createPantryItem,
     listPantryItems,
@@ -19,9 +19,15 @@ function internalServerErrorResponse(error: unknown) {
     )
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     try {
-        const items = await listPantryItems(currentUserId)
+        const items = await listPantryItems(auth.user.id)
 
         return Response.json({ items })
     } catch (error) {
@@ -30,6 +36,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     let input: unknown
 
     try {
@@ -60,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const item = await createPantryItem(currentUserId, result.data)
+        const item = await createPantryItem(auth.user.id, result.data)
 
         return Response.json(item, {
             status: 201,

@@ -1,8 +1,14 @@
 import { createRecipe, listRecipes } from '@/services/recipe-service'
 import { recipeInputSchema } from '@/schemas/recipe'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 
 export async function POST(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     let input: unknown
 
     try {
@@ -33,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const recipe = await createRecipe(currentUserId, result.data)
+        const recipe = await createRecipe(auth.user.id, result.data)
 
         return Response.json(recipe, {
             status: 201,
@@ -52,9 +58,15 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     try {
-        const recipes = await listRecipes(currentUserId)
+        const recipes = await listRecipes(auth.user.id)
 
         return Response.json({ recipes })
     } catch (error) {

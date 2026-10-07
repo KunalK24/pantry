@@ -1,5 +1,5 @@
 import { recipeIdSchema, recipeInputSchema } from '@/schemas/recipe'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 import {
     getRecipeById,
     RecipeNotFoundError,
@@ -49,6 +49,12 @@ function internalServerErrorResponse(error: unknown) {
 }
 
 export async function GET(_request: Request, context: RecipeRouteContext) {
+    const auth = await requireAuth(_request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = recipeIdSchema.safeParse(id)
 
@@ -57,7 +63,7 @@ export async function GET(_request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await getRecipeById(currentUserId, idResult.data)
+        const recipe = await getRecipeById(auth.user.id, idResult.data)
 
         return Response.json(recipe)
     } catch (error) {
@@ -70,6 +76,12 @@ export async function GET(_request: Request, context: RecipeRouteContext) {
 }
 
 export async function PUT(request: Request, context: RecipeRouteContext) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = recipeIdSchema.safeParse(id)
 
@@ -107,7 +119,7 @@ export async function PUT(request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await updateRecipe(currentUserId, idResult.data, result.data)
+        const recipe = await updateRecipe(auth.user.id, idResult.data, result.data)
 
         return Response.json(recipe)
     } catch (error) {
@@ -120,6 +132,12 @@ export async function PUT(request: Request, context: RecipeRouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RecipeRouteContext) {
+    const auth = await requireAuth(_request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = recipeIdSchema.safeParse(id)
 
@@ -128,7 +146,7 @@ export async function DELETE(_request: Request, context: RecipeRouteContext) {
     }
 
     try {
-        const recipe = await deleteRecipe(currentUserId, idResult.data)
+        const recipe = await deleteRecipe(auth.user.id, idResult.data)
 
         return Response.json(recipe, {
             status: 200,

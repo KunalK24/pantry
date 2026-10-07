@@ -5,6 +5,7 @@ const {
   updateRecipeMock,
   deleteRecipeMock,
   RecipeNotFoundErrorMock,
+  requireAuthMock,
 } = vi.hoisted(() => {
   class RecipeNotFoundErrorMock extends Error {}
 
@@ -13,6 +14,7 @@ const {
     updateRecipeMock: vi.fn(),
     deleteRecipeMock: vi.fn(),
     RecipeNotFoundErrorMock,
+    requireAuthMock: vi.fn(),
   };
 });
 
@@ -23,10 +25,15 @@ vi.mock("@/services/recipe-service", () => ({
   RecipeNotFoundError: RecipeNotFoundErrorMock,
 }));
 
+vi.mock("@/lib/auth", () => ({
+  requireAuth: requireAuthMock,
+}));
+
 import { DELETE, GET, PUT } from "@/app/api/recipes/[id]/route";
 
 const recipeId = "cm12345678901234567890123";
-const userId = "dev-user";
+const userId = "auth-user";
+const authUser = { id: userId, email: "cook@example.com" };
 const context = (id = recipeId) => ({ params: Promise.resolve({ id }) });
 const input = {
   name: "Updated Tomato Soup",
@@ -54,6 +61,8 @@ beforeEach(() => {
   getRecipeByIdMock.mockReset();
   updateRecipeMock.mockReset();
   deleteRecipeMock.mockReset();
+  requireAuthMock.mockReset();
+  requireAuthMock.mockResolvedValue({ user: authUser, response: null });
 });
 
 afterEach(() => {
@@ -110,6 +119,22 @@ describe("GET /api/recipes/[id]", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Internal Server Error",
     });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    requireAuthMock.mockResolvedValue({
+      user: null,
+      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
+
+    const response = await GET(
+      new Request(`http://localhost:3000/api/recipes/${recipeId}`),
+      context(),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(getRecipeByIdMock).not.toHaveBeenCalled();
   });
 });
 

@@ -4,6 +4,7 @@ const {
     getWeeklyPlanMock,
     saveWeeklyPlanMock,
     WeeklyPlanReferenceErrorMock,
+    requireAuthMock,
 } = vi.hoisted(() => {
     class WeeklyPlanReferenceErrorMock extends Error {}
 
@@ -11,6 +12,7 @@ const {
         getWeeklyPlanMock: vi.fn(),
         saveWeeklyPlanMock: vi.fn(),
         WeeklyPlanReferenceErrorMock,
+        requireAuthMock: vi.fn(),
     }
 })
 
@@ -20,10 +22,15 @@ vi.mock('@/services/weekly-plan-service', () => ({
     WeeklyPlanReferenceError: WeeklyPlanReferenceErrorMock,
 }))
 
+vi.mock('@/lib/auth', () => ({
+    requireAuth: requireAuthMock,
+}))
+
 import { GET, PUT } from '@/app/api/weekly-plans/[weekStart]/route'
 
 const recipeId = 'cm12345678901234567890123'
-const userId = 'dev-user'
+const userId = 'auth-user'
+const authUser = { id: userId, email: 'cook@example.com' }
 const weekStart = '2026-09-28'
 const context = (value = weekStart) => ({ params: Promise.resolve({ weekStart: value }) })
 const plan = {
@@ -35,6 +42,7 @@ const plan = {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
 })
 
 afterEach(() => {
@@ -64,6 +72,19 @@ describe('GET /api/weekly-plans/[weekStart]', () => {
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ plan: savedPlan })
         expect(getWeeklyPlanMock).toHaveBeenCalledWith(userId, weekStart)
+    })
+
+    it('returns 401 when unauthenticated', async () => {
+        requireAuthMock.mockResolvedValue({
+            user: null,
+            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+        })
+
+        const response = await GET(new Request('http://localhost'), context())
+
+        expect(response.status).toBe(401)
+        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+        expect(getWeeklyPlanMock).not.toHaveBeenCalled()
     })
 })
 

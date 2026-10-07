@@ -4,6 +4,7 @@ const {
     createPantryItemMock,
     listPantryItemsMock,
     PantryItemConflictErrorMock,
+    requireAuthMock,
 } = vi.hoisted(() => {
     class PantryItemConflictErrorMock extends Error {}
 
@@ -11,6 +12,7 @@ const {
         createPantryItemMock: vi.fn(),
         listPantryItemsMock: vi.fn(),
         PantryItemConflictErrorMock,
+        requireAuthMock: vi.fn(),
     }
 })
 
@@ -20,9 +22,14 @@ vi.mock('@/services/pantry-item-service', () => ({
     PantryItemConflictError: PantryItemConflictErrorMock,
 }))
 
+vi.mock('@/lib/auth', () => ({
+    requireAuth: requireAuthMock,
+}))
+
 import { GET, POST } from '@/app/api/pantry-items/route'
 
-const userId = 'dev-user'
+const userId = 'auth-user'
+const authUser = { id: userId, email: 'cook@example.com' }
 const pantryItem = {
     id: 'cm12345678901234567890123',
     name: 'Olive Oil',
@@ -34,6 +41,7 @@ const pantryItem = {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
 })
 
 afterEach(() => {
@@ -47,23 +55,36 @@ describe('GET /api/pantry-items', () => {
     ])('returns %s', async (_case, items) => {
         listPantryItemsMock.mockResolvedValue(items)
 
-        const response = await GET()
+        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ items })
-        expect(listPantryItemsMock).toHaveBeenCalledOnce()
+        expect(listPantryItemsMock).toHaveBeenCalledWith(userId)
     })
 
     it('returns a generic error without leaking list failures', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         listPantryItemsMock.mockRejectedValue(new Error('database credentials'))
 
-        const response = await GET()
+        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
 
         expect(response.status).toBe(500)
         await expect(response.json()).resolves.toEqual({
             error: 'Internal Server Error',
         })
+    })
+
+    it('returns 401 when unauthenticated', async () => {
+        requireAuthMock.mockResolvedValue({
+            user: null,
+            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+        })
+
+        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
+
+        expect(response.status).toBe(401)
+        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+        expect(listPantryItemsMock).not.toHaveBeenCalled()
     })
 })
 

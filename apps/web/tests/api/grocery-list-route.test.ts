@@ -5,6 +5,7 @@ const {
     saveActiveGroceryListMock,
     clearActiveGroceryListMock,
     GroceryListReferenceErrorMock,
+    requireAuthMock,
 } = vi.hoisted(() => {
     class GroceryListReferenceErrorMock extends Error {}
 
@@ -13,6 +14,7 @@ const {
         saveActiveGroceryListMock: vi.fn(),
         clearActiveGroceryListMock: vi.fn(),
         GroceryListReferenceErrorMock,
+        requireAuthMock: vi.fn(),
     }
 })
 
@@ -23,11 +25,16 @@ vi.mock('@/services/grocery-list-service', () => ({
     GroceryListReferenceError: GroceryListReferenceErrorMock,
 }))
 
+vi.mock('@/lib/auth', () => ({
+    requireAuth: requireAuthMock,
+}))
+
 import { DELETE, GET, PUT } from '@/app/api/grocery-list/route'
 
 const recipeId = 'cm12345678901234567890123'
 const pantryItemId = 'cm22345678901234567890123'
-const userId = 'dev-user'
+const userId = 'auth-user'
+const authUser = { id: userId, email: 'cook@example.com' }
 const input = {
     importedWeeklyPlanId: null,
     recipes: [
@@ -55,6 +62,7 @@ const list = {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
 })
 
 afterEach(() => {
@@ -68,7 +76,7 @@ describe('GET /api/grocery-list', () => {
     ])('returns %s', async (_case, activeList) => {
         getActiveGroceryListMock.mockResolvedValue(activeList)
 
-        const response = await GET()
+        const response = await GET(new Request('http://localhost'))
 
         expect(response.status).toBe(200)
         await expect(response.json()).resolves.toEqual({ list: activeList })
@@ -78,10 +86,23 @@ describe('GET /api/grocery-list', () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         getActiveGroceryListMock.mockRejectedValue(new Error('database internals'))
 
-        const response = await GET()
+        const response = await GET(new Request('http://localhost'))
 
         expect(response.status).toBe(500)
         await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
+    })
+
+    it('returns 401 when unauthenticated', async () => {
+        requireAuthMock.mockResolvedValue({
+            user: null,
+            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+        })
+
+        const response = await GET(new Request('http://localhost'))
+
+        expect(response.status).toBe(401)
+        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+        expect(getActiveGroceryListMock).not.toHaveBeenCalled()
     })
 })
 
@@ -184,7 +205,7 @@ describe('DELETE /api/grocery-list', () => {
     it('returns 204 when the list is absent or deleted', async () => {
         clearActiveGroceryListMock.mockResolvedValue(undefined)
 
-        const response = await DELETE()
+        const response = await DELETE(new Request('http://localhost', { method: 'DELETE' }))
 
         expect(response.status).toBe(204)
         expect(await response.text()).toBe('')
@@ -194,7 +215,7 @@ describe('DELETE /api/grocery-list', () => {
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         clearActiveGroceryListMock.mockRejectedValue(new Error('database internals'))
 
-        const response = await DELETE()
+        const response = await DELETE(new Request('http://localhost', { method: 'DELETE' }))
 
         expect(response.status).toBe(500)
         await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })

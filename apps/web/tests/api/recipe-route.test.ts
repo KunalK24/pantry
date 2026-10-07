@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecipeMock, listRecipesMock } = vi.hoisted(() => ({
+const { createRecipeMock, listRecipesMock, requireAuthMock } = vi.hoisted(() => ({
   createRecipeMock: vi.fn(),
   listRecipesMock: vi.fn(),
+  requireAuthMock: vi.fn(),
 }));
 
 vi.mock("@/services/recipe-service", () => ({
@@ -10,14 +11,21 @@ vi.mock("@/services/recipe-service", () => ({
   listRecipes: listRecipesMock,
 }));
 
+vi.mock("@/lib/auth", () => ({
+  requireAuth: requireAuthMock,
+}));
+
 import { GET, POST } from "@/app/api/recipes/route";
 
-const userId = "dev-user";
+const userId = "auth-user";
+const authUser = { id: userId, email: "cook@example.com" };
 
 describe("POST /api/recipes", () => {
   beforeEach(() => {
     createRecipeMock.mockReset();
     listRecipesMock.mockReset();
+    requireAuthMock.mockReset();
+    requireAuthMock.mockResolvedValue({ user: authUser, response: null });
   });
 
   afterEach(() => {
@@ -288,22 +296,35 @@ describe("GET /api/recipes", () => {
   ])("returns %s", async (_case, recipes) => {
     listRecipesMock.mockResolvedValue(recipes);
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost:3000/api/recipes"));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ recipes });
-    expect(listRecipesMock).toHaveBeenCalledOnce();
+    expect(listRecipesMock).toHaveBeenCalledWith(userId);
   });
 
   it("returns a generic 500 when listing fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     listRecipesMock.mockRejectedValue(new Error("database details"));
 
-    const response = await GET();
+    const response = await GET(new Request("http://localhost:3000/api/recipes"));
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
       error: "Internal Server Error",
     });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    requireAuthMock.mockResolvedValue({
+      user: null,
+      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
+
+    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(listRecipesMock).not.toHaveBeenCalled();
   });
 });

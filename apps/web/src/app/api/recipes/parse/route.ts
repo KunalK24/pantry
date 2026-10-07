@@ -1,4 +1,5 @@
 import { recipeInputRequestSchema } from '@/schemas/recipe'
+import { requireAuth } from '@/lib/auth'
 import {
     importRecipe,
     RecipeImportError,
@@ -33,6 +34,12 @@ const errorResponses: Record<RecipeImportErrorCode, { message: string; status: n
 }
 
 export async function POST(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     let input: unknown
 
     try {

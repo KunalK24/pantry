@@ -2,7 +2,7 @@ import {
     pantryItemIdSchema,
     pantryItemInputSchema,
 } from '@/schemas/pantry-item'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 import {
     deletePantryItem,
     getPantryItemById,
@@ -64,6 +64,12 @@ function internalServerErrorResponse(error: unknown) {
 }
 
 export async function GET(_request: Request, context: PantryItemRouteContext) {
+    const auth = await requireAuth(_request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = pantryItemIdSchema.safeParse(id)
 
@@ -72,7 +78,7 @@ export async function GET(_request: Request, context: PantryItemRouteContext) {
     }
 
     try {
-        const item = await getPantryItemById(currentUserId, idResult.data)
+        const item = await getPantryItemById(auth.user.id, idResult.data)
 
         return Response.json(item)
     } catch (error) {
@@ -85,6 +91,12 @@ export async function GET(_request: Request, context: PantryItemRouteContext) {
 }
 
 export async function PUT(request: Request, context: PantryItemRouteContext) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = pantryItemIdSchema.safeParse(id)
 
@@ -122,7 +134,7 @@ export async function PUT(request: Request, context: PantryItemRouteContext) {
     }
 
     try {
-        const item = await updatePantryItem(currentUserId, idResult.data, result.data)
+        const item = await updatePantryItem(auth.user.id, idResult.data, result.data)
 
         return Response.json(item)
     } catch (error) {
@@ -139,6 +151,12 @@ export async function PUT(request: Request, context: PantryItemRouteContext) {
 }
 
 export async function DELETE(_request: Request, context: PantryItemRouteContext) {
+    const auth = await requireAuth(_request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const { id } = await context.params
     const idResult = pantryItemIdSchema.safeParse(id)
 
@@ -147,7 +165,7 @@ export async function DELETE(_request: Request, context: PantryItemRouteContext)
     }
 
     try {
-        const item = await deletePantryItem(currentUserId, idResult.data)
+        const item = await deletePantryItem(auth.user.id, idResult.data)
 
         return Response.json(item, {
             status: 200,

@@ -1,5 +1,5 @@
 import { weekStartSchema, weeklyPlanInputSchema } from '@/schemas/weekly-plan'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 import {
     getWeeklyPlan,
     saveWeeklyPlan,
@@ -27,6 +27,12 @@ async function parseWeekStart(context: WeeklyPlanRouteContext) {
 }
 
 export async function GET(_request: Request, context: WeeklyPlanRouteContext) {
+    const auth = await requireAuth(_request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const weekStartResult = await parseWeekStart(context)
 
     if (!weekStartResult.success) {
@@ -37,7 +43,7 @@ export async function GET(_request: Request, context: WeeklyPlanRouteContext) {
     }
 
     try {
-        const plan = await getWeeklyPlan(currentUserId, weekStartResult.data)
+        const plan = await getWeeklyPlan(auth.user.id, weekStartResult.data)
         return Response.json({ plan })
     } catch (error) {
         return internalServerErrorResponse(error)
@@ -45,6 +51,12 @@ export async function GET(_request: Request, context: WeeklyPlanRouteContext) {
 }
 
 export async function PUT(request: Request, context: WeeklyPlanRouteContext) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     const weekStartResult = await parseWeekStart(context)
 
     if (!weekStartResult.success) {
@@ -78,7 +90,7 @@ export async function PUT(request: Request, context: WeeklyPlanRouteContext) {
     }
 
     try {
-        const plan = await saveWeeklyPlan(currentUserId, weekStartResult.data, inputResult.data)
+        const plan = await saveWeeklyPlan(auth.user.id, weekStartResult.data, inputResult.data)
         return Response.json({ plan })
     } catch (error) {
         if (error instanceof WeeklyPlanReferenceError) {

@@ -1,5 +1,5 @@
 import { groceryListInputSchema } from '@/schemas/grocery-list'
-import { currentUserId } from '@/lib/current-user'
+import { requireAuth } from '@/lib/auth'
 import {
     clearActiveGroceryList,
     getActiveGroceryList,
@@ -16,9 +16,15 @@ function internalServerErrorResponse(error: unknown) {
     )
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     try {
-        const list = await getActiveGroceryList(currentUserId)
+        const list = await getActiveGroceryList(auth.user.id)
         return Response.json({ list })
     } catch (error) {
         return internalServerErrorResponse(error)
@@ -26,6 +32,12 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     let input: unknown
 
     try {
@@ -50,7 +62,7 @@ export async function PUT(request: Request) {
     }
 
     try {
-        const list = await saveActiveGroceryList(currentUserId, inputResult.data)
+        const list = await saveActiveGroceryList(auth.user.id, inputResult.data)
         return Response.json({ list })
     } catch (error) {
         if (error instanceof GroceryListReferenceError) {
@@ -64,9 +76,15 @@ export async function PUT(request: Request) {
     }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
+    const auth = await requireAuth(request)
+
+    if (auth.response) {
+        return auth.response
+    }
+
     try {
-        await clearActiveGroceryList(currentUserId)
+        await clearActiveGroceryList(auth.user.id)
         return new Response(null, { status: 204 })
     } catch (error) {
         return internalServerErrorResponse(error)

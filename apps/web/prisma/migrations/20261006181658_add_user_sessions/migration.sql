@@ -4,10 +4,8 @@
   - A unique constraint covering the columns `[userId,key]` on the table `GroceryList` will be added. If there are existing duplicate values, this will fail.
   - A unique constraint covering the columns `[userId,normalizedName]` on the table `PantryItem` will be added. If there are existing duplicate values, this will fail.
   - A unique constraint covering the columns `[userId,weekStart]` on the table `WeeklyPlan` will be added. If there are existing duplicate values, this will fail.
-  - Added the required column `userId` to the `GroceryList` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `userId` to the `PantryItem` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `userId` to the `Recipe` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `userId` to the `WeeklyPlan` table without a default value. This is not possible if the table is not empty.
+  Existing records are backfilled to a deterministic default user before
+  ownership columns are made required.
 
 */
 -- DropIndex
@@ -21,18 +19,6 @@ DROP INDEX "PantryItem_normalizedName_key";
 
 -- DropIndex
 DROP INDEX "WeeklyPlan_weekStart_key";
-
--- AlterTable
-ALTER TABLE "GroceryList" ADD COLUMN     "userId" TEXT NOT NULL;
-
--- AlterTable
-ALTER TABLE "PantryItem" ADD COLUMN     "userId" TEXT NOT NULL;
-
--- AlterTable
-ALTER TABLE "Recipe" ADD COLUMN     "userId" TEXT NOT NULL;
-
--- AlterTable
-ALTER TABLE "WeeklyPlan" ADD COLUMN     "userId" TEXT NOT NULL;
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -55,6 +41,40 @@ CREATE TABLE "Session" (
 
     CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
 );
+
+-- BackfillOwner
+INSERT INTO "User" ("id", "email", "passwordHash", "createdAt", "updatedAt")
+VALUES (
+    'pantry_default_user',
+    'default@pantry.local',
+    'scrypt$backfill$invalid',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+);
+
+-- AlterTable
+ALTER TABLE "GroceryList" ADD COLUMN     "userId" TEXT;
+
+-- AlterTable
+ALTER TABLE "PantryItem" ADD COLUMN     "userId" TEXT;
+
+-- AlterTable
+ALTER TABLE "Recipe" ADD COLUMN     "userId" TEXT;
+
+-- AlterTable
+ALTER TABLE "WeeklyPlan" ADD COLUMN     "userId" TEXT;
+
+-- BackfillOwnership
+UPDATE "GroceryList" SET "userId" = 'pantry_default_user' WHERE "userId" IS NULL;
+UPDATE "PantryItem" SET "userId" = 'pantry_default_user' WHERE "userId" IS NULL;
+UPDATE "Recipe" SET "userId" = 'pantry_default_user' WHERE "userId" IS NULL;
+UPDATE "WeeklyPlan" SET "userId" = 'pantry_default_user' WHERE "userId" IS NULL;
+
+-- RequireOwnership
+ALTER TABLE "GroceryList" ALTER COLUMN "userId" SET NOT NULL;
+ALTER TABLE "PantryItem" ALTER COLUMN "userId" SET NOT NULL;
+ALTER TABLE "Recipe" ALTER COLUMN "userId" SET NOT NULL;
+ALTER TABLE "WeeklyPlan" ALTER COLUMN "userId" SET NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
