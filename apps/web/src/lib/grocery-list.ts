@@ -1,4 +1,4 @@
-import { normalizeIngredientName } from "@/lib/ingredient-normalization";
+import { normalizeGroceryIngredientName } from "@/lib/ingredient-normalization";
 
 export type RecipeForGroceryList = {
   id: string;
@@ -239,7 +239,7 @@ function buildPantryStock(pantryItems: PantryItemForGroceryList[]) {
     }
 
     const key = normalizedKey(
-      normalizeIngredientName(pantryItem.name),
+      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit).normalizedName,
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = pantryStock.get(key);
@@ -260,9 +260,11 @@ function recipeRequirementsByName(recipe: RecipeForGroceryList) {
   >();
 
   for (const ingredient of recipe.ingredients) {
-    const normalizedName = normalizeIngredientName(ingredient.name);
-    const displayName = ingredient.name.trim().replace(/\s+/g, " ");
     const normalizedUnit = normalizeGroceryText(ingredient.unit ?? "");
+    const { normalizedName, displayName } = normalizeGroceryIngredientName(
+      ingredient.name,
+      ingredient.unit,
+    );
     const parsedQuantity = parseQuantity(ingredient.quantity);
     const current = requirements.get(normalizedName) ?? {
       displayName,
@@ -314,8 +316,8 @@ export function calculateRecipeAvailability(
     total: requirements.size,
     availableNames: availableNames.sort((left, right) =>
       compareText(
-        normalizeIngredientName(left),
-        normalizeIngredientName(right),
+        normalizeGroceryIngredientName(left).normalizedName,
+        normalizeGroceryIngredientName(right).normalizedName,
       ),
     ),
   };
@@ -328,7 +330,9 @@ export function calculateRecipeRecommendations(
   selectedRecipeIds: ReadonlySet<string>,
 ): RecipeRecommendation[] {
   const groceryNames = new Set(
-    visibleGroceryLines.map((line) => normalizeIngredientName(line.name)),
+    visibleGroceryLines.map(
+      (line) => normalizeGroceryIngredientName(line.name, line.unit).normalizedName,
+    ),
   );
 
   return recipes
@@ -337,7 +341,7 @@ export function calculateRecipeRecommendations(
       const requirements = recipeRequirementsByName(recipe);
       const pantryNames = new Set(
         calculateRecipeAvailability(recipe, pantryItems).availableNames.map(
-          normalizeIngredientName,
+          (name) => normalizeGroceryIngredientName(name).normalizedName,
         ),
       );
       const pantryCoveredNames: string[] = [];
@@ -357,8 +361,8 @@ export function calculateRecipeRecommendations(
       const sortNames = (names: string[]) =>
         names.sort((left, right) =>
           compareText(
-            normalizeIngredientName(left),
-            normalizeIngredientName(right),
+            normalizeGroceryIngredientName(left).normalizedName,
+            normalizeGroceryIngredientName(right).normalizedName,
           ),
         );
 
@@ -413,10 +417,12 @@ export function calculateGroceryLines(
         : 1;
 
     recipe.ingredients.forEach((ingredient, ingredientIndex) => {
-      const name = ingredient.name.trim().replace(/\s+/g, " ");
-      const normalizedName = normalizeIngredientName(ingredient.name);
       const unit = ingredient.unit?.trim().replace(/\s+/g, " ") ?? "";
       const normalizedUnit = normalizeGroceryText(ingredient.unit ?? "");
+      const { normalizedName, displayName: name } = normalizeGroceryIngredientName(
+        ingredient.name,
+        ingredient.unit,
+      );
       const parsedQuantity = parseQuantity(ingredient.quantity);
 
       if (!parsedQuantity) {
@@ -479,7 +485,7 @@ export function calculateGroceryLines(
     }
 
     const key = normalizedKey(
-      normalizeIngredientName(pantryItem.name),
+      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit).normalizedName,
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = selectedPantryByKey.get(key) ?? [];
@@ -530,7 +536,10 @@ export function calculateGroceryLines(
     }
 
     const name = pantryItem.name.trim().replace(/\s+/g, " ");
-    const normalizedName = normalizeIngredientName(pantryItem.name);
+    const normalizedName = normalizeGroceryIngredientName(
+      pantryItem.name,
+      pantryItem.unit,
+    ).normalizedName;
     const unit = pantryItem.unit?.trim().replace(/\s+/g, " ") ?? "";
     const normalizedUnit = normalizeGroceryText(pantryItem.unit ?? "");
 

@@ -261,6 +261,105 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
     expect(line).toMatchObject({ name: "Scallion", quantity: "1" });
   });
 
+  it("uses grocery-friendly display names for recipe prep descriptors", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+        ]),
+      ],
+      [],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "5",
+      unit: "cloves",
+      calculation: "computed",
+    });
+  });
+
+  it("uses grocery-friendly display names for unresolved recipe prep descriptors", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "freshly cracked black pepper", quantity: "to taste", unit: null },
+        ]),
+      ],
+      [],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      name: "black pepper",
+      quantity: "to taste",
+      unit: "",
+      calculation: "unresolved",
+    });
+  });
+
+  it("aggregates recipe prep variants under the stripped ingredient name", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "garlic, minced", quantity: "2", unit: "cloves" },
+        ]),
+        recipe("recipe-b", [
+          { name: "garlic, thinly sliced", quantity: "3", unit: "cloves" },
+        ]),
+      ],
+      [],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "5",
+      unit: "cloves",
+      recipeIds: ["recipe-a", "recipe-b"],
+      calculation: "computed",
+    });
+  });
+
+  it("subtracts pantry stock using the stripped ingredient name", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+        ]),
+      ],
+      [pantryItem("pantry-garlic", "garlic", "2", "cloves")],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "3",
+      unit: "cloves",
+      calculation: "computed",
+    });
+  });
+
+  it("subtracts pantry stock with grocery count units in the pantry name", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+        ]),
+      ],
+      [pantryItem("pantry-garlic", "garlic cloves", "2", "cloves")],
+      new Set(),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "3",
+      unit: "cloves",
+      calculation: "computed",
+    });
+  });
+
   it("requires exact units even when ingredient names are aliases", () => {
     const [line] = calculateGroceryLines(
       [recipe("recipe-a", [{ name: "Scallion", quantity: "2", unit: "bunches" }])],
@@ -355,6 +454,26 @@ describe("calculateGroceryLines pinned pantry sources", () => {
     });
   });
 
+  it("merges a compatible pinned pantry item with grocery count units in its name", () => {
+    const [line] = calculateGroceryLines(
+      [
+        recipe("recipe-a", [
+          { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+        ]),
+      ],
+      [pantryItem("pantry-garlic", "garlic cloves", "2", "cloves")],
+      new Set(["pantry-garlic"]),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "3",
+      unit: "cloves",
+      pantryItemId: "pantry-garlic",
+      calculation: "computed",
+    });
+  });
+
   it("creates a blank manual line with a trimmed unit when no computed line matches", () => {
     const [line] = calculateGroceryLines(
       [],
@@ -369,6 +488,40 @@ describe("calculateGroceryLines pinned pantry sources", () => {
       unit: "bottle",
       recipeIds: [],
       pantryItemId: "pantry-oil",
+      calculation: "manual",
+    });
+  });
+
+  it("keeps prep descriptors in manually selected pantry item names", () => {
+    const [line] = calculateGroceryLines(
+      [],
+      [pantryItem("pantry-garlic", " garlic, thinly sliced ", "5", " cloves ")],
+      new Set(["pantry-garlic"]),
+    );
+
+    expect(line).toEqual({
+      id: expect.any(String),
+      name: "garlic, thinly sliced",
+      quantity: "",
+      unit: "cloves",
+      recipeIds: [],
+      pantryItemId: "pantry-garlic",
+      calculation: "manual",
+    });
+  });
+
+  it("preserves pantry display names for manual pantry-only lines", () => {
+    const [line] = calculateGroceryLines(
+      [],
+      [pantryItem("pantry-garlic", " garlic   cloves ", "2", " cloves ")],
+      new Set(["pantry-garlic"]),
+    );
+
+    expect(line).toMatchObject({
+      name: "garlic cloves",
+      quantity: "",
+      unit: "cloves",
+      pantryItemId: "pantry-garlic",
       calculation: "manual",
     });
   });
@@ -535,6 +688,38 @@ describe("calculateRecipeAvailability", () => {
       ]),
     ).toEqual({ available: 0, total: 1, availableNames: [] });
   });
+
+  it("matches recipe prep descriptors against pantry stock", () => {
+    const candidate = recipe("prep", [
+      { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+    ]);
+
+    expect(
+      calculateRecipeAvailability(candidate, [
+        pantryItem("garlic", "garlic", "5", "cloves"),
+      ]),
+    ).toEqual({
+      available: 1,
+      total: 1,
+      availableNames: ["garlic cloves"],
+    });
+  });
+
+  it("matches pantry stock with grocery count units in the pantry name", () => {
+    const candidate = recipe("prep", [
+      { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+    ]);
+
+    expect(
+      calculateRecipeAvailability(candidate, [
+        pantryItem("garlic", "garlic cloves", "5", "cloves"),
+      ]),
+    ).toEqual({
+      available: 1,
+      total: 1,
+      availableNames: ["garlic cloves"],
+    });
+  });
 });
 
 describe("calculateRecipeRecommendations", () => {
@@ -635,6 +820,31 @@ describe("calculateRecipeRecommendations", () => {
       groceryOverlapNames: ["Rice"],
       missingNames: ["Lime"],
       total: 3,
+    });
+  });
+
+  it("matches grocery-friendly display names to recipe prep descriptors", () => {
+    const [recommendation] = calculateRecipeRecommendations(
+      [
+        recipe("prep", [
+          { name: "garlic, thinly sliced", quantity: "5", unit: "cloves" },
+          { name: "Pasta", quantity: "1", unit: "lb" },
+        ]),
+      ],
+      [],
+      [
+        {
+          ...groceryLine("garlic-line", "garlic cloves"),
+          unit: "cloves",
+        },
+      ],
+      new Set(),
+    );
+
+    expect(recommendation).toMatchObject({
+      groceryOverlapNames: ["garlic cloves"],
+      missingNames: ["Pasta"],
+      total: 2,
     });
   });
 
