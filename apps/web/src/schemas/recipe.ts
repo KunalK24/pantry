@@ -83,10 +83,6 @@ export const recipeInputRequestSchema = z.preprocess((value) => {
     return value
 }, typedRecipeInputRequestSchema)
 
-export const legacyRecipeInputRequestSchema = z.object({
-    text: z.string().trim().min(1).max(20000),
-})
-
 export type RecipeInput = z.infer<typeof recipeInputSchema>
 
 export type RecipeInputRequest = z.infer<typeof recipeInputRequestSchema>

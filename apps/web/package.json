@@ -9,13 +9,16 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "test": "vitest run",
-    "pantry:normalize": "tsx scripts/normalize-pantry-items.ts"
+    "pantry:normalize": "tsx scripts/normalize-pantry-items.ts",
+    "worker:ai": "tsx src/workers/ai-job-worker.ts"
   },
   "dependencies": {
     "@google/genai": "^2.25.0",
     "@prisma/adapter-neon": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bullmq": "^6.3.12",
     "dotenv": "^18.0.3",
+    "ioredis": "^6.0.0",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",

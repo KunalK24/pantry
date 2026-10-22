@@ -120,6 +120,19 @@ enum GroceryRecipeSource {
   WEEKLY_PLAN
 }
 
+enum AiJobType {
+  RECIPE_IMPORT
+}
+
+enum AiJobStatus {
+  QUEUED
+  PROCESSING
+  RETRYING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
 model GroceryListRecipe {
   id            String              @id @default(cuid())
   groceryListId String
@@ -153,6 +166,33 @@ model GroceryItem {
   @@index([pantryItemId])
 }
 
+model AiJob {
+  id              String      @id @default(cuid())
+  type            AiJobType
+  status          AiJobStatus @default(QUEUED)
+  inputJson       Json?
+  sourceType      String?
+  resultJson      Json?
+  errorCode       String?
+  errorMessage    String?
+  errorRetryable  Boolean?
+  progressMessage String
+  attemptsJson    Json?
+  bullJobId       String?     @unique
+  canceledAt      DateTime?
+  completedAt     DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@index([type, status])
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -165,6 +205,7 @@ model User {
   pantryItems  PantryItem[]
   weeklyPlans  WeeklyPlan[]
   groceryLists GroceryList[]
+  aiJobs       AiJob[]
 }
 
 model Session {

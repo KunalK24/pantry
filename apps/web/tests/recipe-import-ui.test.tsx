@@ -18,7 +18,7 @@ describe('recipe import UI', () => {
         expect(markup).toContain('value="image"')
         expect(markup).toContain('value="url"')
         expect(markup).toContain('Recipe text')
-        expect(markup).toContain('Recipe sources are sent to Google Gemini for conversion.')
+        expect(markup).toContain('Recipe sources are sent to Google Gemini for conversion. Review the draft before saving.')
         expect(markup).toContain('Review recipe')
     })
 

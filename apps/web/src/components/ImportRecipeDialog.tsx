@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { z } from "zod";
 
 import RecipeForm, {
   type RecipeFormValues,
 } from "@/components/RecipeForm";
 import { recipeInputSchema } from "@/schemas/recipe";
+import { aiJobIdSchema } from "@/schemas/ai-job";
 
 type ImportRecipeDialogProps = {
   onRecipeCreated: () => void;
@@ -23,6 +25,8 @@ const importModeOptions = [
   { value: "url", label: "URL" },
 ] as const;
 const maxImageBytes = 5 * 1024 * 1024;
+const importTimeoutMs = 120_000;
+const jobPollIntervalMs = 1_500;
 
 function isSupportedImageType(type: string): type is (typeof supportedImageTypes)[number] {
   return supportedImageTypes.includes(
@@ -43,17 +47,71 @@ function responseErrorMessage(payload: unknown) {
   return "Unable to import the recipe. Please try again.";
 }
 
-function parseDraft(payload: unknown): RecipeFormValues | null {
+function parseDraft(value: unknown): RecipeFormValues | null {
+  const result = recipeInputSchema.safeParse(value);
+  return result.success ? result.data : null;
+}
+
+function parseJobId(payload: unknown): string | null {
   if (
     typeof payload !== "object" ||
     payload === null ||
-    !("draft" in payload)
+    !("id" in payload)
   ) {
     return null;
   }
 
-  const result = recipeInputSchema.safeParse(payload.draft);
+  const result = aiJobIdSchema.safeParse(payload.id);
   return result.success ? result.data : null;
+}
+
+const jobStatusResponseSchema = z.object({
+  id: aiJobIdSchema,
+  status: z.enum(["queued", "processing", "retrying", "succeeded", "failed", "canceled"]),
+  sourceType: z.enum(["text", "image", "url"]),
+  stage: z.string().nullable(),
+  draft: z.unknown(),
+  error: z.object({
+    code: z.string().nullable(),
+    message: z.string().nullable(),
+  }).nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  expiresAt: z.string(),
+});
+
+function waitForNextPoll(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, jobPollIntervalMs);
+
+    function handleAbort() {
+      window.clearTimeout(timeoutId);
+      reject(signal.reason);
+    }
+
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+async function cancelJob(jobId: string) {
+  try {
+    const response = await fetch(`/api/recipe-imports/${jobId}/cancel`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      console.error("[recipe-import-ui] cancellation failed", { jobId, status: response.status });
+    }
+  } catch (error) {
+    console.error("[recipe-import-ui] cancellation request failed", { jobId, error });
+  }
 }
 
 function readFileAsDataUrl(file: File) {
@@ -83,6 +141,9 @@ export default function ImportRecipeDialog({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const parsingRef = useRef(false);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
+  const importGenerationRef = useRef(0);
   const savingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<DialogStep>("paste");
@@ -91,15 +152,28 @@ export default function ImportRecipeDialog({
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [draft, setDraft] = useState<RecipeFormValues | null>(null);
+  const [draftJobId, setDraftJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    importGenerationRef.current += 1;
+    requestAbortRef.current?.abort();
+    const jobId = activeJobIdRef.current;
+    if (jobId) {
+      void cancelJob(jobId);
+    }
+  }, []);
 
   function isBusy() {
     return parsingRef.current || savingRef.current;
   }
 
   function openDialog() {
+    importGenerationRef.current += 1;
+    activeJobIdRef.current = null;
     parsingRef.current = false;
     savingRef.current = false;
     setIsParsing(false);
@@ -110,15 +184,30 @@ export default function ImportRecipeDialog({
     setSourceUrl("");
     setSourceImage(null);
     setDraft(null);
+    setDraftJobId(null);
     setError(null);
+    setStage(null);
     dialogRef.current?.showModal();
     requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
   function closeDialog() {
-    if (!isBusy()) {
-      dialogRef.current?.close();
+    if (savingRef.current) {
+      return;
     }
+
+    importGenerationRef.current += 1;
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    const jobId = activeJobIdRef.current;
+    activeJobIdRef.current = null;
+    if (jobId) {
+      void cancelJob(jobId);
+    }
+    parsingRef.current = false;
+    setIsParsing(false);
+    setStage(null);
+    dialogRef.current?.close();
   }
 
   function handleClose() {
@@ -209,12 +298,21 @@ export default function ImportRecipeDialog({
     parsingRef.current = true;
     setIsParsing(true);
     setError(null);
+    setStage("Starting import...");
+
+    const generation = ++importGenerationRef.current;
+    const controller = new AbortController();
+    const deadlineSignal = AbortSignal.timeout(importTimeoutMs);
+    const requestSignal = AbortSignal.any([controller.signal, deadlineSignal]);
+    requestAbortRef.current = controller;
+    const isCurrent = () => importGenerationRef.current === generation;
 
     try {
       let requestBody: Awaited<ReturnType<typeof buildRequestBody>>;
       try {
         requestBody = await buildRequestBody();
       } catch (buildError) {
+        if (!isCurrent()) return;
         setError(
           buildError instanceof Error
             ? buildError.message
@@ -232,36 +330,146 @@ export default function ImportRecipeDialog({
         return;
       }
 
-      const response = await fetch("/api/recipes/parse", {
+      if (!isCurrent()) return;
+
+      const response = await fetch("/api/recipe-imports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
+        // Keep creation alive after close so its returned ID can be canceled.
+        signal: deadlineSignal,
       });
-      const payload: unknown = await response.json().catch(() => null);
+      const jobPostPayload: unknown = await response.json().catch(() => null);
+
+      if (!isCurrent()) {
+        const abandonedJobId = parseJobId(jobPostPayload);
+        if (response.ok && abandonedJobId) void cancelJob(abandonedJobId);
+        return;
+      }
 
       if (!response.ok) {
-        setError(responseErrorMessage(payload));
+        setError(responseErrorMessage(jobPostPayload));
         return;
       }
 
-      const parsedDraft = parseDraft(payload);
-      if (!parsedDraft) {
-        setError("The imported recipe was incomplete. Please try again.");
+      const jobId = parseJobId(jobPostPayload);
+      if (!jobId) {
+        setError("The import could not be started. Please try again.");
         return;
       }
+      activeJobIdRef.current = jobId;
 
-      setDraft(parsedDraft);
-      setStep("review");
-      requestAnimationFrame(() => {
-        dialogRef.current
-          ?.querySelector<HTMLInputElement>("#recipe-name")
-          ?.focus();
+      console.info("[recipe-import-ui] job created", {
+        jobId,
+        timeoutMs: importTimeoutMs,
       });
-    } catch {
-      setError("Unable to reach the server. Please try again.");
+
+      let previousStatus: string | undefined;
+
+      while (!requestSignal.aborted) {
+        const statusResponse = await fetch(`/api/recipe-imports/${jobId}`, {
+          cache: "no-store",
+          signal: requestSignal,
+        });
+        const statusPayload: unknown = await statusResponse.json().catch(() => null);
+
+        if (!isCurrent()) return;
+
+        if (!statusResponse.ok) {
+          setError(responseErrorMessage(statusPayload));
+          return;
+        }
+
+        const parsedStatus = jobStatusResponseSchema.safeParse(statusPayload);
+        if (!parsedStatus.success) {
+          setError("The import status was incomplete. Please try again.");
+          return;
+        }
+
+        const job = parsedStatus.data;
+
+        if (job.id !== jobId) {
+          setError("The import status was incomplete. Please try again.");
+          return;
+        }
+
+        setStage(job.stage);
+
+        if (job.status !== previousStatus) {
+          console.info("[recipe-import-ui] job status changed", {
+            jobId,
+            status: job.status,
+          });
+          previousStatus = job.status;
+        }
+
+        if (job.status === "succeeded") {
+          activeJobIdRef.current = null;
+          const parsedDraft = parseDraft(job.draft);
+          if (!parsedDraft) {
+            setError("The imported recipe was incomplete. Please try again.");
+            return;
+          }
+
+          setDraft(parsedDraft);
+          setDraftJobId(jobId);
+          setStep("review");
+          requestAnimationFrame(() => {
+            dialogRef.current
+              ?.querySelector<HTMLInputElement>("#recipe-name")
+              ?.focus();
+          });
+          return;
+        }
+
+        if (job.status === "failed" || job.status === "canceled") {
+          activeJobIdRef.current = null;
+          console.error("[recipe-import-ui] job ended without a result", {
+            jobId,
+            status: job.status,
+            errorCode: job.error?.code,
+            errorMessage: job.error?.message,
+          });
+          setError(job.status === "canceled"
+            ? "The recipe import was canceled."
+            : job.error?.message ?? "The recipe import failed. Please try again.");
+          return;
+        }
+
+        await waitForNextPoll(requestSignal);
+      }
+    } catch (requestError) {
+      if (!isCurrent()) return;
+      if (deadlineSignal.aborted) {
+        console.error("[recipe-import-ui] polling timed out", {
+          timeoutMs: importTimeoutMs,
+        });
+        const jobId = activeJobIdRef.current;
+        activeJobIdRef.current = null;
+        if (jobId) void cancelJob(jobId);
+        setError(`Recipe import timed out after ${importTimeoutMs / 1000} seconds. Please try again.`);
+      } else if (!controller.signal.aborted) {
+        console.error("[recipe-import-ui] request failed", {
+          error: requestError instanceof Error
+            ? requestError.message
+            : String(requestError),
+        });
+        setError("Unable to reach the server. Please try again.");
+      }
     } finally {
-      parsingRef.current = false;
-      setIsParsing(false);
+      if (isCurrent() && activeJobIdRef.current) {
+        const jobId = activeJobIdRef.current;
+        activeJobIdRef.current = null;
+        void cancelJob(jobId);
+      }
+      if (isCurrent() && requestAbortRef.current === controller) {
+        requestAbortRef.current = null;
+      }
+      if (isCurrent()) {
+        parsingRef.current = false;
+        setIsParsing(false);
+        setStage(null);
+      }
     }
   }
 
@@ -282,6 +490,17 @@ export default function ImportRecipeDialog({
           ?.querySelector<HTMLInputElement>("#recipe-source-url")
           ?.focus();
       }
+    });
+  }
+
+  function returnToDraft() {
+    if (!draft || isBusy()) return;
+    setStep("review");
+    setError(null);
+    requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLInputElement>("#recipe-name")
+        ?.focus();
     });
   }
 
@@ -313,9 +532,8 @@ export default function ImportRecipeDialog({
         aria-labelledby="import-recipe-dialog-title"
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onCancel={(event) => {
-          if (isBusy()) {
-            event.preventDefault();
-          }
+          event.preventDefault();
+          closeDialog();
         }}
         onClick={(event) => {
           if (event.target === event.currentTarget) {
@@ -336,7 +554,7 @@ export default function ImportRecipeDialog({
             <button
               aria-label="Close import recipe dialog"
               className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isParsing || isSaving}
+              disabled={isSaving}
               onClick={closeDialog}
               type="button"
             >
@@ -401,7 +619,9 @@ export default function ImportRecipeDialog({
                   className="mt-1 text-xs font-semibold text-[#8b958c]"
                   id="recipe-import-disclosure"
                 >
-                  Recipe sources are sent to Google Gemini for conversion.
+                  {importMode === "url"
+                    ? "We read the recipe page and may use Firecrawl and Google Gemini if needed. Review the draft before saving."
+                    : "Recipe sources are sent to Google Gemini for conversion. Review the draft before saving."}
                 </p>
                 {importMode === "text" ? (
                   <textarea
@@ -479,7 +699,7 @@ export default function ImportRecipeDialog({
                   className="text-sm font-semibold text-[#6f7a71]"
                   role="status"
                 >
-                  Converting recipe...
+                  {stage ?? "Converting recipe..."}
                 </p>
               ) : null}
 
@@ -490,9 +710,21 @@ export default function ImportRecipeDialog({
               >
                 {isParsing ? "Converting..." : "Review recipe"}
               </button>
+              {draft ? (
+                <button
+                  className="ml-3 min-h-11 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isParsing}
+                  onClick={returnToDraft}
+                  type="button"
+                >
+                  Return to edited draft
+                </button>
+              ) : null}
             </form>
-          ) : draft ? (
-            <div className="space-y-6">
+          ) : null}
+
+          {draft ? (
+            <div className="space-y-6" hidden={step !== "review"}>
               <button
                 className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSaving}
@@ -503,6 +735,7 @@ export default function ImportRecipeDialog({
               </button>
               <RecipeForm
                 initialValues={draft}
+                key={draftJobId}
                 onSubmittingChange={handleSavingChange}
                 onSuccess={handleCreated}
               />
@@ -512,7 +745,7 @@ export default function ImportRecipeDialog({
           <div className="mt-6 border-t border-[#e5e1d8] pt-4">
             <button
               className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isParsing || isSaving}
+              disabled={isSaving}
               onClick={closeDialog}
               type="button"
             >
