@@ -42,10 +42,18 @@ function stopWhenAborted<T>(operation: Promise<T>, signal: AbortSignal): Promise
 }
 
 function failureDetails(error: unknown, timedOut: boolean) {
-    if (timedOut || (error instanceof RecipeImportError && error.code === 'timeout')) {
+    if (timedOut) {
         return {
             code: 'timeout',
             message: `Recipe import timed out after ${AI_JOB_TIMEOUT_MS / 1000} seconds`,
+            retryable: true,
+        }
+    }
+
+    if (error instanceof RecipeImportError && error.code === 'timeout') {
+        return {
+            code: 'timeout',
+            message: 'A recipe import step timed out. Please try again.',
             retryable: true,
         }
     }

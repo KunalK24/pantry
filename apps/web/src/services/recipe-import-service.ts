@@ -125,6 +125,7 @@ async function extractWithGemini(
     if (!apiKey) throw new RecipeImportError('not_configured')
     throwIfAborted(signal)
     let output: string | undefined
+    const startedAt = Date.now()
     try {
         const client = new GoogleGenAI({ apiKey })
         const requestSignal = timedSignal(signal, GEMINI_TIMEOUT_MS)
@@ -132,14 +133,26 @@ async function extractWithGemini(
             model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash',
             input,
             system_instruction: `Extract a recipe from the supplied ${sourceType === 'url' ? 'recipe page markdown' : sourceType === 'image' ? 'recipe image' : 'recipe text'}.\n${baseInstruction}`,
+            ...(sourceType === 'url' ? { generation_config: { thinking_level: 'low' as const } } : {}),
             response_format: { type: 'text', mime_type: 'application/json', schema: recipeJSONSchema },
             store: false,
         }, { retries: { strategy: 'none' }, signal: requestSignal }), requestSignal)
         output = interaction.output_text
     } catch (error) {
+        console.warn('[recipe-import] Gemini extraction failed', {
+            sourceType,
+            durationMs: Date.now() - startedAt,
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+            status: typeof error === 'object' && error !== null && 'status' in error
+                && typeof error.status === 'number' ? error.status : undefined,
+        })
         if (signal?.aborted) throw new RecipeImportError('timeout', { cause: error })
         throw providerError(error)
     }
+    console.info('[recipe-import] Gemini extraction returned', {
+        sourceType,
+        durationMs: Date.now() - startedAt,
+    })
     if (!output?.trim()) throw new RecipeImportError('invalid_extraction')
     let extracted: unknown
     try { extracted = JSON.parse(output) }
@@ -199,6 +212,7 @@ async function scrapeMarkdown(url: string, signal?: AbortSignal): Promise<string
     if (!key) throw new RecipeImportError('not_configured')
     throwIfAborted(signal)
     const requestSignal = timedSignal(signal, FIRECRAWL_TIMEOUT_MS)
+    const startedAt = Date.now()
     let response: Response
     try {
         response = await fetch('https://api.firecrawl.dev/v2/scrape', {
@@ -208,10 +222,18 @@ async function scrapeMarkdown(url: string, signal?: AbortSignal): Promise<string
             signal: requestSignal,
         })
     } catch (error) {
+        console.warn('[recipe-import] Firecrawl request failed', {
+            durationMs: Date.now() - startedAt,
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+        })
         if (requestSignal.aborted || isTimeout(error)) throw new RecipeImportError('timeout', { cause: error })
         throw new RecipeImportError('provider_failure', { cause: error })
     }
     if (!response.ok) {
+        console.warn('[recipe-import] Firecrawl scrape rejected', {
+            status: response.status,
+            durationMs: Date.now() - startedAt,
+        })
         await response.body?.cancel().catch(() => undefined)
         if (response.status === 429) throw new RecipeImportError('rate_limited')
         if (response.status === 401 || response.status === 403) throw new RecipeImportError('source_access_denied')
@@ -221,16 +243,29 @@ async function scrapeMarkdown(url: string, signal?: AbortSignal): Promise<string
     try {
         body = await readBoundedJson(response, requestSignal)
     } catch (error) {
+        console.warn('[recipe-import] Firecrawl response failed validation', {
+            durationMs: Date.now() - startedAt,
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+        })
         if (requestSignal.aborted) throw new RecipeImportError('timeout', { cause: error })
         throw error
     }
     const payload = FirecrawlResponseSchema.safeParse(body)
-    if (!payload.success) throw new RecipeImportError('provider_failure', { cause: payload.error })
+    if (!payload.success) {
+        console.warn('[recipe-import] Firecrawl response shape invalid', {
+            durationMs: Date.now() - startedAt,
+        })
+        throw new RecipeImportError('provider_failure', { cause: payload.error })
+    }
     const { markdown, metadata } = payload.data.data
     if ([401, 403, 429].includes(metadata.statusCode)) throw new RecipeImportError('source_access_denied')
     if (metadata.statusCode < 200 || metadata.statusCode >= 300) throw new RecipeImportError('invalid_source')
     if (isAccessPage(markdown)) throw new RecipeImportError('source_access_denied')
     if (!hasRecipeEvidence(markdown)) throw new RecipeImportError('invalid_source')
+    console.info('[recipe-import] Firecrawl markdown accepted', {
+        durationMs: Date.now() - startedAt,
+        markdownChars: markdown.length,
+    })
     return markdown.slice(0, MAX_MARKDOWN_CHARS)
 }
 

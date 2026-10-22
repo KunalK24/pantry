@@ -5,6 +5,7 @@ allowBuilds:
   '@google/genai': true
   '@prisma/engines': true
   esbuild: false
+  msgpackr-extract: true
   prisma: true
   protobufjs: true
   unrs-resolver: false
