@@ -62,13 +62,18 @@ export default function PantryLibrary({
   const [requestNumber, setRequestNumber] = useState(0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<PantryItemSummary | null>(null);
+  const [editingItem, setEditingItem] = useState<PantryItemSummary | null>(
+    null,
+  );
 
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch("/api/pantry-items", { signal: controller.signal })
-      .then(async (response) => {
+    async function loadPantryItems() {
+      try {
+        const response = await fetch("/api/pantry-items", {
+          signal: controller.signal,
+        });
         const payload: unknown = await response.json().catch(() => null);
 
         if (!response.ok || !isPantryLibraryResponse(payload)) {
@@ -77,8 +82,7 @@ export default function PantryLibrary({
 
         setItems(payload.items);
         setError(null);
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError) {
         if (
           requestError instanceof DOMException &&
           requestError.name === "AbortError"
@@ -88,7 +92,10 @@ export default function PantryLibrary({
 
         setItems(null);
         setError("Unable to load your pantry. Please try again.");
-      });
+      }
+    }
+
+    void loadPantryItems();
 
     return () => controller.abort();
   }, [requestNumber, refreshSignal]);
@@ -100,10 +107,14 @@ export default function PantryLibrary({
   }
 
   async function handleDeletePantryItem(item: PantryItemSummary) {
-    if (deletingId !== null) return;
+    if (deletingId !== null) {
+      return;
+    }
 
     const confirmed = window.confirm(`Delete ${item.name} from your pantry?`);
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     setDeletingId(item.id);
     setDeleteError(null);
@@ -127,8 +138,9 @@ export default function PantryLibrary({
         throw new Error(message);
       }
 
-      setItems((current) =>
-        current?.filter((currentItem) => currentItem.id !== item.id) ?? null,
+      setItems(
+        (current) =>
+          current?.filter((currentItem) => currentItem.id !== item.id) ?? null,
       );
     } catch (error) {
       setDeleteError(

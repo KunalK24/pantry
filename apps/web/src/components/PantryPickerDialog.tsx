@@ -86,7 +86,9 @@ export default function PantryPickerDialog({
           throw new Error("Unable to load your pantry.");
         }
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         setItems(payload.items);
         onLoadStateChange({ status: "ready", items: payload.items });
@@ -100,7 +102,9 @@ export default function PantryPickerDialog({
           return;
         }
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         setItems(null);
         setError("Unable to load your pantry. Please try again.");
@@ -172,7 +176,9 @@ export default function PantryPickerDialog({
         aria-labelledby="pantry-picker-title"
         className="m-auto max-h-[min(38rem,calc(100dvh-2rem))] w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onClick={(event) => {
-          if (event.target === event.currentTarget) closeDialog();
+          if (event.target === event.currentTarget) {
+            closeDialog();
+          }
         }}
         onClose={handleClose}
         ref={dialogRef}
@@ -180,7 +186,10 @@ export default function PantryPickerDialog({
         <div className="flex max-h-[min(38rem,calc(100dvh-2rem))] flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-[#e5e1d8] px-5 py-4">
             <div>
-              <h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]" id="pantry-picker-title">
+              <h2
+                className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]"
+                id="pantry-picker-title"
+              >
                 Add from pantry
               </h2>
               <p
@@ -245,7 +254,9 @@ export default function PantryPickerDialog({
                               {item.name}
                             </span>
                             <span className="mt-1 block text-sm text-[#6f7a71]">
-                              {amount ? `${amount} available` : "Amount not specified"}
+                              {amount
+                                ? `${amount} available`
+                                : "Amount not specified"}
                             </span>
                           </span>
                         </label>

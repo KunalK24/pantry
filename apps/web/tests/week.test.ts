@@ -15,13 +15,18 @@ describe("local week helpers", () => {
     ["2026-01-01", [2026, 0, 1]],
     ["2024-02-29", [2024, 1, 29]],
     ["2026-12-31", [2026, 11, 31]],
-  ])("parses and formats calendar date %s without changing its day", (value, parts) => {
-    const date = parseLocalDate(value);
+  ])(
+    "parses and formats calendar date %s without changing its day",
+    (value, parts) => {
+      const date = parseLocalDate(value);
 
-    expect(date).not.toBeNull();
-    expect([date!.getFullYear(), date!.getMonth(), date!.getDate()]).toEqual(parts);
-    expect(formatLocalDate(date!)).toBe(value);
-  });
+      expect(date).not.toBeNull();
+      expect([date!.getFullYear(), date!.getMonth(), date!.getDate()]).toEqual(
+        parts,
+      );
+      expect(formatLocalDate(date!)).toBe(value);
+    },
+  );
 
   it.each(["", "2026-2-02", "2026-02-30", "2025-02-29", "not-a-date"])(
     "rejects invalid local date %j",

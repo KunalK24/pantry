@@ -1,180 +1,198 @@
 import {
-    pantryItemIdSchema,
-    pantryItemInputSchema,
-} from '@/schemas/pantry-item'
-import { requireAuth } from '@/lib/auth'
+  MAX_JSON_REQUEST_BYTES,
+  readBoundedJson,
+  RequestTooLargeError,
+} from "@/lib/request-json";
 import {
-    deletePantryItem,
-    getPantryItemById,
-    PantryItemConflictError,
-    PantryItemNotFoundError,
-    updatePantryItem,
-} from '@/services/pantry-item-service'
+  pantryItemIdSchema,
+  pantryItemInputSchema,
+} from "@/schemas/pantry-item";
+import { requireAuth } from "@/lib/auth";
+import {
+  deletePantryItem,
+  getPantryItemById,
+  PantryItemConflictError,
+  PantryItemNotFoundError,
+  updatePantryItem,
+} from "@/services/pantry-item-service";
 
 type PantryItemRouteContext = {
-    params: Promise<{
-        id: string
-    }>
-}
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 function invalidPantryItemIdResponse() {
-    return Response.json(
-        {
-            error: 'Invalid pantry item ID',
-        },
-        {
-            status: 400,
-        }
-    )
+  return Response.json(
+    {
+      error: "Invalid pantry item ID",
+    },
+    {
+      status: 400,
+    },
+  );
 }
 
 function pantryItemNotFoundResponse() {
-    return Response.json(
-        {
-            error: 'Pantry item not found',
-        },
-        {
-            status: 404,
-        }
-    )
+  return Response.json(
+    {
+      error: "Pantry item not found",
+    },
+    {
+      status: 404,
+    },
+  );
 }
 
 function pantryItemConflictResponse() {
-    return Response.json(
-        {
-            error: 'Pantry item already exists',
-        },
-        {
-            status: 409,
-        }
-    )
+  return Response.json(
+    {
+      error: "Pantry item already exists",
+    },
+    {
+      status: 409,
+    },
+  );
 }
 
 function internalServerErrorResponse(error: unknown) {
-    console.error(error)
+  console.error(error);
 
-    return Response.json(
-        {
-            error: 'Internal Server Error',
-        },
-        {
-            status: 500,
-        }
-    )
+  return Response.json(
+    {
+      error: "Internal Server Error",
+    },
+    {
+      status: 500,
+    },
+  );
 }
 
 export async function GET(_request: Request, context: PantryItemRouteContext) {
-    const auth = await requireAuth(_request)
+  const auth = await requireAuth(_request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = pantryItemIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidPantryItemIdResponse();
+  }
+
+  try {
+    const item = await getPantryItemById(auth.user.id, idResult.data);
+
+    return Response.json(item);
+  } catch (error) {
+    if (error instanceof PantryItemNotFoundError) {
+      return pantryItemNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = pantryItemIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidPantryItemIdResponse()
-    }
-
-    try {
-        const item = await getPantryItemById(auth.user.id, idResult.data)
-
-        return Response.json(item)
-    } catch (error) {
-        if (error instanceof PantryItemNotFoundError) {
-            return pantryItemNotFoundResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }
 
 export async function PUT(request: Request, context: PantryItemRouteContext) {
-    const auth = await requireAuth(request)
+  const auth = await requireAuth(request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = pantryItemIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidPantryItemIdResponse();
+  }
+
+  let input: unknown;
+
+  try {
+    input = await readBoundedJson(request, MAX_JSON_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestTooLargeError) {
+      return Response.json(
+        { error: "Request body is too large" },
+        { status: 413 },
+      );
+    }
+    return Response.json(
+      {
+        error: "Malformed JSON",
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  const result = pantryItemInputSchema.safeParse(input);
+
+  if (!result.success) {
+    return Response.json(
+      {
+        error: "Invalid pantry item",
+        details: result.error.flatten(),
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  try {
+    const item = await updatePantryItem(
+      auth.user.id,
+      idResult.data,
+      result.data,
+    );
+
+    return Response.json(item);
+  } catch (error) {
+    if (error instanceof PantryItemNotFoundError) {
+      return pantryItemNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = pantryItemIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidPantryItemIdResponse()
+    if (error instanceof PantryItemConflictError) {
+      return pantryItemConflictResponse();
     }
 
-    let input: unknown
-
-    try {
-        input = await request.json()
-    } catch {
-        return Response.json(
-            {
-                error: 'Malformed JSON',
-            },
-            {
-                status: 400,
-            }
-        )
-    }
-
-    const result = pantryItemInputSchema.safeParse(input)
-
-    if (!result.success) {
-        return Response.json(
-            {
-                error: 'Invalid pantry item',
-                details: result.error.flatten(),
-            },
-            {
-                status: 400,
-            }
-        )
-    }
-
-    try {
-        const item = await updatePantryItem(auth.user.id, idResult.data, result.data)
-
-        return Response.json(item)
-    } catch (error) {
-        if (error instanceof PantryItemNotFoundError) {
-            return pantryItemNotFoundResponse()
-        }
-
-        if (error instanceof PantryItemConflictError) {
-            return pantryItemConflictResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }
 
-export async function DELETE(_request: Request, context: PantryItemRouteContext) {
-    const auth = await requireAuth(_request)
+export async function DELETE(
+  _request: Request,
+  context: PantryItemRouteContext,
+) {
+  const auth = await requireAuth(_request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = pantryItemIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidPantryItemIdResponse();
+  }
+
+  try {
+    const item = await deletePantryItem(auth.user.id, idResult.data);
+
+    return Response.json(item, {
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof PantryItemNotFoundError) {
+      return pantryItemNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = pantryItemIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidPantryItemIdResponse()
-    }
-
-    try {
-        const item = await deletePantryItem(auth.user.id, idResult.data)
-
-        return Response.json(item, {
-            status: 200,
-        })
-    } catch (error) {
-        if (error instanceof PantryItemNotFoundError) {
-            return pantryItemNotFoundResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }

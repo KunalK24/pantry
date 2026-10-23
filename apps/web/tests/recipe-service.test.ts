@@ -92,19 +92,21 @@ const flattenedRecipe = {
 beforeEach(() => {
   vi.clearAllMocks();
 
-  transactionMock.mockImplementation(async (operation) => operation({
-    recipe: {
-      findUnique: transactionFindRecipeMock,
-      update: transactionUpdateRecipeMock,
-      delete: transactionDeleteRecipeMock,
-    },
-    recipeIngredient: {
-      deleteMany: transactionDeleteRecipeIngredientsMock,
-    },
-    ingredient: {
-      deleteMany: transactionDeleteIngredientsMock,
-    },
-  }));
+  transactionMock.mockImplementation(async (operation) =>
+    operation({
+      recipe: {
+        findUnique: transactionFindRecipeMock,
+        update: transactionUpdateRecipeMock,
+        delete: transactionDeleteRecipeMock,
+      },
+      recipeIngredient: {
+        deleteMany: transactionDeleteRecipeIngredientsMock,
+      },
+      ingredient: {
+        deleteMany: transactionDeleteIngredientsMock,
+      },
+    }),
+  );
 });
 
 describe("createRecipe", () => {
@@ -164,17 +166,19 @@ describe("createRecipe", () => {
 
     createRecipeMock.mockResolvedValue(persistedRecipe);
 
-    await expect(createRecipe(userId, {
-      name: "Tomato Soup",
-      description: "A quick soup",
-      instructions: "Simmer until warm.",
-      ingredients: [
-        { name: "Tomatoes", quantity: "2", unit: "cans" },
-        { name: "Stock", quantity: "1/2", unit: "cup" },
-        { name: "Simmer time", quantity: "1-2", unit: "minutes" },
-        { name: "Salt", quantity: "to taste" },
-      ],
-    })).resolves.toEqual({
+    await expect(
+      createRecipe(userId, {
+        name: "Tomato Soup",
+        description: "A quick soup",
+        instructions: "Simmer until warm.",
+        ingredients: [
+          { name: "Tomatoes", quantity: "2", unit: "cans" },
+          { name: "Stock", quantity: "1/2", unit: "cup" },
+          { name: "Simmer time", quantity: "1-2", unit: "minutes" },
+          { name: "Salt", quantity: "to taste" },
+        ],
+      }),
+    ).resolves.toEqual({
       id: "recipe_1",
       name: "Tomato Soup",
       description: "A quick soup",
@@ -324,7 +328,9 @@ describe("getRecipeById", () => {
   it("loads and flattens a complete recipe", async () => {
     findRecipeByIdMock.mockResolvedValue(completeRecipe);
 
-    await expect(getRecipeById(userId, completeRecipe.id)).resolves.toEqual(flattenedRecipe);
+    await expect(getRecipeById(userId, completeRecipe.id)).resolves.toEqual(
+      flattenedRecipe,
+    );
     expect(findRecipeByIdMock).toHaveBeenCalledWith({
       where: { id: completeRecipe.id, userId },
       include: {
@@ -340,9 +346,9 @@ describe("getRecipeById", () => {
   it("throws the domain error when the recipe does not exist", async () => {
     findRecipeByIdMock.mockResolvedValue(null);
 
-    await expect(getRecipeById(userId, completeRecipe.id)).rejects.toBeInstanceOf(
-      RecipeNotFoundError,
-    );
+    await expect(
+      getRecipeById(userId, completeRecipe.id),
+    ).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
 
@@ -366,9 +372,9 @@ describe("updateRecipe", () => {
     transactionUpdateRecipeMock.mockResolvedValue(completeRecipe);
     transactionDeleteIngredientsMock.mockResolvedValue({ count: 2 });
 
-    await expect(updateRecipe(userId, completeRecipe.id, input)).resolves.toEqual(
-      flattenedRecipe,
-    );
+    await expect(
+      updateRecipe(userId, completeRecipe.id, input),
+    ).resolves.toEqual(flattenedRecipe);
 
     expect(transactionMock).toHaveBeenCalledOnce();
     expect(transactionFindRecipeMock).toHaveBeenCalledWith({
@@ -526,15 +532,17 @@ describe("deleteRecipe", () => {
     ).toBeLessThan(transactionDeleteRecipeMock.mock.invocationCallOrder[0]);
     expect(
       transactionDeleteRecipeMock.mock.invocationCallOrder[0],
-    ).toBeLessThan(transactionDeleteIngredientsMock.mock.invocationCallOrder[0]);
+    ).toBeLessThan(
+      transactionDeleteIngredientsMock.mock.invocationCallOrder[0],
+    );
   });
 
   it("throws the domain error before deleting when the recipe does not exist", async () => {
     transactionFindRecipeMock.mockResolvedValue(null);
 
-    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBeInstanceOf(
-      RecipeNotFoundError,
-    );
+    await expect(
+      deleteRecipe(userId, completeRecipe.id),
+    ).rejects.toBeInstanceOf(RecipeNotFoundError);
 
     expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
     expect(transactionDeleteRecipeMock).not.toHaveBeenCalled();
@@ -550,9 +558,9 @@ describe("deleteRecipe", () => {
       }),
     );
 
-    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBeInstanceOf(
-      RecipeNotFoundError,
-    );
+    await expect(
+      deleteRecipe(userId, completeRecipe.id),
+    ).rejects.toBeInstanceOf(RecipeNotFoundError);
 
     expect(transactionDeleteRecipeIngredientsMock).toHaveBeenCalledOnce();
     expect(transactionDeleteIngredientsMock).not.toHaveBeenCalled();
@@ -562,7 +570,9 @@ describe("deleteRecipe", () => {
     const databaseError = new Error("database unavailable");
     transactionFindRecipeMock.mockRejectedValue(databaseError);
 
-    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBe(databaseError);
+    await expect(deleteRecipe(userId, completeRecipe.id)).rejects.toBe(
+      databaseError,
+    );
 
     expect(transactionDeleteRecipeIngredientsMock).not.toHaveBeenCalled();
     expect(transactionDeleteRecipeMock).not.toHaveBeenCalled();

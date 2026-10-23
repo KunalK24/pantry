@@ -34,8 +34,7 @@ function isLinkActive(pathname: string, href: string) {
 
 export default function AppNav() {
   const pathname = usePathname();
-  const [sessionStatus, setSessionStatus] =
-    useState<SessionStatus>("loading");
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("loading");
 
   useEffect(() => {
     const controller = new AbortController();

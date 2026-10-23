@@ -32,7 +32,9 @@ export default function CreateRecipeDialog({
     setIsOpen(true);
     dialogRef.current?.showModal();
     requestAnimationFrame(() => {
-      dialogRef.current?.querySelector<HTMLInputElement>("#recipe-name")?.focus();
+      dialogRef.current
+        ?.querySelector<HTMLInputElement>("#recipe-name")
+        ?.focus();
     });
   }
 
@@ -62,10 +64,7 @@ export default function CreateRecipeDialog({
   }
 
   function handleCreated(generation: number) {
-    if (
-      generation !== generationRef.current ||
-      !dialogRef.current?.open
-    ) {
+    if (generation !== generationRef.current || !dialogRef.current?.open) {
       return;
     }
 
@@ -91,10 +90,7 @@ export default function CreateRecipeDialog({
         aria-labelledby="create-recipe-dialog-title"
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onClick={(event) => {
-          if (
-            event.target === event.currentTarget &&
-            !submittingRef.current
-          ) {
+          if (event.target === event.currentTarget && !submittingRef.current) {
             closeDialog();
           }
         }}

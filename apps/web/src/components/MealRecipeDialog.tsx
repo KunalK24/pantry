@@ -37,7 +37,9 @@ export default function MealRecipeDialog({
   useEffect(() => {
     const dialog = dialogRef.current;
 
-    if (!dialog) return;
+    if (!dialog) {
+      return;
+    }
 
     if (open && !dialog.open) {
       returnFocusRef.current =
@@ -68,7 +70,9 @@ export default function MealRecipeDialog({
       aria-labelledby="meal-recipe-dialog-title"
       className="m-auto max-h-[min(38rem,calc(100dvh-2rem))] w-[min(34rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
       onClick={(event) => {
-        if (event.target === event.currentTarget) closeDialog();
+        if (event.target === event.currentTarget) {
+          closeDialog();
+        }
       }}
       onClose={handleClose}
       ref={dialogRef}
@@ -76,7 +80,10 @@ export default function MealRecipeDialog({
       <div className="flex max-h-[min(38rem,calc(100dvh-2rem))] flex-col">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5e1d8] px-5 py-4">
           <div>
-            <h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]" id="meal-recipe-dialog-title">
+            <h2
+              className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]"
+              id="meal-recipe-dialog-title"
+            >
               Add meal
             </h2>
             <p
@@ -105,7 +112,9 @@ export default function MealRecipeDialog({
                 key={recipe.id}
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-[#24342b]">{recipe.name}</p>
+                  <p className="text-sm font-bold text-[#24342b]">
+                    {recipe.name}
+                  </p>
                   {recipe.description ? (
                     <p className="mt-1 line-clamp-2 text-sm text-[#6f7a71]">
                       {recipe.description}

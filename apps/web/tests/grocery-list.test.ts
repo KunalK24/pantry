@@ -26,10 +26,7 @@ function pantryItem(
   return { id, name, quantity, unit };
 }
 
-function groceryLine(
-  id: string,
-  name: string,
-): GroceryLineCalculation {
+function groceryLine(id: string, name: string): GroceryLineCalculation {
   return {
     id,
     name,
@@ -115,7 +112,9 @@ describe("calculateGroceryLines quantity arithmetic", () => {
   it("aggregates normalized ingredients across recipes and subtracts pantry once", () => {
     const lines = calculateGroceryLines(
       [
-        recipe("recipe-b", [{ name: " FLOUR ", quantity: "1/2", unit: " Cup " }]),
+        recipe("recipe-b", [
+          { name: " FLOUR ", quantity: "1/2", unit: " Cup " },
+        ]),
         recipe("recipe-a", [{ name: "Flour", quantity: "1", unit: "cup" }]),
       ],
       [pantryItem("pantry-flour", "flour", "1/2", "CUP")],
@@ -136,11 +135,17 @@ describe("calculateGroceryLines quantity arithmetic", () => {
   it.each(["1 1/2", "2"])(
     "omits a line when pantry stock %s equals or exceeds the requirement",
     (quantity) => {
-      expect(calculateGroceryLines(
-        [recipe("recipe-a", [{ name: "Flour", quantity: "1 1/2", unit: "cup" }])],
-        [pantryItem("pantry-flour", "Flour", quantity, "cup")],
-        new Set(),
-      )).toEqual([]);
+      expect(
+        calculateGroceryLines(
+          [
+            recipe("recipe-a", [
+              { name: "Flour", quantity: "1 1/2", unit: "cup" },
+            ]),
+          ],
+          [pantryItem("pantry-flour", "Flour", quantity, "cup")],
+          new Set(),
+        ),
+      ).toEqual([]);
     },
   );
 
@@ -189,7 +194,14 @@ describe("calculateGroceryLines quantity arithmetic", () => {
     },
   );
 
-  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.MAX_SAFE_INTEGER + 1,
+  ])(
     "safely defaults invalid multiplier %s to one preparation",
     (multiplier) => {
       const [line] = calculateGroceryLines(
@@ -205,7 +217,11 @@ describe("calculateGroceryLines quantity arithmetic", () => {
 
   it("keeps one unresolved line and warns when a recipe is repeated", () => {
     const lines = calculateGroceryLines(
-      [recipe("recipe-a", [{ name: "Salt", quantity: "to taste", unit: null }])],
+      [
+        recipe("recipe-a", [
+          { name: "Salt", quantity: "to taste", unit: null },
+        ]),
+      ],
       [pantryItem("pantry-salt", "Salt", "20", null)],
       new Set(),
       new Map([["recipe-a", 3]]),
@@ -226,11 +242,13 @@ describe("calculateGroceryLines quantity arithmetic", () => {
 describe("calculateGroceryLines matching and fallback behavior", () => {
   it("keeps missing and incompatible units in separate computed lines", () => {
     const lines = calculateGroceryLines(
-      [recipe("recipe-a", [
-        { name: "Milk", quantity: "1", unit: "cup" },
-        { name: "Milk", quantity: "2", unit: "tbsp" },
-        { name: "Milk", quantity: "3", unit: null },
-      ])],
+      [
+        recipe("recipe-a", [
+          { name: "Milk", quantity: "1", unit: "cup" },
+          { name: "Milk", quantity: "2", unit: "tbsp" },
+          { name: "Milk", quantity: "3", unit: null },
+        ]),
+      ],
       [pantryItem("pantry-milk", "Milk", "1", "CUP")],
       new Set(),
     );
@@ -284,7 +302,11 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
     const [line] = calculateGroceryLines(
       [
         recipe("recipe-a", [
-          { name: "freshly cracked black pepper", quantity: "to taste", unit: null },
+          {
+            name: "freshly cracked black pepper",
+            quantity: "to taste",
+            unit: null,
+          },
         ]),
       ],
       [],
@@ -362,19 +384,31 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
 
   it("requires exact units even when ingredient names are aliases", () => {
     const [line] = calculateGroceryLines(
-      [recipe("recipe-a", [{ name: "Scallion", quantity: "2", unit: "bunches" }])],
+      [
+        recipe("recipe-a", [
+          { name: "Scallion", quantity: "2", unit: "bunches" },
+        ]),
+      ],
       [pantryItem("pantry-onion", "Green onion", "1", "bunch")],
       new Set(),
     );
 
-    expect(line).toMatchObject({ name: "Scallion", quantity: "2", unit: "bunches" });
+    expect(line).toMatchObject({
+      name: "Scallion",
+      quantity: "2",
+      unit: "bunches",
+    });
   });
 
   it("aggregates singular and plural aliases", () => {
     const [line] = calculateGroceryLines(
       [
-        recipe("recipe-a", [{ name: "Scallion", quantity: "1", unit: "bunch" }]),
-        recipe("recipe-b", [{ name: "green onions", quantity: "2", unit: "bunch" }]),
+        recipe("recipe-a", [
+          { name: "Scallion", quantity: "1", unit: "bunch" },
+        ]),
+        recipe("recipe-b", [
+          { name: "green onions", quantity: "2", unit: "bunch" },
+        ]),
       ],
       [],
       new Set(),
@@ -388,11 +422,13 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
 
   it("keeps descriptive and hyphenated ingredient names distinct", () => {
     const lines = calculateGroceryLines(
-      [recipe("recipe-a", [
-        { name: "Scallion", quantity: "1", unit: null },
-        { name: "fresh scallions", quantity: "2", unit: null },
-        { name: "green-onion", quantity: "3", unit: null },
-      ])],
+      [
+        recipe("recipe-a", [
+          { name: "Scallion", quantity: "1", unit: null },
+          { name: "fresh scallions", quantity: "2", unit: null },
+          { name: "green-onion", quantity: "3", unit: null },
+        ]),
+      ],
       [],
       new Set(),
     );
@@ -407,8 +443,12 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
   it("keeps every unresolved occurrence separate and never subtracts pantry stock", () => {
     const lines = calculateGroceryLines(
       [
-        recipe("recipe-a", [{ name: "Salt", quantity: "to taste", unit: null }]),
-        recipe("recipe-b", [{ name: " salt ", quantity: "one pinch", unit: null }]),
+        recipe("recipe-a", [
+          { name: "Salt", quantity: "to taste", unit: null },
+        ]),
+        recipe("recipe-b", [
+          { name: " salt ", quantity: "one pinch", unit: null },
+        ]),
       ],
       [pantryItem("pantry-salt", "Salt", "20", null)],
       new Set(),
@@ -424,10 +464,12 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
 
   it("keeps numeric and unresolved requirements for one ingredient separate", () => {
     const lines = calculateGroceryLines(
-      [recipe("recipe-a", [
-        { name: "Salt", quantity: "2", unit: "tsp" },
-        { name: "Salt", quantity: "to taste", unit: "tsp" },
-      ])],
+      [
+        recipe("recipe-a", [
+          { name: "Salt", quantity: "2", unit: "tsp" },
+          { name: "Salt", quantity: "to taste", unit: "tsp" },
+        ]),
+      ],
       [pantryItem("pantry-salt", "Salt", "1", "tsp")],
       new Set(),
     );
@@ -543,15 +585,25 @@ describe("calculateGroceryLines pinned pantry sources", () => {
 
   it("keeps a pinned item separate when it aligns only with an unresolved requirement", () => {
     const lines = calculateGroceryLines(
-      [recipe("recipe-a", [{ name: "Salt", quantity: "to taste", unit: "tsp" }])],
+      [
+        recipe("recipe-a", [
+          { name: "Salt", quantity: "to taste", unit: "tsp" },
+        ]),
+      ],
       [pantryItem("pantry-salt", "Salt", "1", "tsp")],
       new Set(["pantry-salt"]),
     );
 
-    expect(lines.map((line) => line.calculation)).toEqual(["unresolved", "manual"]);
+    expect(lines.map((line) => line.calculation)).toEqual([
+      "unresolved",
+      "manual",
+    ]);
     expect(lines[0]).toMatchObject({ quantity: "to taste" });
     expect(lines[0]).not.toHaveProperty("pantryItemId");
-    expect(lines[1]).toMatchObject({ quantity: "", pantryItemId: "pantry-salt" });
+    expect(lines[1]).toMatchObject({
+      quantity: "",
+      pantryItemId: "pantry-salt",
+    });
   });
 
   it("keeps an incompatible pinned pantry item as a separate manual line", () => {
@@ -794,24 +846,20 @@ describe("calculateRecipeRecommendations", () => {
       "more-overlap",
     ]);
     expect(recommendations[0].groceryOverlapNames).toEqual(["Tortilla"]);
-    expect(recommendations[1].groceryOverlapNames).toEqual([
-      "Egg",
-      "Tortilla",
-    ]);
+    expect(recommendations[1].groceryOverlapNames).toEqual(["Egg", "Tortilla"]);
   });
 
   it("classifies pantry coverage before duplicate grocery overlap", () => {
     const [recommendation] = calculateRecipeRecommendations(
-      [recipe("combined", [
-        { name: "Scallions", quantity: "2", unit: "bunch" },
-        { name: "Rice", quantity: "1", unit: "cup" },
-        { name: "Lime", quantity: "1", unit: null },
-      ])],
-      [pantryItem("onion", "Green onion", "2", "bunch")],
       [
-        groceryLine("onion-line", "Scallion"),
-        groceryLine("rice-line", "RICE"),
+        recipe("combined", [
+          { name: "Scallions", quantity: "2", unit: "bunch" },
+          { name: "Rice", quantity: "1", unit: "cup" },
+          { name: "Lime", quantity: "1", unit: null },
+        ]),
       ],
+      [pantryItem("onion", "Green onion", "2", "bunch")],
+      [groceryLine("onion-line", "Scallion"), groceryLine("rice-line", "RICE")],
       new Set(),
     );
 
@@ -870,22 +918,34 @@ describe("calculateRecipeRecommendations", () => {
   it("applies grocery, recipe-name, and recipe-id tie breakers deterministically", () => {
     const recommendations = calculateRecipeRecommendations(
       [
-        { ...recipe("id-b", [
-          { name: "Egg", quantity: "1", unit: null },
-          { name: "Salt", quantity: "1", unit: null },
-        ]), name: "Same" },
-        { ...recipe("pantry", [
-          { name: "Egg", quantity: "1", unit: null },
-          { name: "Salt", quantity: "1", unit: null },
-        ]), name: "A pantry match" },
-        { ...recipe("id-a", [
-          { name: "Egg", quantity: "1", unit: null },
-          { name: "Salt", quantity: "1", unit: null },
-        ]), name: "Same" },
-        { ...recipe("named", [
-          { name: "Egg", quantity: "2", unit: null },
-          { name: "Salt", quantity: "1", unit: null },
-        ]), name: "Before Same" },
+        {
+          ...recipe("id-b", [
+            { name: "Egg", quantity: "1", unit: null },
+            { name: "Salt", quantity: "1", unit: null },
+          ]),
+          name: "Same",
+        },
+        {
+          ...recipe("pantry", [
+            { name: "Egg", quantity: "1", unit: null },
+            { name: "Salt", quantity: "1", unit: null },
+          ]),
+          name: "A pantry match",
+        },
+        {
+          ...recipe("id-a", [
+            { name: "Egg", quantity: "1", unit: null },
+            { name: "Salt", quantity: "1", unit: null },
+          ]),
+          name: "Same",
+        },
+        {
+          ...recipe("named", [
+            { name: "Egg", quantity: "2", unit: null },
+            { name: "Salt", quantity: "1", unit: null },
+          ]),
+          name: "Before Same",
+        },
       ],
       [pantryItem("egg", "Egg", "1", null)],
       [groceryLine("salt", "Salt"), groceryLine("egg", "Egg")],

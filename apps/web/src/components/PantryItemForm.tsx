@@ -57,10 +57,7 @@ export default function PantryItemForm(
   const [status, setStatus] = useState<SubmissionStatus>(null);
   const router = useRouter();
 
-  function updateField(
-    setter: (value: string) => void,
-    value: string,
-  ) {
+  function updateField(setter: (value: string) => void, value: string) {
     setStatus(null);
     setter(value);
   }
@@ -77,6 +74,19 @@ export default function PantryItemForm(
       setStatus({
         type: "error",
         message: "Enter an ingredient name before saving.",
+      });
+      return;
+    }
+
+    if (
+      trimmedName.length > 200 ||
+      trimmedQuantity.length > 100 ||
+      trimmedUnit.length > 100
+    ) {
+      setStatus({
+        type: "error",
+        message:
+          "Some pantry item fields are too long. Shorten them before saving.",
       });
       return;
     }
@@ -138,7 +148,9 @@ export default function PantryItemForm(
 
     if (wasSuccessful) {
       props.onSuccess?.();
-      if (mode === "edit") router.replace("/recipes")
+      if (mode === "edit") {
+        router.replace("/recipes");
+      }
     }
   }
 
@@ -167,16 +179,14 @@ export default function PantryItemForm(
         )}
 
         <div>
-          <label
-            className={labelClasses}
-            htmlFor="pantry-item-name"
-          >
+          <label className={labelClasses} htmlFor="pantry-item-name">
             Ingredient name
           </label>
           <input
             autoComplete="off"
             className={inputClasses}
             id="pantry-item-name"
+            maxLength={200}
             name="name"
             onChange={(event) => updateField(setName, event.target.value)}
             required
@@ -187,20 +197,15 @@ export default function PantryItemForm(
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label
-              className={labelClasses}
-              htmlFor="pantry-item-quantity"
-            >
-              Quantity{" "}
-              <span className={optionalClasses}>(optional)</span>
+            <label className={labelClasses} htmlFor="pantry-item-quantity">
+              Quantity <span className={optionalClasses}>(optional)</span>
             </label>
             <input
               className={inputClasses}
               id="pantry-item-quantity"
+              maxLength={100}
               name="quantity"
-              onChange={(event) =>
-                updateField(setQuantity, event.target.value)
-              }
+              onChange={(event) => updateField(setQuantity, event.target.value)}
               placeholder="1/2, one bag, or to taste"
               type="text"
               value={quantity}
@@ -208,15 +213,13 @@ export default function PantryItemForm(
           </div>
 
           <div>
-            <label
-              className={labelClasses}
-              htmlFor="pantry-item-unit"
-            >
+            <label className={labelClasses} htmlFor="pantry-item-unit">
               Unit <span className={optionalClasses}>(optional)</span>
             </label>
             <input
               className={inputClasses}
               id="pantry-item-unit"
+              maxLength={100}
               name="unit"
               onChange={(event) => updateField(setUnit, event.target.value)}
               placeholder="bottle, cup, or can"

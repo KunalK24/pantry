@@ -4,10 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import RecipeForm, { type RecipeFormValues } from "@/components/RecipeForm";
 
-type RecipeResponse = Omit<
-  RecipeFormValues,
-  "instructions" | "ingredients"
-> & {
+type RecipeResponse = Omit<RecipeFormValues, "instructions" | "ingredients"> & {
   id: string;
   instructions: string | null;
   ingredients: Array<{

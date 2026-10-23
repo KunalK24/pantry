@@ -11,7 +11,9 @@ export function formatLocalDate(date: Date) {
 export function parseLocalDate(value: string) {
   const match = datePattern.exec(value);
 
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const [, yearText, monthText, dayText] = match;
   const year = Number(yearText);
@@ -41,7 +43,9 @@ export function getLocalWeekStart(date = new Date()) {
 export function resolveWeekStart(value: string | null, today = new Date()) {
   const parsed = value ? parseLocalDate(value) : null;
 
-  if (parsed?.getDay() === 1) return formatLocalDate(parsed);
+  if (parsed?.getDay() === 1) {
+    return formatLocalDate(parsed);
+  }
 
   return formatLocalDate(getLocalWeekStart(today));
 }

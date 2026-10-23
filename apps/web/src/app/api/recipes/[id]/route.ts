@@ -1,161 +1,172 @@
-import { recipeIdSchema, recipeInputSchema } from '@/schemas/recipe'
-import { requireAuth } from '@/lib/auth'
 import {
-    getRecipeById,
-    RecipeNotFoundError,
-    updateRecipe,
-    deleteRecipe,
-} from '@/services/recipe-service'
+  MAX_JSON_REQUEST_BYTES,
+  readBoundedJson,
+  RequestTooLargeError,
+} from "@/lib/request-json";
+import { recipeIdSchema, recipeInputSchema } from "@/schemas/recipe";
+import { requireAuth } from "@/lib/auth";
+import {
+  getRecipeById,
+  RecipeNotFoundError,
+  updateRecipe,
+  deleteRecipe,
+} from "@/services/recipe-service";
 
 type RecipeRouteContext = {
-    params: Promise<{
-        id: string
-    }>
-}
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 function invalidRecipeIdResponse() {
-    return Response.json(
-        {
-            error: 'Invalid recipe ID',
-        },
-        {
-            status: 400,
-        }
-    )
+  return Response.json(
+    {
+      error: "Invalid recipe ID",
+    },
+    {
+      status: 400,
+    },
+  );
 }
 
 function recipeNotFoundResponse() {
-    return Response.json(
-        {
-            error: 'Recipe not found',
-        },
-        {
-            status: 404,
-        }
-    )
+  return Response.json(
+    {
+      error: "Recipe not found",
+    },
+    {
+      status: 404,
+    },
+  );
 }
 
 function internalServerErrorResponse(error: unknown) {
-    console.error(error)
+  console.error(error);
 
-    return Response.json(
-        {
-            error: 'Internal Server Error',
-        },
-        {
-            status: 500,
-        }
-    )
+  return Response.json(
+    {
+      error: "Internal Server Error",
+    },
+    {
+      status: 500,
+    },
+  );
 }
 
 export async function GET(_request: Request, context: RecipeRouteContext) {
-    const auth = await requireAuth(_request)
+  const auth = await requireAuth(_request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = recipeIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidRecipeIdResponse();
+  }
+
+  try {
+    const recipe = await getRecipeById(auth.user.id, idResult.data);
+
+    return Response.json(recipe);
+  } catch (error) {
+    if (error instanceof RecipeNotFoundError) {
+      return recipeNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = recipeIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidRecipeIdResponse()
-    }
-
-    try {
-        const recipe = await getRecipeById(auth.user.id, idResult.data)
-
-        return Response.json(recipe)
-    } catch (error) {
-        if (error instanceof RecipeNotFoundError) {
-            return recipeNotFoundResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }
 
 export async function PUT(request: Request, context: RecipeRouteContext) {
-    const auth = await requireAuth(request)
+  const auth = await requireAuth(request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = recipeIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidRecipeIdResponse();
+  }
+
+  let input: unknown;
+
+  try {
+    input = await readBoundedJson(request, MAX_JSON_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestTooLargeError) {
+      return Response.json(
+        { error: "Request body is too large" },
+        { status: 413 },
+      );
+    }
+    return Response.json(
+      {
+        error: "Malformed JSON",
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  const result = recipeInputSchema.safeParse(input);
+
+  if (!result.success) {
+    return Response.json(
+      {
+        error: "Invalid Recipe",
+        details: result.error.flatten(),
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  try {
+    const recipe = await updateRecipe(auth.user.id, idResult.data, result.data);
+
+    return Response.json(recipe);
+  } catch (error) {
+    if (error instanceof RecipeNotFoundError) {
+      return recipeNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = recipeIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidRecipeIdResponse()
-    }
-
-    let input: unknown
-
-    try {
-        input = await request.json()
-    } catch {
-        return Response.json(
-            {
-                error: 'Malformed JSON',
-            },
-            {
-                status: 400,
-            }
-        )
-    }
-
-    const result = recipeInputSchema.safeParse(input)
-
-    if (!result.success) {
-        return Response.json(
-            {
-                error: 'Invalid Recipe',
-                details: result.error.flatten(),
-            },
-            {
-                status: 400,
-            }
-        )
-    }
-
-    try {
-        const recipe = await updateRecipe(auth.user.id, idResult.data, result.data)
-
-        return Response.json(recipe)
-    } catch (error) {
-        if (error instanceof RecipeNotFoundError) {
-            return recipeNotFoundResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }
 
 export async function DELETE(_request: Request, context: RecipeRouteContext) {
-    const auth = await requireAuth(_request)
+  const auth = await requireAuth(_request);
 
-    if (auth.response) {
-        return auth.response
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = recipeIdSchema.safeParse(id);
+
+  if (!idResult.success) {
+    return invalidRecipeIdResponse();
+  }
+
+  try {
+    const recipe = await deleteRecipe(auth.user.id, idResult.data);
+
+    return Response.json(recipe, {
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof RecipeNotFoundError) {
+      return recipeNotFoundResponse();
     }
 
-    const { id } = await context.params
-    const idResult = recipeIdSchema.safeParse(id)
-
-    if (!idResult.success) {
-        return invalidRecipeIdResponse()
-    }
-
-    try {
-        const recipe = await deleteRecipe(auth.user.id, idResult.data)
-
-        return Response.json(recipe, {
-            status: 200,
-        })
-    } catch (error) {
-        if (error instanceof RecipeNotFoundError) {
-            return recipeNotFoundResponse()
-        }
-
-        return internalServerErrorResponse(error)
-    }
+    return internalServerErrorResponse(error);
+  }
 }

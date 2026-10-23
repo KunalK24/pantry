@@ -2,11 +2,13 @@
 
 import { useEffect } from "react";
 
-const confirmationMessage = "Discard your unsaved changes?";
+const CONFIRMATION_MESSAGE = "Discard your unsaved changes?";
 
 export function useUnsavedChangesWarning(dirty: boolean) {
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty) {
+      return;
+    }
 
     function warnBeforeUnload(event: BeforeUnloadEvent) {
       event.preventDefault();
@@ -29,12 +31,20 @@ export function useUnsavedChangesWarning(dirty: boolean) {
       const anchor =
         target instanceof Element ? target.closest("a[href]") : null;
 
-      if (!(anchor instanceof HTMLAnchorElement)) return;
-      if (anchor.target && anchor.target !== "_self") return;
-      if (anchor.hasAttribute("download")) return;
+      if (!(anchor instanceof HTMLAnchorElement)) {
+        return;
+      }
+      if (anchor.target && anchor.target !== "_self") {
+        return;
+      }
+      if (anchor.hasAttribute("download")) {
+        return;
+      }
 
       const destination = new URL(anchor.href, window.location.href);
-      if (destination.origin !== window.location.origin) return;
+      if (destination.origin !== window.location.origin) {
+        return;
+      }
 
       const current = new URL(window.location.href);
       if (
@@ -44,7 +54,9 @@ export function useUnsavedChangesWarning(dirty: boolean) {
         return;
       }
 
-      if (window.confirm(confirmationMessage)) return;
+      if (window.confirm(CONFIRMATION_MESSAGE)) {
+        return;
+      }
 
       event.preventDefault();
       event.stopPropagation();

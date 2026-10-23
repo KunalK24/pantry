@@ -7,11 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MealRecipeDialog, {
   type MealPlannerRecipe,
 } from "@/components/MealRecipeDialog";
-import {
-  getWeekDates,
-  resolveWeekStart,
-  shiftWeek,
-} from "@/lib/week";
+import { getWeekDates, resolveWeekStart, shiftWeek } from "@/lib/week";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 
 type DraftMeal = {
@@ -36,6 +32,8 @@ type WeeklyPlan = {
 
 type PlanLoadState = "loading" | "ready" | "error";
 type RecipeLoadState = "loading" | "ready" | "error";
+
+const MAX_MEALS_PER_WEEK = 70;
 
 const dayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long" });
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -171,8 +169,7 @@ export default function MealPlanner() {
     useState<RecipeLoadState>("loading");
   const [recipeRequestNumber, setRecipeRequestNumber] = useState(0);
   const [draftMeals, setDraftMeals] = useState<DraftMeal[]>([]);
-  const [planLoadState, setPlanLoadState] =
-    useState<PlanLoadState>("loading");
+  const [planLoadState, setPlanLoadState] = useState<PlanLoadState>("loading");
   const [loadedWeek, setLoadedWeek] = useState<string | null>(null);
   const [planRequestNumber, setPlanRequestNumber] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -213,13 +210,17 @@ export default function MealPlanner() {
               recipeIds.has(meal.recipeId),
             );
 
-            if (available.length !== current.length) setDirty(true);
+            if (available.length !== current.length) {
+              setDirty(true);
+            }
             return available;
           });
         }
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         recipesReadyRef.current = false;
         setRecipeLoadState("error");
       });
@@ -255,7 +256,9 @@ export default function MealPlanner() {
         setPlanLoadState("ready");
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         planReadyRef.current = false;
         setLoadedWeek(weekStart);
         setPlanLoadState("error");
@@ -272,11 +275,12 @@ export default function MealPlanner() {
   );
 
   const savePlan = useCallback(async () => {
-    if (
-      planLoadState !== "ready" ||
-      loadedWeek !== weekStart ||
-      saving
-    ) {
+    if (planLoadState !== "ready" || loadedWeek !== weekStart || saving) {
+      return false;
+    }
+
+    if (draftMeals.length > MAX_MEALS_PER_WEEK) {
+      setSaveError("A weekly plan can have at most 70 meals.");
       return false;
     }
 
@@ -322,7 +326,13 @@ export default function MealPlanner() {
   }
 
   function addMeal(recipeId: string) {
-    if (pickerDay === null || saving) return;
+    if (
+      pickerDay === null ||
+      saving ||
+      draftMeals.length >= MAX_MEALS_PER_WEEK
+    ) {
+      return;
+    }
 
     setDraftMeals((current) => [
       ...current,
@@ -334,10 +344,14 @@ export default function MealPlanner() {
   }
 
   function removeMeal(key: string) {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
 
     const removedMeal = draftMeals.find((meal) => meal.key === key);
-    if (!removedMeal) return;
+    if (!removedMeal) {
+      return;
+    }
     const dayMeals = draftMeals.filter(
       (meal) => meal.dayOffset === removedMeal.dayOffset,
     );
@@ -361,7 +375,9 @@ export default function MealPlanner() {
   }
 
   async function addWeekToGroceryList() {
-    if (dirty && !(await savePlan())) return;
+    if (dirty && !(await savePlan())) {
+      return;
+    }
 
     router.push(`/grocery-list?importWeek=${weekStart}`);
   }
@@ -373,7 +389,10 @@ export default function MealPlanner() {
     visiblePlanLoadState === "error" || recipeLoadState === "error";
   const mutationsDisabled = saving || !planReady;
   const addMealDisabled =
-    mutationsDisabled || recipeLoadState !== "ready" || recipes.length === 0;
+    mutationsDisabled ||
+    recipeLoadState !== "ready" ||
+    recipes.length === 0 ||
+    draftMeals.length >= MAX_MEALS_PER_WEEK;
   const groceryDisabled =
     !planReady ||
     recipeLoadState !== "ready" ||
@@ -386,7 +405,8 @@ export default function MealPlanner() {
       <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-            {rangeFormatter.format(weekDates[0])} - {rangeFormatter.format(weekDates[6])}
+            {rangeFormatter.format(weekDates[0])} -{" "}
+            {rangeFormatter.format(weekDates[6])}
           </p>
           <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
             This week
@@ -408,7 +428,8 @@ export default function MealPlanner() {
           Previous week
         </button>
         <p className="text-center text-sm font-bold text-[#69736b]">
-          {rangeFormatter.format(weekDates[0])} - {rangeFormatter.format(weekDates[6])}
+          {rangeFormatter.format(weekDates[0])} -{" "}
+          {rangeFormatter.format(weekDates[6])}
         </p>
         <button
           className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
@@ -451,7 +472,10 @@ export default function MealPlanner() {
       ) : null}
 
       {visiblePlanLoadState === "loading" ? (
-        <p className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]" role="status">
+        <p
+          className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
+          role="status"
+        >
           Loading weekly plan...
         </p>
       ) : visiblePlanLoadState === "error" ? (
@@ -550,13 +574,16 @@ export default function MealPlanner() {
           })}
         </ol>
       )}
+      {planReady && draftMeals.length >= MAX_MEALS_PER_WEEK ? (
+        <p className="text-sm font-semibold text-[#6f7a71]" role="status">
+          Maximum of 70 meals reached for this week.
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e1d8] pt-5">
         <div aria-live="polite" className="min-h-5 text-sm">
           {dirty ? (
-            <span className="font-bold text-[#9b5f34]">
-              Unsaved changes
-            </span>
+            <span className="font-bold text-[#9b5f34]">Unsaved changes</span>
           ) : planReady ? (
             <span className="font-semibold text-[#78837b]">Plan saved</span>
           ) : null}
@@ -596,7 +623,9 @@ export default function MealPlanner() {
       ) : null}
 
       <MealRecipeDialog
-        dayLabel={pickerDay === null ? "" : dayFormatter.format(weekDates[pickerDay])}
+        dayLabel={
+          pickerDay === null ? "" : dayFormatter.format(weekDates[pickerDay])
+        }
         onAdd={addMeal}
         onClose={() => setPickerDay(null)}
         open={pickerDay !== null}

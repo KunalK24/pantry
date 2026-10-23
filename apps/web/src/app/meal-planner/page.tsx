@@ -8,7 +8,12 @@ const navItems = [
   { href: "/recipes", label: "Recipe book", icon: "book", active: false },
   { href: "/pantry", label: "Pantry", icon: "pantry", active: false },
   { href: "/grocery-list", label: "Grocery list", icon: "list", active: false },
-  { href: "/meal-planner", label: "Meal planner", icon: "calendar", active: true },
+  {
+    href: "/meal-planner",
+    label: "Meal planner",
+    icon: "calendar",
+    active: true,
+  },
 ];
 
 function LeafMark({ className = "" }: { className?: string }) {

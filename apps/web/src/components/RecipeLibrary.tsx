@@ -105,8 +105,11 @@ export default function RecipeLibrary() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch("/api/recipes", { signal: controller.signal })
-      .then(async (response) => {
+    async function loadRecipes() {
+      try {
+        const response = await fetch("/api/recipes", {
+          signal: controller.signal,
+        });
         const payload: unknown = await response.json().catch(() => null);
 
         if (!response.ok || !isLibraryResponse(payload)) {
@@ -115,8 +118,7 @@ export default function RecipeLibrary() {
 
         setRecipes(payload.recipes);
         setError(null);
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError) {
         if (
           requestError instanceof DOMException &&
           requestError.name === "AbortError"
@@ -126,7 +128,10 @@ export default function RecipeLibrary() {
 
         setRecipes(null);
         setError("Unable to load your recipes. Please try again.");
-      });
+      }
+    }
+
+    void loadRecipes();
 
     return () => controller.abort();
   }, [requestNumber]);
@@ -134,8 +139,11 @@ export default function RecipeLibrary() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch("/api/pantry-items", { signal: controller.signal })
-      .then(async (response) => {
+    async function loadPantryItems() {
+      try {
+        const response = await fetch("/api/pantry-items", {
+          signal: controller.signal,
+        });
         const payload: unknown = await response.json().catch(() => null);
 
         if (!response.ok || !isPantryResponse(payload)) {
@@ -144,8 +152,7 @@ export default function RecipeLibrary() {
 
         setPantryItems(payload.items);
         setPantryError(false);
-      })
-      .catch((requestError: unknown) => {
+      } catch (requestError) {
         if (
           requestError instanceof DOMException &&
           requestError.name === "AbortError"
@@ -155,18 +162,15 @@ export default function RecipeLibrary() {
 
         setPantryItems(null);
         setPantryError(true);
-      });
+      }
+    }
+
+    void loadPantryItems();
 
     return () => controller.abort();
   }, [pantryRequestNumber]);
 
   function retry() {
-    setRecipes(null);
-    setError(null);
-    setRequestNumber((current) => current + 1);
-  }
-
-  function refreshAfterCreation() {
     setRecipes(null);
     setError(null);
     setRequestNumber((current) => current + 1);
@@ -179,12 +183,16 @@ export default function RecipeLibrary() {
   }
 
   async function handleDeleteRecipe(recipe: RecipeSummary) {
-    if (deletingId !== null) return;
+    if (deletingId !== null) {
+      return;
+    }
 
     const confirmed = window.confirm(
       `Delete ${recipe.name} from your recipe library?`,
     );
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     setDeletingId(recipe.id);
     setDeleteError(null);
@@ -215,9 +223,7 @@ export default function RecipeLibrary() {
       );
     } catch (error) {
       setDeleteError(
-        error instanceof Error
-          ? error.message
-          : "Unable to delete the recipe.",
+        error instanceof Error ? error.message : "Unable to delete the recipe.",
       );
     } finally {
       setDeletingId(null);
@@ -427,11 +433,11 @@ export default function RecipeLibrary() {
 
         <div className="flex flex-wrap gap-3 lg:justify-end">
           <ImportRecipeDialog
-            onRecipeCreated={refreshAfterCreation}
+            onRecipeCreated={retry}
             triggerClassName="min-h-11 rounded-xl border border-[#d9d4c9] bg-white px-4 text-[0.9rem] font-bold text-[#35644f] shadow-[0_12px_25px_rgba(42,48,38,0.05)] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
           />
           <CreateRecipeDialog
-            onRecipeCreated={refreshAfterCreation}
+            onRecipeCreated={retry}
             triggerClassName="min-h-11 rounded-xl bg-[#35644f] px-5 text-[0.9rem] font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
             triggerLabel="+ Add recipe"
           />

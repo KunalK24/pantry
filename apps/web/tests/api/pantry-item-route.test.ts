@@ -1,202 +1,208 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-    createPantryItemMock,
-    listPantryItemsMock,
-    PantryItemConflictErrorMock,
-    requireAuthMock,
+  createPantryItemMock,
+  listPantryItemsMock,
+  PantryItemConflictErrorMock,
+  requireAuthMock,
 } = vi.hoisted(() => {
-    class PantryItemConflictErrorMock extends Error {}
+  class PantryItemConflictErrorMock extends Error {}
 
-    return {
-        createPantryItemMock: vi.fn(),
-        listPantryItemsMock: vi.fn(),
-        PantryItemConflictErrorMock,
-        requireAuthMock: vi.fn(),
-    }
-})
+  return {
+    createPantryItemMock: vi.fn(),
+    listPantryItemsMock: vi.fn(),
+    PantryItemConflictErrorMock,
+    requireAuthMock: vi.fn(),
+  };
+});
 
-vi.mock('@/services/pantry-item-service', () => ({
-    createPantryItem: createPantryItemMock,
-    listPantryItems: listPantryItemsMock,
-    PantryItemConflictError: PantryItemConflictErrorMock,
-}))
+vi.mock("@/services/pantry-item-service", () => ({
+  createPantryItem: createPantryItemMock,
+  listPantryItems: listPantryItemsMock,
+  PantryItemConflictError: PantryItemConflictErrorMock,
+}));
 
-vi.mock('@/lib/auth', () => ({
-    requireAuth: requireAuthMock,
-}))
+vi.mock("@/lib/auth", () => ({
+  requireAuth: requireAuthMock,
+}));
 
-import { GET, POST } from '@/app/api/pantry-items/route'
+import { GET, POST } from "@/app/api/pantry-items/route";
 
-const userId = 'auth-user'
-const authUser = { id: userId, email: 'cook@example.com' }
+const userId = "auth-user";
+const authUser = { id: userId, email: "cook@example.com" };
 const pantryItem = {
-    id: 'cm12345678901234567890123',
-    name: 'Olive Oil',
-    quantity: '1/2',
-    unit: 'bottle',
-    createdAt: '2026-09-28T12:00:00.000Z',
-    updatedAt: '2026-09-28T12:00:00.000Z',
-}
+  id: "cm12345678901234567890123",
+  name: "Olive Oil",
+  quantity: "1/2",
+  unit: "bottle",
+  createdAt: "2026-09-28T12:00:00.000Z",
+  updatedAt: "2026-09-28T12:00:00.000Z",
+};
 
 beforeEach(() => {
-    vi.clearAllMocks()
-    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
-})
+  vi.clearAllMocks();
+  requireAuthMock.mockResolvedValue({ user: authUser, response: null });
+});
 
 afterEach(() => {
-    vi.restoreAllMocks()
-})
+  vi.restoreAllMocks();
+});
 
-describe('GET /api/pantry-items', () => {
-    it.each([
-        ['an empty pantry', []],
-        ['a populated pantry', [pantryItem]],
-    ])('returns %s', async (_case, items) => {
-        listPantryItemsMock.mockResolvedValue(items)
+describe("GET /api/pantry-items", () => {
+  it.each([
+    ["an empty pantry", []],
+    ["a populated pantry", [pantryItem]],
+  ])("returns %s", async (_case, items) => {
+    listPantryItemsMock.mockResolvedValue(items);
 
-        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
+    const response = await GET(
+      new Request("http://localhost:3000/api/pantry-items"),
+    );
 
-        expect(response.status).toBe(200)
-        await expect(response.json()).resolves.toEqual({ items })
-        expect(listPantryItemsMock).toHaveBeenCalledWith(userId)
-    })
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ items });
+    expect(listPantryItemsMock).toHaveBeenCalledWith(userId);
+  });
 
-    it('returns a generic error without leaking list failures', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        listPantryItemsMock.mockRejectedValue(new Error('database credentials'))
+  it("returns a generic error without leaking list failures", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    listPantryItemsMock.mockRejectedValue(new Error("database credentials"));
 
-        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
+    const response = await GET(
+      new Request("http://localhost:3000/api/pantry-items"),
+    );
 
-        expect(response.status).toBe(500)
-        await expect(response.json()).resolves.toEqual({
-            error: 'Internal Server Error',
-        })
-    })
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
 
-    it('returns 401 when unauthenticated', async () => {
-        requireAuthMock.mockResolvedValue({
-            user: null,
-            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
-        })
+  it("returns 401 when unauthenticated", async () => {
+    requireAuthMock.mockResolvedValue({
+      user: null,
+      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
 
-        const response = await GET(new Request('http://localhost:3000/api/pantry-items'))
+    const response = await GET(
+      new Request("http://localhost:3000/api/pantry-items"),
+    );
 
-        expect(response.status).toBe(401)
-        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
-        expect(listPantryItemsMock).not.toHaveBeenCalled()
-    })
-})
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(listPantryItemsMock).not.toHaveBeenCalled();
+  });
+});
 
-describe('POST /api/pantry-items', () => {
-    it('normalizes and creates an item with a textual quantity', async () => {
-        createPantryItemMock.mockResolvedValue(pantryItem)
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: JSON.stringify({
-                name: '  Olive\t Oil ',
-                quantity: ' 1/2 ',
-                unit: ' bottle ',
-                normalizedName: 'not accepted from clients',
-            }),
-        })
+describe("POST /api/pantry-items", () => {
+  it("normalizes and creates an item with a textual quantity", async () => {
+    createPantryItemMock.mockResolvedValue(pantryItem);
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "  Olive\t Oil ",
+        quantity: " 1/2 ",
+        unit: " bottle ",
+        normalizedName: "not accepted from clients",
+      }),
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(201)
-        await expect(response.json()).resolves.toEqual(pantryItem)
-        expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
-            name: 'Olive Oil',
-            quantity: '1/2',
-            unit: 'bottle',
-        })
-    })
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual(pantryItem);
+    expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
+      name: "Olive Oil",
+      quantity: "1/2",
+      unit: "bottle",
+    });
+  });
 
-    it('accepts blank optional fields and normalizes them to undefined', async () => {
-        createPantryItemMock.mockResolvedValue({
-            ...pantryItem,
-            quantity: null,
-            unit: null,
-        })
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: JSON.stringify({
-                name: 'Salt',
-                quantity: '   ',
-                unit: '',
-            }),
-        })
+  it("accepts blank optional fields and normalizes them to undefined", async () => {
+    createPantryItemMock.mockResolvedValue({
+      ...pantryItem,
+      quantity: null,
+      unit: null,
+    });
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Salt",
+        quantity: "   ",
+        unit: "",
+      }),
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(201)
-        expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
-            name: 'Salt',
-            quantity: undefined,
-            unit: undefined,
-        })
-    })
+    expect(response.status).toBe(201);
+    expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
+      name: "Salt",
+      quantity: undefined,
+      unit: undefined,
+    });
+  });
 
-    it.each([
-        ['a blank name', { name: '   ' }],
-        ['a numeric quantity', { name: 'Salt', quantity: 2 }],
-        ['a non-string unit', { name: 'Salt', unit: false }],
-    ])('returns 400 for %s', async (_case, input) => {
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: JSON.stringify(input),
-        })
+  it.each([
+    ["a blank name", { name: "   " }],
+    ["a numeric quantity", { name: "Salt", quantity: 2 }],
+    ["a non-string unit", { name: "Salt", unit: false }],
+  ])("returns 400 for %s", async (_case, input) => {
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(400)
-        await expect(response.json()).resolves.toMatchObject({
-            error: 'Invalid pantry item',
-        })
-        expect(createPantryItemMock).not.toHaveBeenCalled()
-    })
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Invalid pantry item",
+    });
+    expect(createPantryItemMock).not.toHaveBeenCalled();
+  });
 
-    it('returns 400 for malformed JSON', async () => {
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: '{',
-        })
+  it("returns 400 for malformed JSON", async () => {
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: "{",
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(400)
-        await expect(response.json()).resolves.toEqual({ error: 'Malformed JSON' })
-        expect(createPantryItemMock).not.toHaveBeenCalled()
-    })
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Malformed JSON" });
+    expect(createPantryItemMock).not.toHaveBeenCalled();
+  });
 
-    it('returns 409 for an equivalent normalized name', async () => {
-        createPantryItemMock.mockRejectedValue(new PantryItemConflictErrorMock())
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: JSON.stringify({ name: 'Olive Oil' }),
-        })
+  it("returns 409 for an equivalent normalized name", async () => {
+    createPantryItemMock.mockRejectedValue(new PantryItemConflictErrorMock());
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify({ name: "Olive Oil" }),
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(409)
-        await expect(response.json()).resolves.toEqual({
-            error: 'Pantry item already exists',
-        })
-    })
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Pantry item already exists",
+    });
+  });
 
-    it('returns a generic 500 without exposing create failures', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        createPantryItemMock.mockRejectedValue(new Error('unique index internals'))
-        const request = new Request('http://localhost:3000/api/pantry-items', {
-            method: 'POST',
-            body: JSON.stringify({ name: 'Salt' }),
-        })
+  it("returns a generic 500 without exposing create failures", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    createPantryItemMock.mockRejectedValue(new Error("unique index internals"));
+    const request = new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify({ name: "Salt" }),
+    });
 
-        const response = await POST(request)
+    const response = await POST(request);
 
-        expect(response.status).toBe(500)
-        await expect(response.json()).resolves.toEqual({
-            error: 'Internal Server Error',
-        })
-    })
-})
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
+});

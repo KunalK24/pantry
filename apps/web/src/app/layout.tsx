@@ -19,11 +19,7 @@ export const metadata: Metadata = {
   description: "Manage your recipes and pantry.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"

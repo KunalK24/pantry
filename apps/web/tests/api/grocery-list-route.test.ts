@@ -1,223 +1,260 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-    getActiveGroceryListMock,
-    saveActiveGroceryListMock,
-    clearActiveGroceryListMock,
-    GroceryListReferenceErrorMock,
-    requireAuthMock,
+  getActiveGroceryListMock,
+  saveActiveGroceryListMock,
+  clearActiveGroceryListMock,
+  GroceryListReferenceErrorMock,
+  requireAuthMock,
 } = vi.hoisted(() => {
-    class GroceryListReferenceErrorMock extends Error {}
+  class GroceryListReferenceErrorMock extends Error {}
 
-    return {
-        getActiveGroceryListMock: vi.fn(),
-        saveActiveGroceryListMock: vi.fn(),
-        clearActiveGroceryListMock: vi.fn(),
-        GroceryListReferenceErrorMock,
-        requireAuthMock: vi.fn(),
-    }
-})
+  return {
+    getActiveGroceryListMock: vi.fn(),
+    saveActiveGroceryListMock: vi.fn(),
+    clearActiveGroceryListMock: vi.fn(),
+    GroceryListReferenceErrorMock,
+    requireAuthMock: vi.fn(),
+  };
+});
 
-vi.mock('@/services/grocery-list-service', () => ({
-    getActiveGroceryList: getActiveGroceryListMock,
-    saveActiveGroceryList: saveActiveGroceryListMock,
-    clearActiveGroceryList: clearActiveGroceryListMock,
-    GroceryListReferenceError: GroceryListReferenceErrorMock,
-}))
+vi.mock("@/services/grocery-list-service", () => ({
+  getActiveGroceryList: getActiveGroceryListMock,
+  saveActiveGroceryList: saveActiveGroceryListMock,
+  clearActiveGroceryList: clearActiveGroceryListMock,
+  GroceryListReferenceError: GroceryListReferenceErrorMock,
+}));
 
-vi.mock('@/lib/auth', () => ({
-    requireAuth: requireAuthMock,
-}))
+vi.mock("@/lib/auth", () => ({
+  requireAuth: requireAuthMock,
+}));
 
-import { DELETE, GET, PUT } from '@/app/api/grocery-list/route'
+import { DELETE, GET, PUT } from "@/app/api/grocery-list/route";
 
-const recipeId = 'cm12345678901234567890123'
-const pantryItemId = 'cm22345678901234567890123'
-const userId = 'auth-user'
-const authUser = { id: userId, email: 'cook@example.com' }
+const recipeId = "cm12345678901234567890123";
+const pantryItemId = "cm22345678901234567890123";
+const userId = "auth-user";
+const authUser = { id: userId, email: "cook@example.com" };
 const input = {
-    importedWeeklyPlanId: null,
-    recipes: [
-        { recipeId, source: 'MANUAL' },
-        { recipeId, source: 'WEEKLY_PLAN' },
-        { recipeId, source: 'WEEKLY_PLAN' },
-    ],
-    items: [{
-        lineKey: 'computed:["egg",""]',
-        name: 'Egg',
-        baseQuantity: '5',
-        baseUnit: '',
-        quantityOverride: null,
-        unitOverride: null,
-        checked: true,
-        dismissed: false,
-        pantryItemId,
-    }],
-}
+  importedWeeklyPlanId: null,
+  recipes: [
+    { recipeId, source: "MANUAL" },
+    { recipeId, source: "WEEKLY_PLAN" },
+    { recipeId, source: "WEEKLY_PLAN" },
+  ],
+  items: [
+    {
+      lineKey: 'computed:["egg",""]',
+      name: "Egg",
+      baseQuantity: "5",
+      baseUnit: "",
+      quantityOverride: null,
+      unitOverride: null,
+      checked: true,
+      dismissed: false,
+      pantryItemId,
+    },
+  ],
+};
 const list = {
-    id: 'cm32345678901234567890123',
-    updatedAt: '2026-10-01T12:00:00.000Z',
-    ...input,
-}
+  id: "cm32345678901234567890123",
+  updatedAt: "2026-10-01T12:00:00.000Z",
+  ...input,
+};
 
 beforeEach(() => {
-    vi.clearAllMocks()
-    requireAuthMock.mockResolvedValue({ user: authUser, response: null })
-})
+  vi.clearAllMocks();
+  requireAuthMock.mockResolvedValue({ user: authUser, response: null });
+});
 
 afterEach(() => {
-    vi.restoreAllMocks()
-})
+  vi.restoreAllMocks();
+});
 
-describe('GET /api/grocery-list', () => {
-    it.each([
-        ['an absent list', null],
-        ['the active list', list],
-    ])('returns %s', async (_case, activeList) => {
-        getActiveGroceryListMock.mockResolvedValue(activeList)
+describe("GET /api/grocery-list", () => {
+  it.each([
+    ["an absent list", null],
+    ["the active list", list],
+  ])("returns %s", async (_case, activeList) => {
+    getActiveGroceryListMock.mockResolvedValue(activeList);
 
-        const response = await GET(new Request('http://localhost'))
+    const response = await GET(new Request("http://localhost"));
 
-        expect(response.status).toBe(200)
-        await expect(response.json()).resolves.toEqual({ list: activeList })
-    })
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ list: activeList });
+  });
 
-    it('does not expose load errors', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        getActiveGroceryListMock.mockRejectedValue(new Error('database internals'))
+  it("does not expose load errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    getActiveGroceryListMock.mockRejectedValue(new Error("database internals"));
 
-        const response = await GET(new Request('http://localhost'))
+    const response = await GET(new Request("http://localhost"));
 
-        expect(response.status).toBe(500)
-        await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
-    })
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
 
-    it('returns 401 when unauthenticated', async () => {
-        requireAuthMock.mockResolvedValue({
-            user: null,
-            response: Response.json({ error: 'Unauthorized' }, { status: 401 }),
-        })
+  it("returns 401 when unauthenticated", async () => {
+    requireAuthMock.mockResolvedValue({
+      user: null,
+      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
 
-        const response = await GET(new Request('http://localhost'))
+    const response = await GET(new Request("http://localhost"));
 
-        expect(response.status).toBe(401)
-        await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
-        expect(getActiveGroceryListMock).not.toHaveBeenCalled()
-    })
-})
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    expect(getActiveGroceryListMock).not.toHaveBeenCalled();
+  });
+});
 
-describe('PUT /api/grocery-list', () => {
-    it('allows duplicate recipe occurrences and saves the snapshot', async () => {
-        saveActiveGroceryListMock.mockResolvedValue(list)
-        const request = new Request('http://localhost', {
-            method: 'PUT',
-            body: JSON.stringify(input),
-        })
+describe("PUT /api/grocery-list", () => {
+  it("allows duplicate recipe occurrences and saves the snapshot", async () => {
+    saveActiveGroceryListMock.mockResolvedValue(list);
+    const request = new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
 
-        const response = await PUT(request)
+    const response = await PUT(request);
 
-        expect(response.status).toBe(200)
-        await expect(response.json()).resolves.toEqual({ list })
-        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(userId, input)
-    })
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ list });
+    expect(saveActiveGroceryListMock).toHaveBeenCalledWith(userId, input);
+  });
 
-    it('accepts an empty base quantity for a manual pantry line', async () => {
-        const manualPantryInput = {
-            ...input,
-            items: [{
-                ...input.items[0],
-                baseQuantity: '',
-            }],
-        }
-        saveActiveGroceryListMock.mockResolvedValue({
-            ...list,
-            items: manualPantryInput.items,
-        })
-        const request = new Request('http://localhost', {
-            method: 'PUT',
-            body: JSON.stringify(manualPantryInput),
-        })
+  it("accepts an empty base quantity for a manual pantry line", async () => {
+    const manualPantryInput = {
+      ...input,
+      items: [
+        {
+          ...input.items[0],
+          baseQuantity: "",
+        },
+      ],
+    };
+    saveActiveGroceryListMock.mockResolvedValue({
+      ...list,
+      items: manualPantryInput.items,
+    });
+    const request = new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(manualPantryInput),
+    });
 
-        const response = await PUT(request)
+    const response = await PUT(request);
 
-        expect(response.status).toBe(200)
-        expect(saveActiveGroceryListMock).toHaveBeenCalledWith(userId, manualPantryInput)
-    })
+    expect(response.status).toBe(200);
+    expect(saveActiveGroceryListMock).toHaveBeenCalledWith(
+      userId,
+      manualPantryInput,
+    );
+  });
 
-    it.each([
-        ['an invalid recipe ID', { ...input, recipes: [{ recipeId: 'bad', source: 'MANUAL' }] }],
-        ['an invalid source', { ...input, recipes: [{ recipeId, source: 'OTHER' }] }],
-        ['a blank item name', { ...input, items: [{ ...input.items[0], name: '  ' }] }],
-        ['duplicate line keys', { ...input, items: [input.items[0], input.items[0]] }],
-    ])('returns 400 for %s', async (_case, invalidInput) => {
-        const request = new Request('http://localhost', {
-            method: 'PUT',
-            body: JSON.stringify(invalidInput),
-        })
+  it.each([
+    [
+      "an invalid recipe ID",
+      { ...input, recipes: [{ recipeId: "bad", source: "MANUAL" }] },
+    ],
+    [
+      "an invalid source",
+      { ...input, recipes: [{ recipeId, source: "OTHER" }] },
+    ],
+    [
+      "a blank item name",
+      { ...input, items: [{ ...input.items[0], name: "  " }] },
+    ],
+    [
+      "duplicate line keys",
+      { ...input, items: [input.items[0], input.items[0]] },
+    ],
+  ])("returns 400 for %s", async (_case, invalidInput) => {
+    const request = new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(invalidInput),
+    });
 
-        const response = await PUT(request)
+    const response = await PUT(request);
 
-        expect(response.status).toBe(400)
-        expect(saveActiveGroceryListMock).not.toHaveBeenCalled()
-    })
+    expect(response.status).toBe(400);
+    expect(saveActiveGroceryListMock).not.toHaveBeenCalled();
+  });
 
-    it('returns 400 for malformed JSON', async () => {
-        const response = await PUT(new Request('http://localhost', {
-            method: 'PUT',
-            body: '{',
-        }))
+  it("returns 400 for malformed JSON", async () => {
+    const response = await PUT(
+      new Request("http://localhost", {
+        method: "PUT",
+        body: "{",
+      }),
+    );
 
-        expect(response.status).toBe(400)
-        await expect(response.json()).resolves.toEqual({ error: 'Malformed JSON' })
-    })
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "Malformed JSON" });
+  });
 
-    it('returns a safe 400 for an unknown reference', async () => {
-        saveActiveGroceryListMock.mockRejectedValue(new GroceryListReferenceErrorMock())
-        const request = new Request('http://localhost', {
-            method: 'PUT',
-            body: JSON.stringify(input),
-        })
+  it("returns a safe 400 for an unknown reference", async () => {
+    saveActiveGroceryListMock.mockRejectedValue(
+      new GroceryListReferenceErrorMock(),
+    );
+    const request = new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
 
-        const response = await PUT(request)
+    const response = await PUT(request);
 
-        expect(response.status).toBe(400)
-        await expect(response.json()).resolves.toEqual({
-            error: 'Grocery list references an unknown record',
-        })
-    })
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Grocery list references an unknown record",
+    });
+  });
 
-    it('does not expose unexpected save errors', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        saveActiveGroceryListMock.mockRejectedValue(new Error('database internals'))
-        const request = new Request('http://localhost', {
-            method: 'PUT',
-            body: JSON.stringify(input),
-        })
+  it("does not expose unexpected save errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    saveActiveGroceryListMock.mockRejectedValue(
+      new Error("database internals"),
+    );
+    const request = new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
 
-        const response = await PUT(request)
+    const response = await PUT(request);
 
-        expect(response.status).toBe(500)
-        await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
-    })
-})
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
+});
 
-describe('DELETE /api/grocery-list', () => {
-    it('returns 204 when the list is absent or deleted', async () => {
-        clearActiveGroceryListMock.mockResolvedValue(undefined)
+describe("DELETE /api/grocery-list", () => {
+  it("returns 204 when the list is absent or deleted", async () => {
+    clearActiveGroceryListMock.mockResolvedValue(undefined);
 
-        const response = await DELETE(new Request('http://localhost', { method: 'DELETE' }))
+    const response = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+    );
 
-        expect(response.status).toBe(204)
-        expect(await response.text()).toBe('')
-    })
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+  });
 
-    it('does not expose delete errors', async () => {
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
-        clearActiveGroceryListMock.mockRejectedValue(new Error('database internals'))
+  it("does not expose delete errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    clearActiveGroceryListMock.mockRejectedValue(
+      new Error("database internals"),
+    );
 
-        const response = await DELETE(new Request('http://localhost', { method: 'DELETE' }))
+    const response = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+    );
 
-        expect(response.status).toBe(500)
-        await expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
-    })
-})
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal Server Error",
+    });
+  });
+});

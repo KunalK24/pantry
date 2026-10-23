@@ -7,7 +7,12 @@ const navItems = [
   { href: "/recipes", label: "Recipe book", icon: "book", active: true },
   { href: "/pantry", label: "Pantry", icon: "pantry", active: false },
   { href: "/grocery-list", label: "Grocery list", icon: "list", active: false },
-  { href: "/meal-planner", label: "Meal planner", icon: "calendar", active: false },
+  {
+    href: "/meal-planner",
+    label: "Meal planner",
+    icon: "calendar",
+    active: false,
+  },
 ];
 
 function LeafMark({ className = "" }: { className?: string }) {
@@ -83,10 +88,7 @@ export default function RecipesPage() {
             </Link>
           </div>
 
-          <nav
-            aria-label="Primary navigation"
-            className="mt-7 lg:mt-16"
-          >
+          <nav aria-label="Primary navigation" className="mt-7 lg:mt-16">
             <p className="px-4 text-xs font-bold uppercase tracking-[0.18em] text-[#939c92]">
               Your kitchen
             </p>

@@ -72,6 +72,19 @@ type LineState = {
 
 type LoadState = "loading" | "ready" | "error";
 
+const MAX_GROCERY_RECIPES = 200;
+const MAX_GROCERY_ITEMS = 1000;
+
+function groceryLimitError(recipeCount: number, itemCount: number) {
+  if (recipeCount > MAX_GROCERY_RECIPES) {
+    return "A grocery list can have at most 200 recipe selections.";
+  }
+  if (itemCount > MAX_GROCERY_ITEMS) {
+    return "A grocery list can have at most 1000 items.";
+  }
+  return null;
+}
+
 function isNullableString(value: unknown): value is string | null {
   return typeof value === "string" || value === null;
 }
@@ -213,7 +226,9 @@ function reconcileLineStates(
     lines.map((line) => {
       const previous = current[line.id];
 
-      if (!previous) return [line.id, defaultLineState(line)];
+      if (!previous) {
+        return [line.id, defaultLineState(line)];
+      }
 
       const sameBase =
         previous.baseQuantity === line.quantity &&
@@ -228,8 +243,7 @@ function reconcileLineStates(
             previous.quantity !== previous.baseQuantity
               ? previous.quantity
               : line.quantity,
-          unit:
-            previous.unit !== previous.baseUnit ? previous.unit : line.unit,
+          unit: previous.unit !== previous.baseUnit ? previous.unit : line.unit,
           checked: sameBase ? previous.checked : false,
           dismissed: sameBase ? previous.dismissed : false,
         },
@@ -336,18 +350,20 @@ export default function GroceryList() {
   const [pantryLoadState, setPantryLoadState] =
     useState<PantryPickerLoadState["status"]>("loading");
   const [listLoadState, setListLoadState] = useState<LoadState>("loading");
-  const [loadedList, setLoadedList] = useState<PersistedGroceryList | null>(null);
+  const [loadedList, setLoadedList] = useState<PersistedGroceryList | null>(
+    null,
+  );
   const [listRequestNumber, setListRequestNumber] = useState(0);
   const [initialized, setInitialized] = useState(false);
-  const [recipeOccurrences, setRecipeOccurrences] = useState<RecipeOccurrence[]>(
-    [],
-  );
+  const [recipeOccurrences, setRecipeOccurrences] = useState<
+    RecipeOccurrence[]
+  >([]);
   const [selectedPantryItems, setSelectedPantryItems] = useState<
     PantryPickerOption[]
   >([]);
-  const [importedWeeklyPlanId, setImportedWeeklyPlanId] = useState<string | null>(
-    null,
-  );
+  const [importedWeeklyPlanId, setImportedWeeklyPlanId] = useState<
+    string | null
+  >(null);
   const [lineStates, setLineStates] = useState<Record<string, LineState>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -382,7 +398,9 @@ export default function GroceryList() {
         setListLoadState("ready");
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         setLoadedList(null);
         setListLoadState("error");
       });
@@ -393,7 +411,9 @@ export default function GroceryList() {
   const handleRecipeLoadStateChange = useCallback(
     (state: RecipePickerLoadState) => {
       setRecipeLoadState(state.status);
-      if (state.status === "ready") setAllRecipes(state.recipes);
+      if (state.status === "ready") {
+        setAllRecipes(state.recipes);
+      }
     },
     [],
   );
@@ -401,7 +421,9 @@ export default function GroceryList() {
   const handlePantryLoadStateChange = useCallback(
     (state: PantryPickerLoadState) => {
       setPantryLoadState(state.status);
-      if (state.status === "ready") setPantryItems(state.items);
+      if (state.status === "ready") {
+        setPantryItems(state.items);
+      }
     },
     [],
   );
@@ -420,9 +442,15 @@ export default function GroceryList() {
     const seenManualRecipeIds = new Set<string>();
     const availableOccurrences = (loadedList?.recipes ?? []).filter(
       (occurrence) => {
-        if (!recipeIds.has(occurrence.recipeId)) return false;
-        if (occurrence.source === "WEEKLY_PLAN") return true;
-        if (seenManualRecipeIds.has(occurrence.recipeId)) return false;
+        if (!recipeIds.has(occurrence.recipeId)) {
+          return false;
+        }
+        if (occurrence.source === "WEEKLY_PLAN") {
+          return true;
+        }
+        if (seenManualRecipeIds.has(occurrence.recipeId)) {
+          return false;
+        }
         seenManualRecipeIds.add(occurrence.recipeId);
         return true;
       },
@@ -555,17 +583,23 @@ export default function GroceryList() {
   useUnsavedChangesWarning(dirty);
 
   useEffect(() => {
-    if (!importConfirmation) return;
+    if (!importConfirmation) {
+      return;
+    }
     const timeout = window.setTimeout(() => setImportConfirmation(null), 4000);
     return () => window.clearTimeout(timeout);
   }, [importConfirmation]);
 
   useEffect(() => {
-    if (!requestedImportWeek || !sourcesReady || saving || clearing) return;
+    if (!requestedImportWeek || !sourcesReady || saving || clearing) {
+      return;
+    }
 
     const importWeek = requestedImportWeek;
     const attemptKey = `${importWeek}:${importAttempt}`;
-    if (attemptedImportRef.current === attemptKey) return;
+    if (attemptedImportRef.current === attemptKey) {
+      return;
+    }
     attemptedImportRef.current = attemptKey;
 
     const controller = new AbortController();
@@ -580,11 +614,12 @@ export default function GroceryList() {
       setImportError(null);
 
       try {
-        const planResponse = await fetch(
-          `/api/weekly-plans/${importWeek}`,
-          { signal: controller.signal },
-        );
-        const planPayload: unknown = await planResponse.json().catch(() => null);
+        const planResponse = await fetch(`/api/weekly-plans/${importWeek}`, {
+          signal: controller.signal,
+        });
+        const planPayload: unknown = await planResponse
+          .json()
+          .catch(() => null);
 
         if (!planResponse.ok || !isWeeklyPlanResponse(planPayload)) {
           throw new Error("Unable to load the weekly plan.");
@@ -616,6 +651,13 @@ export default function GroceryList() {
           new Set(selectedPantryItemsRef.current.map((item) => item.id)),
           nextCounts,
         );
+        const limitError = groceryLimitError(
+          nextOccurrences.length,
+          nextLines.length,
+        );
+        if (limitError) {
+          throw new Error(limitError);
+        }
         const nextLineStates = reconcileLineStates(
           nextLines,
           lineStatesRef.current,
@@ -639,7 +681,9 @@ export default function GroceryList() {
           ),
           signal: controller.signal,
         });
-        const savePayload: unknown = await saveResponse.json().catch(() => null);
+        const savePayload: unknown = await saveResponse
+          .json()
+          .catch(() => null);
 
         if (
           !saveResponse.ok ||
@@ -654,14 +698,18 @@ export default function GroceryList() {
         setImportConfirmation("Weekly plan added to your grocery list.");
         router.replace("/grocery-list");
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         setImportError(
           error instanceof Error
             ? error.message
             : "Unable to import the weekly plan.",
         );
       } finally {
-        if (!controller.signal.aborted) setImporting(false);
+        if (!controller.signal.aborted) {
+          setImporting(false);
+        }
       }
     }
 
@@ -751,6 +799,14 @@ export default function GroceryList() {
       allRecipes,
       pantryItems,
     );
+    const limitError = groceryLimitError(
+      nextOccurrences.length,
+      nextLines.length,
+    );
+    if (limitError) {
+      setSaveError(limitError);
+      return;
+    }
     setRecipeOccurrences(nextOccurrences);
     setLineStates(reconcileLineStates(nextLines, reconciledLineStates));
     markDirty();
@@ -772,13 +828,23 @@ export default function GroceryList() {
       allRecipes,
       pantryItems,
     );
+    const limitError = groceryLimitError(
+      recipeOccurrences.length,
+      nextLines.length,
+    );
+    if (limitError) {
+      setSaveError(limitError);
+      return;
+    }
     setSelectedPantryItems(items);
     setLineStates(reconcileLineStates(nextLines, reconciledLineStates));
     markDirty();
   }
 
   function removeRecipe(id: string) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     const removedIndex = effectiveRecipes.findIndex(
       (recipe) => recipe.id === id,
     );
@@ -809,7 +875,9 @@ export default function GroceryList() {
   }
 
   function removePantryItem(id: string) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     const removedIndex = selectedPantryItems.findIndex(
       (item) => item.id === id,
     );
@@ -840,7 +908,9 @@ export default function GroceryList() {
   }
 
   function addRecommendedRecipe(id: string) {
-    if (mutating || selectedRecipeIds.has(id)) return;
+    if (mutating || selectedRecipeIds.has(id)) {
+      return;
+    }
     const nextOccurrences: RecipeOccurrence[] = [
       ...recipeOccurrences,
       { recipeId: id, source: "MANUAL" },
@@ -851,6 +921,14 @@ export default function GroceryList() {
       allRecipes,
       pantryItems,
     );
+    const limitError = groceryLimitError(
+      nextOccurrences.length,
+      nextLines.length,
+    );
+    if (limitError) {
+      setSaveError(limitError);
+      return;
+    }
     setRecipeOccurrences(nextOccurrences);
     setLineStates(reconcileLineStates(nextLines, reconciledLineStates));
     markDirty();
@@ -860,7 +938,9 @@ export default function GroceryList() {
     line: GroceryLineCalculation,
     values: Pick<LineState, "quantity" | "unit">,
   ) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     setLineStates((current) => ({
       ...current,
       [line.id]: {
@@ -872,7 +952,9 @@ export default function GroceryList() {
   }
 
   function toggleLine(line: GroceryLineCalculation) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     setLineStates((current) => {
       const state = reconciledLineStates[line.id] ?? defaultLineState(line);
       return {
@@ -884,7 +966,9 @@ export default function GroceryList() {
   }
 
   function dismissLine(line: GroceryLineCalculation) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     const removedIndex = visibleLines.findIndex(
       (candidate) => candidate.id === line.id,
     );
@@ -909,7 +993,9 @@ export default function GroceryList() {
   }
 
   function resetCalculatedAmount(line: GroceryLineCalculation) {
-    if (mutating) return;
+    if (mutating) {
+      return;
+    }
     setLineStates((current) => ({
       ...current,
       [line.id]: {
@@ -922,7 +1008,17 @@ export default function GroceryList() {
   }
 
   async function saveList() {
-    if (!sourcesReady || mutating) return;
+    if (!sourcesReady || mutating) {
+      return;
+    }
+    const limitError = groceryLimitError(
+      recipeOccurrences.length,
+      calculatedLines.length,
+    );
+    if (limitError) {
+      setSaveError(limitError);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
 
@@ -956,13 +1052,17 @@ export default function GroceryList() {
   }
 
   async function clearList() {
-    if (mutating || !window.confirm("Clear the entire grocery list?")) return;
+    if (mutating || !window.confirm("Clear the entire grocery list?")) {
+      return;
+    }
     setClearing(true);
     setClearError(null);
 
     try {
       const response = await fetch("/api/grocery-list", { method: "DELETE" });
-      if (!response.ok) throw new Error("Unable to clear grocery list");
+      if (!response.ok) {
+        throw new Error("Unable to clear grocery list");
+      }
 
       setRecipeOccurrences([]);
       setSelectedPantryItems([]);
@@ -1005,9 +1105,7 @@ export default function GroceryList() {
     <div className="space-y-7">
       <div className="flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4">
         <RecipePickerDialog
-          disabled={
-            mutating || (!initialized && recipeLoadState !== "error")
-          }
+          disabled={mutating || (!initialized && recipeLoadState !== "error")}
           onCommit={commitRecipes}
           onLoadStateChange={handleRecipeLoadStateChange}
           pantryItems={pantryItems}
@@ -1015,19 +1113,26 @@ export default function GroceryList() {
           selectedRecipes={manualRecipes}
         />
         <PantryPickerDialog
-          disabled={
-            mutating || (!initialized && pantryLoadState !== "error")
-          }
+          disabled={mutating || (!initialized && pantryLoadState !== "error")}
           onCommit={commitPantryItems}
           onLoadStateChange={handlePantryLoadStateChange}
           selectedItems={selectedPantryItems}
         />
         <RecipeRecommendationsDialog
-          disabled={!sourcesReady || mutating}
+          disabled={
+            !sourcesReady ||
+            mutating ||
+            recipeOccurrences.length >= MAX_GROCERY_RECIPES
+          }
           emptyMessage={recommendationEmptyMessage}
           onAddRecipe={addRecommendedRecipe}
           recommendations={recommendations}
         />
+        {recipeOccurrences.length >= MAX_GROCERY_RECIPES ? (
+          <span className="text-sm font-semibold text-[#6f7a71]" role="status">
+            Maximum of 200 recipe selections reached.
+          </span>
+        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-3">
           {dirty ? (
             <span className="text-sm font-semibold text-[#9b5f34]">
@@ -1054,7 +1159,10 @@ export default function GroceryList() {
       </div>
 
       {listLoadState === "loading" ? (
-        <p className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]" role="status">
+        <p
+          className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
+          role="status"
+        >
           Loading your grocery list...
         </p>
       ) : listLoadState === "error" ? (
@@ -1089,9 +1197,7 @@ export default function GroceryList() {
       ) : null}
       {importError ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm font-semibold text-red-800">
-            {importError}
-          </p>
+          <p className="text-sm font-semibold text-red-800">{importError}</p>
           {requestedImportWeek && isStrictMonday(requestedImportWeek) ? (
             <button
               className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 disabled:opacity-50"
@@ -1105,15 +1211,13 @@ export default function GroceryList() {
         </div>
       ) : null}
       {importConfirmation ? (
-        <p
-          className="text-sm font-bold text-[#35644f]"
-          role="status"
-        >
+        <p className="text-sm font-bold text-[#35644f]" role="status">
           {importConfirmation}
         </p>
       ) : null}
 
-      {initialized && (effectiveRecipes.length || selectedPantryItems.length) ? (
+      {initialized &&
+      (effectiveRecipes.length || selectedPantryItems.length) ? (
         <div className="grid gap-5 border-y border-[#e5e1d8] py-5 md:grid-cols-2">
           {effectiveRecipes.length ? (
             <section aria-labelledby="selected-recipes-title">
@@ -1132,7 +1236,8 @@ export default function GroceryList() {
                       key={recipe.id}
                     >
                       <span className="truncate">
-                        {recipe.name}{count > 1 ? ` ×${count}` : ""}
+                        {recipe.name}
+                        {count > 1 ? ` ×${count}` : ""}
                       </span>
                       <button
                         aria-label={`Remove every ${recipe.name} preparation from grocery list`}
@@ -1217,7 +1322,8 @@ export default function GroceryList() {
             </h2>
             {visibleLines.length ? (
               <span className="text-sm font-semibold text-[#78837b]">
-                {visibleLines.length} {visibleLines.length === 1 ? "item" : "items"}
+                {visibleLines.length}{" "}
+                {visibleLines.length === 1 ? "item" : "items"}
               </span>
             ) : null}
           </div>
@@ -1270,7 +1376,9 @@ export default function GroceryList() {
                         {line.name}
                       </p>
                       {source ? (
-                        <p className="mt-1 text-xs font-medium text-[#8b958c]">{source}</p>
+                        <p className="mt-1 text-xs font-medium text-[#8b958c]">
+                          {source}
+                        </p>
                       ) : null}
                       {line.warning ? (
                         <p className="mt-1 text-xs font-semibold text-[#9b5f34]">
@@ -1299,6 +1407,7 @@ export default function GroceryList() {
                         className="mt-1 h-10 w-full rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-3 text-sm font-semibold text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={mutating}
                         id={`grocery-quantity-${index}`}
+                        maxLength={100}
                         onChange={(event) =>
                           updateLine(line, {
                             quantity: event.target.value,
@@ -1320,6 +1429,7 @@ export default function GroceryList() {
                         className="mt-1 h-10 w-full rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-3 text-sm font-semibold text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={mutating}
                         id={`grocery-unit-${index}`}
+                        maxLength={100}
                         onChange={(event) =>
                           updateLine(line, {
                             quantity: state.quantity,

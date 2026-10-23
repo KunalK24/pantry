@@ -11,7 +11,12 @@ const navItems = [
   { href: "/recipes", label: "Recipe book", icon: "book", active: false },
   { href: "/pantry", label: "Pantry", icon: "pantry", active: true },
   { href: "/grocery-list", label: "Grocery list", icon: "list", active: false },
-  { href: "/meal-planner", label: "Meal planner", icon: "calendar", active: false },
+  {
+    href: "/meal-planner",
+    label: "Meal planner",
+    icon: "calendar",
+    active: false,
+  },
 ];
 
 function LeafMark({ className = "" }: { className?: string }) {
@@ -152,9 +157,7 @@ export default function PantryPage() {
               </div>
 
               <div className="flex flex-wrap gap-3 lg:justify-end">
-                <CreatePantryItemDialog
-                  onPantryItemCreated={refreshPantry}
-                />
+                <CreatePantryItemDialog onPantryItemCreated={refreshPantry} />
               </div>
             </header>
 

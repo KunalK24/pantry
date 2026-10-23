@@ -1,22 +1,31 @@
-import { clearSessionCookie, getSessionToken } from '@/lib/auth'
-import { signOut } from '@/services/auth-service'
+import {
+  checkRequestOrigin,
+  clearSessionCookie,
+  getSessionToken,
+} from "@/lib/auth";
+import { signOut } from "@/services/auth-service";
 
 export async function POST(request: Request) {
-    try {
-        const token = getSessionToken(request)
+  const originResponse = checkRequestOrigin(request);
+  if (originResponse) {
+    return originResponse;
+  }
 
-        if (token) {
-            await signOut(token)
-        }
+  try {
+    const token = getSessionToken(request);
 
-        return new Response(null, {
-            status: 204,
-            headers: {
-                'Set-Cookie': clearSessionCookie(),
-            },
-        })
-    } catch (error) {
-        console.error(error)
-        return Response.json({ error: 'Internal Server Error' }, { status: 500 })
+    if (token) {
+      await signOut(token);
     }
+
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Set-Cookie": clearSessionCookie(),
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }

@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type SubmitEvent,
+} from "react";
 import { z } from "zod";
 
-import RecipeForm, {
-  type RecipeFormValues,
-} from "@/components/RecipeForm";
+import RecipeForm, { type RecipeFormValues } from "@/components/RecipeForm";
 import { recipeInputSchema } from "@/schemas/recipe";
 import { aiJobIdSchema } from "@/schemas/ai-job";
 
@@ -28,7 +32,9 @@ const maxImageBytes = 5 * 1024 * 1024;
 const importTimeoutMs = 120_000;
 const jobPollIntervalMs = 1_500;
 
-function isSupportedImageType(type: string): type is (typeof supportedImageTypes)[number] {
+function isSupportedImageType(
+  type: string,
+): type is (typeof supportedImageTypes)[number] {
   return supportedImageTypes.includes(
     type as (typeof supportedImageTypes)[number],
   );
@@ -53,11 +59,7 @@ function parseDraft(value: unknown): RecipeFormValues | null {
 }
 
 function parseJobId(payload: unknown): string | null {
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("id" in payload)
-  ) {
+  if (typeof payload !== "object" || payload === null || !("id" in payload)) {
     return null;
   }
 
@@ -67,14 +69,23 @@ function parseJobId(payload: unknown): string | null {
 
 const jobStatusResponseSchema = z.object({
   id: aiJobIdSchema,
-  status: z.enum(["queued", "processing", "retrying", "succeeded", "failed", "canceled"]),
+  status: z.enum([
+    "queued",
+    "processing",
+    "retrying",
+    "succeeded",
+    "failed",
+    "canceled",
+  ]),
   sourceType: z.enum(["text", "image", "url"]),
   stage: z.string().nullable(),
   draft: z.unknown(),
-  error: z.object({
-    code: z.string().nullable(),
-    message: z.string().nullable(),
-  }).nullable(),
+  error: z
+    .object({
+      code: z.string().nullable(),
+      message: z.string().nullable(),
+    })
+    .nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
   expiresAt: z.string(),
@@ -107,10 +118,16 @@ async function cancelJob(jobId: string) {
       method: "POST",
     });
     if (!response.ok) {
-      console.error("[recipe-import-ui] cancellation failed", { jobId, status: response.status });
+      console.error("[recipe-import-ui] cancellation failed", {
+        jobId,
+        status: response.status,
+      });
     }
   } catch (error) {
-    console.error("[recipe-import-ui] cancellation request failed", { jobId, error });
+    console.error("[recipe-import-ui] cancellation request failed", {
+      jobId,
+      error,
+    });
   }
 }
 
@@ -158,14 +175,17 @@ export default function ImportRecipeDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
 
-  useEffect(() => () => {
-    importGenerationRef.current += 1;
-    requestAbortRef.current?.abort();
-    const jobId = activeJobIdRef.current;
-    if (jobId) {
-      void cancelJob(jobId);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      importGenerationRef.current += 1;
+      requestAbortRef.current?.abort();
+      const jobId = activeJobIdRef.current;
+      if (jobId) {
+        void cancelJob(jobId);
+      }
+    },
+    [],
+  );
 
   function isBusy() {
     return parsingRef.current || savingRef.current;
@@ -312,7 +332,9 @@ export default function ImportRecipeDialog({
       try {
         requestBody = await buildRequestBody();
       } catch (buildError) {
-        if (!isCurrent()) return;
+        if (!isCurrent()) {
+          return;
+        }
         setError(
           buildError instanceof Error
             ? buildError.message
@@ -330,7 +352,9 @@ export default function ImportRecipeDialog({
         return;
       }
 
-      if (!isCurrent()) return;
+      if (!isCurrent()) {
+        return;
+      }
 
       const response = await fetch("/api/recipe-imports", {
         method: "POST",
@@ -343,7 +367,9 @@ export default function ImportRecipeDialog({
 
       if (!isCurrent()) {
         const abandonedJobId = parseJobId(jobPostPayload);
-        if (response.ok && abandonedJobId) void cancelJob(abandonedJobId);
+        if (response.ok && abandonedJobId) {
+          void cancelJob(abandonedJobId);
+        }
         return;
       }
 
@@ -371,9 +397,13 @@ export default function ImportRecipeDialog({
           cache: "no-store",
           signal: requestSignal,
         });
-        const statusPayload: unknown = await statusResponse.json().catch(() => null);
+        const statusPayload: unknown = await statusResponse
+          .json()
+          .catch(() => null);
 
-        if (!isCurrent()) return;
+        if (!isCurrent()) {
+          return;
+        }
 
         if (!statusResponse.ok) {
           setError(responseErrorMessage(statusPayload));
@@ -430,29 +460,39 @@ export default function ImportRecipeDialog({
             errorCode: job.error?.code,
             errorMessage: job.error?.message,
           });
-          setError(job.status === "canceled"
-            ? "The recipe import was canceled."
-            : job.error?.message ?? "The recipe import failed. Please try again.");
+          setError(
+            job.status === "canceled"
+              ? "The recipe import was canceled."
+              : (job.error?.message ??
+                  "The recipe import failed. Please try again."),
+          );
           return;
         }
 
         await waitForNextPoll(requestSignal);
       }
     } catch (requestError) {
-      if (!isCurrent()) return;
+      if (!isCurrent()) {
+        return;
+      }
       if (deadlineSignal.aborted) {
         console.error("[recipe-import-ui] polling timed out", {
           timeoutMs: importTimeoutMs,
         });
         const jobId = activeJobIdRef.current;
         activeJobIdRef.current = null;
-        if (jobId) void cancelJob(jobId);
-        setError(`Recipe import timed out after ${importTimeoutMs / 1000} seconds. Please try again.`);
+        if (jobId) {
+          void cancelJob(jobId);
+        }
+        setError(
+          `Recipe import timed out after ${importTimeoutMs / 1000} seconds. Please try again.`,
+        );
       } else if (!controller.signal.aborted) {
         console.error("[recipe-import-ui] request failed", {
-          error: requestError instanceof Error
-            ? requestError.message
-            : String(requestError),
+          error:
+            requestError instanceof Error
+              ? requestError.message
+              : String(requestError),
         });
         setError("Unable to reach the server. Please try again.");
       }
@@ -494,7 +534,9 @@ export default function ImportRecipeDialog({
   }
 
   function returnToDraft() {
-    if (!draft || isBusy()) return;
+    if (!draft || isBusy()) {
+      return;
+    }
     setStep("review");
     setError(null);
     requestAnimationFrame(() => {
@@ -578,9 +620,7 @@ export default function ImportRecipeDialog({
                         checked={importMode === option.value}
                         disabled={isParsing}
                         name="recipe-import-mode"
-                        onChange={() =>
-                          handleImportModeChange(option.value)
-                        }
+                        onChange={() => handleImportModeChange(option.value)}
                         type="radio"
                         value={option.value}
                       />

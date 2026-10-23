@@ -39,7 +39,9 @@ export default function CreatePantryItemDialog({
   }
 
   function closeDialog() {
-    if (submittingRef.current) return;
+    if (submittingRef.current) {
+      return;
+    }
     dialogRef.current?.close();
   }
 
@@ -52,7 +54,9 @@ export default function CreatePantryItemDialog({
   }
 
   function handleSubmittingChange(generation: number, submitting: boolean) {
-    if (generation !== generationRef.current) return;
+    if (generation !== generationRef.current) {
+      return;
+    }
 
     submittingRef.current = submitting;
     setIsSubmitting(submitting);
@@ -85,7 +89,9 @@ export default function CreatePantryItemDialog({
         aria-labelledby="create-pantry-item-dialog-title"
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onCancel={(event) => {
-          if (submittingRef.current) event.preventDefault();
+          if (submittingRef.current) {
+            event.preventDefault();
+          }
         }}
         onClick={(event) => {
           if (event.target === event.currentTarget && !submittingRef.current) {

@@ -211,7 +211,10 @@ function sortedUnique(values: Iterable<string>): string[] {
   return [...new Set(values)].sort(compareText);
 }
 
-function lineId(kind: "computed" | "manual" | "unresolved", parts: unknown[]): string {
+function lineId(
+  kind: "computed" | "manual" | "unresolved",
+  parts: unknown[],
+): string {
   return `${kind}:${JSON.stringify(parts)}`;
 }
 
@@ -239,7 +242,8 @@ function buildPantryStock(pantryItems: PantryItemForGroceryList[]) {
     }
 
     const key = normalizedKey(
-      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit).normalizedName,
+      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit)
+        .normalizedName,
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = pantryStock.get(key);
@@ -272,7 +276,10 @@ function recipeRequirementsByName(recipe: RecipeForGroceryList) {
       unresolved: false,
     };
 
-    current.displayName = preferredDisplayText(current.displayName, displayName);
+    current.displayName = preferredDisplayText(
+      current.displayName,
+      displayName,
+    );
 
     if (!parsedQuantity) {
       current.unresolved = true;
@@ -331,7 +338,8 @@ export function calculateRecipeRecommendations(
 ): RecipeRecommendation[] {
   const groceryNames = new Set(
     visibleGroceryLines.map(
-      (line) => normalizeGroceryIngredientName(line.name, line.unit).normalizedName,
+      (line) =>
+        normalizeGroceryIngredientName(line.name, line.unit).normalizedName,
     ),
   );
 
@@ -419,10 +427,8 @@ export function calculateGroceryLines(
     recipe.ingredients.forEach((ingredient, ingredientIndex) => {
       const unit = ingredient.unit?.trim().replace(/\s+/g, " ") ?? "";
       const normalizedUnit = normalizeGroceryText(ingredient.unit ?? "");
-      const { normalizedName, displayName: name } = normalizeGroceryIngredientName(
-        ingredient.name,
-        ingredient.unit,
-      );
+      const { normalizedName, displayName: name } =
+        normalizeGroceryIngredientName(ingredient.name, ingredient.unit);
       const parsedQuantity = parseQuantity(ingredient.quantity);
 
       if (!parsedQuantity) {
@@ -485,7 +491,8 @@ export function calculateGroceryLines(
     }
 
     const key = normalizedKey(
-      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit).normalizedName,
+      normalizeGroceryIngredientName(pantryItem.name, pantryItem.unit)
+        .normalizedName,
       normalizeGroceryText(pantryItem.unit ?? ""),
     );
     const existing = selectedPantryByKey.get(key) ?? [];
@@ -497,7 +504,10 @@ export function calculateGroceryLines(
   const mergedPantryItemIds = new Set<string>();
 
   for (const [key, requirement] of computedRequirements) {
-    const available = pantryStock.get(key) ?? { numerator: ZERO, denominator: ONE };
+    const available = pantryStock.get(key) ?? {
+      numerator: ZERO,
+      denominator: ONE,
+    };
     const shortage = subtract(requirement.quantity, available);
 
     if (compare(shortage, { numerator: ZERO, denominator: ONE }) <= 0) {
@@ -514,7 +524,10 @@ export function calculateGroceryLines(
     }
 
     lines.push({
-      id: lineId("computed", [requirement.normalizedName, requirement.normalizedUnit]),
+      id: lineId("computed", [
+        requirement.normalizedName,
+        requirement.normalizedUnit,
+      ]),
       name: requirement.name,
       quantity: formatQuantity(shortage),
       unit: requirement.unit,
@@ -564,12 +577,14 @@ export function calculateGroceryLines(
   } as const;
 
   return lines
-    .sort((left, right) =>
-      compareText(left.normalizedName, right.normalizedName) ||
-      compareText(left.normalizedUnit, right.normalizedUnit) ||
-      calculationOrder[left.calculation] - calculationOrder[right.calculation] ||
-      compareText(left.sourceOrder, right.sourceOrder) ||
-      compareText(left.id, right.id),
+    .sort(
+      (left, right) =>
+        compareText(left.normalizedName, right.normalizedName) ||
+        compareText(left.normalizedUnit, right.normalizedUnit) ||
+        calculationOrder[left.calculation] -
+          calculationOrder[right.calculation] ||
+        compareText(left.sourceOrder, right.sourceOrder) ||
+        compareText(left.id, right.id),
     )
     .map(stripSortFields);
 }

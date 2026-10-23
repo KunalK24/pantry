@@ -40,6 +40,8 @@ type SubmissionStatus =
   | { type: "error"; message: string }
   | null;
 
+const MAX_INGREDIENTS = 100;
+
 const emptyIngredient = (id: number): IngredientRow => ({
   id,
   name: "",
@@ -78,6 +80,7 @@ export default function RecipeForm(props: RecipeFormProps) {
   const initialValues = props.initialValues;
   const initialRows = initialIngredientRows(initialValues);
   const nextIngredientId = useRef(initialRows.length);
+  const submittingRef = useRef(false);
   const [name, setName] = useState(initialValues?.name ?? "");
   const [description, setDescription] = useState(
     initialValues?.description ?? "",
@@ -91,6 +94,10 @@ export default function RecipeForm(props: RecipeFormProps) {
   const router = useRouter();
 
   function addIngredient() {
+    if (ingredients.length >= MAX_INGREDIENTS) {
+      return;
+    }
+
     setStatus(null);
     setIngredients((current) => [
       ...current,
@@ -122,6 +129,11 @@ export default function RecipeForm(props: RecipeFormProps) {
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (submittingRef.current) {
+      return;
+    }
+
     setStatus(null);
 
     const trimmedName = name.trim();
@@ -151,6 +163,33 @@ export default function RecipeForm(props: RecipeFormProps) {
       return;
     }
 
+    if (normalizedIngredients.length > MAX_INGREDIENTS) {
+      setStatus({
+        type: "error",
+        message: "A recipe can have at most 100 ingredients.",
+      });
+      return;
+    }
+
+    if (
+      trimmedName.length > 200 ||
+      trimmedDescription.length > 2000 ||
+      trimmedInstructions.length > 20000 ||
+      normalizedIngredients.some(
+        (ingredient) =>
+          ingredient.name.length > 200 ||
+          ingredient.quantity.length > 100 ||
+          (ingredient.unit?.length ?? 0) > 100,
+      )
+    ) {
+      setStatus({
+        type: "error",
+        message: "Some recipe fields are too long. Shorten them before saving.",
+      });
+      return;
+    }
+
+    submittingRef.current = true;
     setIsSubmitting(true);
     props.onSubmittingChange?.(true);
 
@@ -193,14 +232,16 @@ export default function RecipeForm(props: RecipeFormProps) {
         message: "Unable to reach the server. Please try again.",
       });
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
       props.onSubmittingChange?.(false);
-
     }
 
     if (wasSuccessful) {
       props.onSuccess?.();
-      if (mode === "edit") router.replace("/recipes");
+      if (mode === "edit") {
+        router.replace("/recipes");
+      }
     }
   }
 
@@ -220,20 +261,37 @@ export default function RecipeForm(props: RecipeFormProps) {
           <label className={labelClasses} htmlFor="recipe-name">
             Recipe name
           </label>
-          <input className={inputClasses} id="recipe-name" name="name" onChange={(event) => {
-            setStatus(null);
-            setName(event.target.value);
-          }} required type="text" value={name} />
+          <input
+            className={inputClasses}
+            id="recipe-name"
+            maxLength={200}
+            name="name"
+            onChange={(event) => {
+              setStatus(null);
+              setName(event.target.value);
+            }}
+            required
+            type="text"
+            value={name}
+          />
         </div>
 
         <div>
           <label className={labelClasses} htmlFor="recipe-description">
             Description <span className={optionalClasses}>(optional)</span>
           </label>
-          <textarea className={inputClasses} id="recipe-description" name="description" onChange={(event) => {
-            setStatus(null);
-            setDescription(event.target.value);
-          }} rows={3} value={description} />
+          <textarea
+            className={inputClasses}
+            id="recipe-description"
+            maxLength={2000}
+            name="description"
+            onChange={(event) => {
+              setStatus(null);
+              setDescription(event.target.value);
+            }}
+            rows={3}
+            value={description}
+          />
         </div>
 
         <fieldset className="space-y-4">
@@ -241,34 +299,109 @@ export default function RecipeForm(props: RecipeFormProps) {
             Ingredients
           </legend>
           <div className="flex justify-end">
-            <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60" onClick={addIngredient} type="button">
+            <button
+              className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={addIngredient}
+              disabled={ingredients.length >= MAX_INGREDIENTS}
+              type="button"
+            >
               Add ingredient
             </button>
           </div>
+          {ingredients.length >= MAX_INGREDIENTS ? (
+            <p className="text-sm font-semibold text-[#6f7a71]" role="status">
+              Maximum of 100 ingredients reached.
+            </p>
+          ) : null}
 
           <div className="space-y-4">
             {ingredients.map((ingredient, index) => (
-              <div className="grid gap-3 border-t border-[#e5e1d8] pt-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" key={ingredient.id}>
+              <div
+                className="grid gap-3 border-t border-[#e5e1d8] pt-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+                key={ingredient.id}
+              >
                 <div>
-                  <label className={labelClasses} htmlFor={`ingredient-name-${ingredient.id}`}>
+                  <label
+                    className={labelClasses}
+                    htmlFor={`ingredient-name-${ingredient.id}`}
+                  >
                     Ingredient {index + 1}
                   </label>
-                  <input className={inputClasses} id={`ingredient-name-${ingredient.id}`} name={`ingredients.${index}.name`} onChange={(event) => updateIngredient(ingredient.id, "name", event.target.value)} required type="text" value={ingredient.name} />
+                  <input
+                    className={inputClasses}
+                    id={`ingredient-name-${ingredient.id}`}
+                    maxLength={200}
+                    name={`ingredients.${index}.name`}
+                    onChange={(event) =>
+                      updateIngredient(
+                        ingredient.id,
+                        "name",
+                        event.target.value,
+                      )
+                    }
+                    required
+                    type="text"
+                    value={ingredient.name}
+                  />
                 </div>
 
                 <div>
-                  <label className={labelClasses} htmlFor={`ingredient-quantity-${ingredient.id}`}>Quantity</label>
-                  <input className={inputClasses} id={`ingredient-quantity-${ingredient.id}`} name={`ingredients.${index}.quantity`} onChange={(event) => updateIngredient(ingredient.id, "quantity", event.target.value)} placeholder="1/2 or to taste" required type="text" value={ingredient.quantity} />
+                  <label
+                    className={labelClasses}
+                    htmlFor={`ingredient-quantity-${ingredient.id}`}
+                  >
+                    Quantity
+                  </label>
+                  <input
+                    className={inputClasses}
+                    id={`ingredient-quantity-${ingredient.id}`}
+                    maxLength={100}
+                    name={`ingredients.${index}.quantity`}
+                    onChange={(event) =>
+                      updateIngredient(
+                        ingredient.id,
+                        "quantity",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="1/2 or to taste"
+                    required
+                    type="text"
+                    value={ingredient.quantity}
+                  />
                 </div>
 
                 <div>
-                  <label className={labelClasses} htmlFor={`ingredient-unit-${ingredient.id}`}>
+                  <label
+                    className={labelClasses}
+                    htmlFor={`ingredient-unit-${ingredient.id}`}
+                  >
                     Unit <span className={optionalClasses}>(optional)</span>
                   </label>
-                  <input className={inputClasses} id={`ingredient-unit-${ingredient.id}`} name={`ingredients.${index}.unit`} onChange={(event) => updateIngredient(ingredient.id, "unit", event.target.value)} type="text" value={ingredient.unit} />
+                  <input
+                    className={inputClasses}
+                    id={`ingredient-unit-${ingredient.id}`}
+                    maxLength={100}
+                    name={`ingredients.${index}.unit`}
+                    onChange={(event) =>
+                      updateIngredient(
+                        ingredient.id,
+                        "unit",
+                        event.target.value,
+                      )
+                    }
+                    type="text"
+                    value={ingredient.unit}
+                  />
                 </div>
 
-                <button aria-label={`Remove ingredient ${index + 1}`} className="h-10 rounded-lg border border-red-200 bg-white px-3 text-sm font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={ingredients.length === 1} onClick={() => removeIngredient(ingredient.id)} type="button">
+                <button
+                  aria-label={`Remove ingredient ${index + 1}`}
+                  className="h-10 rounded-lg border border-red-200 bg-white px-3 text-sm font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={ingredients.length === 1}
+                  onClick={() => removeIngredient(ingredient.id)}
+                  type="button"
+                >
                   Remove
                 </button>
               </div>
@@ -277,22 +410,47 @@ export default function RecipeForm(props: RecipeFormProps) {
         </fieldset>
 
         <div>
-          <label className={labelClasses} htmlFor="recipe-instructions">Instructions</label>
-          <textarea className={inputClasses} id="recipe-instructions" name="instructions" onChange={(event) => {
-            setStatus(null);
-            setInstructions(event.target.value);
-          }} required rows={6} value={instructions} />
+          <label className={labelClasses} htmlFor="recipe-instructions">
+            Instructions
+          </label>
+          <textarea
+            className={inputClasses}
+            id="recipe-instructions"
+            maxLength={20000}
+            name="instructions"
+            onChange={(event) => {
+              setStatus(null);
+              setInstructions(event.target.value);
+            }}
+            required
+            rows={6}
+            value={instructions}
+          />
         </div>
 
-        <button className="min-h-11 rounded-xl bg-[#35644f] px-5 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60" type="submit">
+        <button
+          className="min-h-11 rounded-xl bg-[#35644f] px-5 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
+          type="submit"
+        >
           {isSubmitting
-            ? mode === "edit" ? "Updating..." : "Saving..."
-            : mode === "edit" ? "Update recipe" : "Save recipe"}
+            ? mode === "edit"
+              ? "Updating..."
+              : "Saving..."
+            : mode === "edit"
+              ? "Update recipe"
+              : "Save recipe"}
         </button>
       </fieldset>
 
       {status ? (
-        <p className={status.type === "success" ? "rounded-xl border border-[#d9e7d9] bg-[#f2f7f1] px-4 py-3 text-sm font-semibold text-[#35644f]" : "rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"} role={status.type === "error" ? "alert" : "status"}>
+        <p
+          className={
+            status.type === "success"
+              ? "rounded-xl border border-[#d9e7d9] bg-[#f2f7f1] px-4 py-3 text-sm font-semibold text-[#35644f]"
+              : "rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+          }
+          role={status.type === "error" ? "alert" : "status"}
+        >
           {status.message}
         </p>
       ) : null}

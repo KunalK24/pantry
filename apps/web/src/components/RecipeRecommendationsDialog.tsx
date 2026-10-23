@@ -76,7 +76,9 @@ export default function RecipeRecommendationsDialog({
         aria-labelledby="recipe-recommendations-title"
         className="m-auto max-h-[min(42rem,calc(100dvh-2rem))] w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onClick={(event) => {
-          if (event.target === event.currentTarget) closeDialog();
+          if (event.target === event.currentTarget) {
+            closeDialog();
+          }
         }}
         onClose={() => triggerRef.current?.focus()}
         ref={dialogRef}
@@ -116,8 +118,7 @@ export default function RecipeRecommendationsDialog({
             ) : (
               <ul className="divide-y divide-[#e5e1d8] border-y border-[#e5e1d8]">
                 {recommendations.map((recommendation, index) => {
-                  const pantryCount =
-                    recommendation.pantryCoveredNames.length;
+                  const pantryCount = recommendation.pantryCoveredNames.length;
                   const groceryCount =
                     recommendation.groceryOverlapNames.length;
                   const covered = pantryCount + groceryCount;
@@ -134,8 +135,8 @@ export default function RecipeRecommendationsDialog({
                           </p>
                           <p className="mt-1 text-xs font-semibold text-[#6f7a71]">
                             {pantryCount} in pantry / {groceryCount} already on
-                            list /{" "}
-                            {recommendation.missingNames.length} still needed
+                            list / {recommendation.missingNames.length} still
+                            needed
                           </p>
                           {pantryCount ? (
                             <p className="mt-2 text-xs text-[#6f7a71]">

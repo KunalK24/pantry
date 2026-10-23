@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecipeMock, listRecipesMock, requireAuthMock } = vi.hoisted(() => ({
-  createRecipeMock: vi.fn(),
-  listRecipesMock: vi.fn(),
-  requireAuthMock: vi.fn(),
-}));
+const { createRecipeMock, listRecipesMock, requireAuthMock } = vi.hoisted(
+  () => ({
+    createRecipeMock: vi.fn(),
+    listRecipesMock: vi.fn(),
+    requireAuthMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/services/recipe-service", () => ({
   createRecipe: createRecipeMock,
@@ -30,6 +32,28 @@ describe("POST /api/recipes", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("rejects a streamed body over 1 MiB with a false Content-Length", async () => {
+    const request = new Request("http://localhost:3000/api/recipes", {
+      method: "POST",
+      headers: { "content-length": "2" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      error: "Request body is too large",
+    });
+    expect(createRecipeMock).not.toHaveBeenCalled();
   });
 
   it("creates a complete recipe with textual quantities", async () => {
@@ -101,16 +125,22 @@ describe("POST /api/recipes", () => {
   });
 
   it.each([
-    ["recipe name", {
-      name: "   ",
-      instructions: "Toast the bread.",
-      ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
-    }],
-    ["ingredient name", {
-      name: "Toast",
-      instructions: "Toast the bread.",
-      ingredients: [{ name: "   ", quantity: "2", unit: "slices" }],
-    }],
+    [
+      "recipe name",
+      {
+        name: "   ",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
+      },
+    ],
+    [
+      "ingredient name",
+      {
+        name: "Toast",
+        instructions: "Toast the bread.",
+        ingredients: [{ name: "   ", quantity: "2", unit: "slices" }],
+      },
+    ],
   ])("rejects a blank %s", async (_field, input) => {
     const request = new Request("http://localhost:3000/api/recipes", {
       method: "POST",
@@ -283,20 +313,27 @@ describe("GET /api/recipes", () => {
 
   it.each([
     ["an empty library", []],
-    ["a populated library", [{
-      id: "recipe_1",
-      name: "Tomato Soup",
-      description: "A quick soup",
-      updatedAt: "2026-09-25T12:00:00.000Z",
-      ingredients: [
-        { name: "Tomatoes", quantity: "2", unit: "cans" },
-        { name: "Salt", quantity: "to taste", unit: null },
+    [
+      "a populated library",
+      [
+        {
+          id: "recipe_1",
+          name: "Tomato Soup",
+          description: "A quick soup",
+          updatedAt: "2026-09-25T12:00:00.000Z",
+          ingredients: [
+            { name: "Tomatoes", quantity: "2", unit: "cans" },
+            { name: "Salt", quantity: "to taste", unit: null },
+          ],
+        },
       ],
-    }]],
+    ],
   ])("returns %s", async (_case, recipes) => {
     listRecipesMock.mockResolvedValue(recipes);
 
-    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+    const response = await GET(
+      new Request("http://localhost:3000/api/recipes"),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ recipes });
@@ -307,7 +344,9 @@ describe("GET /api/recipes", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     listRecipesMock.mockRejectedValue(new Error("database details"));
 
-    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+    const response = await GET(
+      new Request("http://localhost:3000/api/recipes"),
+    );
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
@@ -321,7 +360,9 @@ describe("GET /api/recipes", () => {
       response: Response.json({ error: "Unauthorized" }, { status: 401 }),
     });
 
-    const response = await GET(new Request("http://localhost:3000/api/recipes"));
+    const response = await GET(
+      new Request("http://localhost:3000/api/recipes"),
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
