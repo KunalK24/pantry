@@ -21,6 +21,27 @@ export const pantryItemInputSchema = z.object({
     unit: optionalTrimmedString,
 })
 
+export const pantryExtractionSchema = z.object({
+    items: z.array(pantryItemInputSchema)
+})
+
+const pantryExtractionInput = z.object({
+    type: z.literal('image'),
+    image: z.object({
+        mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+        data: z.string().trim().min(1),
+    }),
+})
+
+export const pantryExtractionRequestSchema = pantryExtractionInput
+
+
 export type PantryItemInput = z.infer<typeof pantryItemInputSchema>
+
+export type PantryExtraction = z.infer<typeof pantryExtractionSchema>
+
+export type PantryExtractionInput = z.infer<typeof pantryExtractionInput>
+
+export type PantryExtractionRequest = z.infer<typeof pantryExtractionRequestSchema>
 
 export const pantryItemIdSchema = z.cuid()

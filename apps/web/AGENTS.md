@@ -425,3 +425,7 @@ A substantial implementation should not be considered complete until:
 - changes remain unmerged for user review
 
 A passing test suite or clean review does not constitute user approval.
+
+# Style Guide
+
+Reference STYLE.md

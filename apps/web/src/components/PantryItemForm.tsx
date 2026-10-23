@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, type SubmitEvent } from "react";
 
 export type PantryItemFormValues = {
@@ -54,6 +55,7 @@ export default function PantryItemForm(
   const [unit, setUnit] = useState(initialValues?.unit ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<SubmissionStatus>(null);
+  const router = useRouter();
 
   function updateField(
     setter: (value: string) => void,
@@ -136,6 +138,7 @@ export default function PantryItemForm(
 
     if (wasSuccessful) {
       props.onSuccess?.();
+      if (mode === "edit") router.replace("/recipes")
     }
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, type SubmitEvent } from "react";
 
 export type RecipeIngredientValue = {
@@ -87,6 +88,7 @@ export default function RecipeForm(props: RecipeFormProps) {
   const [ingredients, setIngredients] = useState<IngredientRow[]>(initialRows);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<SubmissionStatus>(null);
+  const router = useRouter();
 
   function addIngredient() {
     setStatus(null);
@@ -193,10 +195,12 @@ export default function RecipeForm(props: RecipeFormProps) {
     } finally {
       setIsSubmitting(false);
       props.onSubmittingChange?.(false);
+
     }
 
     if (wasSuccessful) {
       props.onSuccess?.();
+      if (mode === "edit") router.replace("/recipes");
     }
   }
 
