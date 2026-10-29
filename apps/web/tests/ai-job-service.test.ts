@@ -130,8 +130,72 @@ describe("recipe import job lifecycle", () => {
         where: {
           id,
           userId,
+          type: "RECIPE_IMPORT",
           status: { in: ["QUEUED", "PROCESSING", "RETRYING"] },
         },
+      }),
+    );
+  });
+});
+
+describe("pantry import job lifecycle", () => {
+  const image = {
+    type: "image" as const,
+    image: { mimeType: "image/jpeg" as const, data: "aGVsbG8=" },
+  };
+
+  it("scopes the active limit and queue entry to pantry imports", async () => {
+    db.aiJob.create.mockResolvedValue({ id });
+    queue.add.mockResolvedValue({ id });
+    await createAiJob({ jobType: "pantry_import", input: image, userId });
+    expect(db.aiJob.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "PANTRY_IMPORT" }),
+      }),
+    );
+    expect(db.aiJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "PANTRY_IMPORT",
+        sourceType: "image",
+        inputJson: image,
+      }),
+    });
+    expect(queue.add).toHaveBeenCalledWith(
+      "pantry-import",
+      { aiJobId: id },
+      expect.objectContaining({ jobId: id }),
+    );
+  });
+
+  it("persists an item draft and clears image input", async () => {
+    const draft = { items: [{ name: "Carrots" }] };
+    expect(await updateAiJobResult(draft, id)).toBe(true);
+    expect(db.aiJob.updateMany).toHaveBeenCalledWith({
+      where: { id, status: "PROCESSING" },
+      data: expect.objectContaining({
+        resultJson: draft,
+        status: "SUCCEEDED",
+        inputJson: expect.anything(),
+      }),
+    });
+  });
+
+  it("restricts cancellation to pantry jobs and clears image input", async () => {
+    db.aiJob.findFirst.mockResolvedValueOnce({ id, bullJobId: null });
+    db.aiJob.findFirst.mockResolvedValueOnce({ id, status: "CANCELED" });
+    await cancelAiJobForUser(id, userId, "PANTRY_IMPORT");
+    expect(db.aiJob.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "PANTRY_IMPORT" }),
+      }),
+    );
+    expect(db.aiJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ type: "PANTRY_IMPORT" }),
+        data: expect.objectContaining({
+          status: "CANCELED",
+          inputJson: expect.anything(),
+        }),
       }),
     );
   });

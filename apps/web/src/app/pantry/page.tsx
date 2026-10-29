@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import CreatePantryItemDialog from "@/components/CreatePantryItemDialog";
+import ExtractionPantryDialog from "@/components/ExtractionPantryDialog";
 import PantryLibrary from "@/components/PantryLibrary";
 import SignOutButton from "@/components/SignOutButton";
 
@@ -157,6 +158,7 @@ export default function PantryPage() {
               </div>
 
               <div className="flex flex-wrap gap-3 lg:justify-end">
+                <ExtractionPantryDialog onPantryItemsCreated={refreshPantry} />
                 <CreatePantryItemDialog onPantryItemCreated={refreshPantry} />
               </div>
             </header>

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 
-import { imageDataError } from "@/lib/image-upload";
+import { imageContentError } from "@/lib/image-upload";
 import {
   pantryExtractionSchema,
   type PantryExtractionInput,
@@ -75,9 +75,16 @@ function rejectOnAbort<T>(
     const onAbort = () =>
       reject(new PantryImportError("timeout", { cause: signal.reason }));
     signal.addEventListener("abort", onAbort, { once: true });
-    operation
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener("abort", onAbort));
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -113,6 +120,7 @@ const pantryItemsJSONSchema = {
 
 async function extractWithGemini(
   input: GeminiInputPart[],
+  externalSignal?: AbortSignal,
 ): Promise<PantryItemInput[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -124,7 +132,10 @@ async function extractWithGemini(
 
   try {
     const client = new GoogleGenAI({ apiKey });
-    const signal = AbortSignal.timeout(GEMINI_TIMEOUT_MS);
+    const timeoutSignal = AbortSignal.timeout(GEMINI_TIMEOUT_MS);
+    const signal = externalSignal
+      ? AbortSignal.any([timeoutSignal, externalSignal])
+      : timeoutSignal;
     const interaction = await rejectOnAbort(
       client.interactions.create(
         {
@@ -182,8 +193,9 @@ async function extractWithGemini(
 
 export async function extractPantryItems(
   input: PantryExtractionInput,
+  options?: { signal?: AbortSignal },
 ): Promise<PantryItemInput[]> {
-  if (imageDataError(input.image.data) !== null) {
+  if (imageContentError(input.image.data, input.image.mimeType) !== null) {
     throw new PantryImportError("invalid_source");
   }
   return extractWithGemini([
@@ -192,5 +204,5 @@ export async function extractPantryItems(
       text: "Pantry items image: list all of the items present in the attached image",
     },
     { type: "image", mime_type: input.image.mimeType, data: input.image.data },
-  ]);
+  ], options?.signal);
 }

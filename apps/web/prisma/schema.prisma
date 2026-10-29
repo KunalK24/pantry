@@ -122,6 +122,7 @@ enum GroceryRecipeSource {
 
 enum AiJobType {
   RECIPE_IMPORT
+  PANTRY_IMPORT
 }
 
 enum AiJobStatus {

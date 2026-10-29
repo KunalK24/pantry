@@ -2,7 +2,8 @@ import { AiJobStatus, AiJobType, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { aiJobQueue } from "@/lib/ai-job-queue";
 import { CreateAIJobInput } from "@/schemas/ai-job";
-import { RecipeInput } from "@/schemas/recipe";
+import type { RecipeInput } from "@/schemas/recipe";
+import type { PantryExtraction } from "@/schemas/pantry-item";
 
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 const STALE_MS = 3 * 60 * 1000;
@@ -11,26 +12,30 @@ type Failure = { code: string; message: string; retryable: boolean };
 
 export class AiJobEnqueueError extends Error {
   constructor() {
-    super("Recipe import queue is unavailable");
+    super("Import queue is unavailable");
   }
 }
 
 export class ActiveImportLimitError extends Error {
   constructor() {
-    super("Too many active recipe imports");
+    super("Too many active imports");
   }
 }
 
 export async function createAiJob(
   input: CreateAIJobInput & { userId: string },
 ) {
+  const type =
+    input.jobType === "pantry_import"
+      ? AiJobType.PANTRY_IMPORT
+      : AiJobType.RECIPE_IMPORT;
   const job = await prisma.$transaction(async (tx) => {
     // Serialize concurrent creates for one user before checking the active-job count.
     await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${input.userId} FOR UPDATE`;
     const active = await tx.aiJob.count({
       where: {
         userId: input.userId,
-        type: AiJobType.RECIPE_IMPORT,
+        type,
         status: {
           in: [
             AiJobStatus.QUEUED,
@@ -46,7 +51,7 @@ export async function createAiJob(
     }
     return tx.aiJob.create({
       data: {
-        type: AiJobType.RECIPE_IMPORT,
+        type,
         status: AiJobStatus.QUEUED,
         inputJson: input.input as Prisma.InputJsonValue,
         sourceType: input.input.type,
@@ -59,7 +64,7 @@ export async function createAiJob(
   let bullJob;
   try {
     bullJob = await aiJobQueue.add(
-      "recipe-import",
+      input.jobType === "pantry_import" ? "pantry-import" : "recipe-import",
       { aiJobId: job.id },
       {
         jobId: job.id,
@@ -74,7 +79,10 @@ export async function createAiJob(
       job.id,
       {
         code: "queue_unavailable",
-        message: "Recipe import queue is unavailable",
+        message:
+          type === AiJobType.PANTRY_IMPORT
+            ? "Pantry import queue is unavailable"
+            : "Recipe import queue is unavailable",
         retryable: true,
       },
       [AiJobStatus.QUEUED],
@@ -108,13 +116,17 @@ export async function isAiJobProcessing(jobId: string) {
   return job?.status === AiJobStatus.PROCESSING;
 }
 
-export async function getAiJobForUser(jobId: string, userId: string) {
-  await reconcileStaleAiJobs(jobId, userId);
+export async function getAiJobForUser(
+  jobId: string,
+  userId: string,
+  type: AiJobType = AiJobType.RECIPE_IMPORT,
+) {
+  await reconcileStaleAiJobs(jobId, userId, type);
   return prisma.aiJob.findFirst({
     where: {
       id: jobId,
       userId,
-      type: AiJobType.RECIPE_IMPORT,
+      type,
       expiresAt: { gt: new Date() },
     },
     select: {
@@ -173,7 +185,10 @@ export async function failAiJob(
   return result.count === 1;
 }
 
-export async function updateAiJobResult(input: RecipeInput, jobId: string) {
+export async function updateAiJobResult(
+  input: RecipeInput | PantryExtraction,
+  jobId: string,
+) {
   const result = await prisma.aiJob.updateMany({
     where: { id: jobId, status: AiJobStatus.PROCESSING },
     data: {
@@ -187,12 +202,16 @@ export async function updateAiJobResult(input: RecipeInput, jobId: string) {
   return result.count === 1;
 }
 
-export async function cancelAiJobForUser(jobId: string, userId: string) {
+export async function cancelAiJobForUser(
+  jobId: string,
+  userId: string,
+  type: AiJobType = AiJobType.RECIPE_IMPORT,
+) {
   const existing = await prisma.aiJob.findFirst({
     where: {
       id: jobId,
       userId,
-      type: AiJobType.RECIPE_IMPORT,
+      type,
       expiresAt: { gt: new Date() },
     },
     select: { id: true, bullJobId: true },
@@ -204,6 +223,7 @@ export async function cancelAiJobForUser(jobId: string, userId: string) {
     where: {
       id: jobId,
       userId,
+      type,
       status: {
         in: [AiJobStatus.QUEUED, AiJobStatus.PROCESSING, AiJobStatus.RETRYING],
       },
@@ -228,14 +248,18 @@ export async function cancelAiJobForUser(jobId: string, userId: string) {
       });
     }
   }
-  return getAiJobForUser(jobId, userId);
+  return getAiJobForUser(jobId, userId, type);
 }
 
-export async function reconcileStaleAiJobs(jobId?: string, userId?: string) {
+export async function reconcileStaleAiJobs(
+  jobId?: string,
+  userId?: string,
+  type: AiJobType = AiJobType.RECIPE_IMPORT,
+) {
   const now = new Date();
   await prisma.aiJob.updateMany({
     where: {
-      type: AiJobType.RECIPE_IMPORT,
+      type,
       ...(jobId ? { id: jobId } : {}),
       ...(userId ? { userId } : {}),
       status: {
@@ -247,7 +271,10 @@ export async function reconcileStaleAiJobs(jobId?: string, userId?: string) {
       status: AiJobStatus.FAILED,
       progressMessage: "Failed",
       errorCode: "stale_job",
-      errorMessage: "Recipe import did not complete in time",
+      errorMessage:
+        type === AiJobType.PANTRY_IMPORT
+          ? "Pantry import did not complete in time"
+          : "Recipe import did not complete in time",
       errorRetryable: true,
       inputJson: Prisma.DbNull,
       completedAt: now,
@@ -258,7 +285,7 @@ export async function reconcileStaleAiJobs(jobId?: string, userId?: string) {
   }
   await prisma.aiJob.deleteMany({
     where: {
-      type: AiJobType.RECIPE_IMPORT,
+      type,
       status: {
         in: [AiJobStatus.SUCCEEDED, AiJobStatus.FAILED, AiJobStatus.CANCELED],
       },

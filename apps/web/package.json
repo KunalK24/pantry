@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "pantry:normalize": "tsx scripts/normalize-pantry-items.ts",
+    "compare:providers": "tsx scripts/compare-image-providers.ts",
     "worker:ai": "tsx src/workers/ai-job-worker.ts"
   },
   "dependencies": {

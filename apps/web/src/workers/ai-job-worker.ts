@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import { AiJobType } from "@/generated/prisma/client";
 import { redis } from "@/lib/redis";
 import { AI_JOB_QUEUE_NAME, aiJobQueue } from "@/lib/ai-job-queue";
 import {
@@ -15,6 +16,11 @@ import {
   RecipeImportError,
 } from "@/services/recipe-import-service";
 import { recipeInputRequestSchema } from "@/schemas/recipe";
+import { pantryExtractionRequestSchema } from "@/schemas/pantry-item";
+import {
+  extractPantryItems,
+  PantryImportError,
+} from "@/services/pantry-extraction-service";
 import { watchJobCancellation } from "./job-cancellation";
 
 const concurrency = Number(process.env.AI_JOB_WORKER_CONCURRENCY ?? "2");
@@ -47,12 +53,30 @@ function stopWhenAborted<T>(
   });
 }
 
-function failureDetails(error: unknown, timedOut: boolean) {
+function failureDetails(
+  error: unknown,
+  timedOut: boolean,
+  type: AiJobType,
+) {
+  const label = type === AiJobType.PANTRY_IMPORT ? "Pantry" : "Recipe";
   if (timedOut) {
     return {
       code: "timeout",
-      message: `Recipe import timed out after ${AI_JOB_TIMEOUT_MS / 1000} seconds`,
+      message: `${label} import timed out after ${AI_JOB_TIMEOUT_MS / 1000} seconds`,
       retryable: true,
+    };
+  }
+
+  if (error instanceof PantryImportError) {
+    return {
+      code: error.code,
+      message:
+        error.code === "timeout"
+          ? "Pantry import timed out. Please try again."
+          : "Pantry import failed",
+      retryable: ["provider_failure", "rate_limited", "timeout"].includes(
+        error.code,
+      ),
     };
   }
 
@@ -77,7 +101,7 @@ function failureDetails(error: unknown, timedOut: boolean) {
 
   return {
     code: "worker_failure",
-    message: "Recipe import failed",
+    message: `${label} import failed`,
     retryable: false,
   };
 }
@@ -91,6 +115,7 @@ const worker = new Worker<{ aiJobId: string }>(
     const cancellation = new AbortController();
     const signal = AbortSignal.any([timeoutSignal, cancellation.signal]);
     let stopWatching = () => {};
+    let jobType: AiJobType = AiJobType.RECIPE_IMPORT;
 
     console.info("[ai-job-worker] picked up job", {
       aiJobId,
@@ -106,9 +131,20 @@ const worker = new Worker<{ aiJobId: string }>(
       if (!aiJob) {
         throw new Error(`AI job ${aiJobId} was not found`);
       }
-
-      if (aiJob.type !== "RECIPE_IMPORT") {
+      jobType = aiJob.type;
+      if (
+        aiJob.type !== AiJobType.RECIPE_IMPORT &&
+        aiJob.type !== AiJobType.PANTRY_IMPORT
+      ) {
         throw new Error(`Unsupported AI job type: ${aiJob.type}`);
+      }
+      if (
+        job.name !==
+        (aiJob.type === AiJobType.PANTRY_IMPORT
+          ? "pantry-import"
+          : "recipe-import")
+      ) {
+        throw new Error("AI job queue name does not match job type");
       }
 
       const acquired = await markAiJobProcessing(aiJobId);
@@ -127,35 +163,52 @@ const worker = new Worker<{ aiJobId: string }>(
       );
       console.info("[ai-job-worker] job marked processing", { aiJobId });
 
-      const recipeInputRequest = recipeInputRequestSchema.safeParse(
-        aiJob.inputJson,
-      );
-      if (!recipeInputRequest.success) {
-        throw new Error("Invalid stored recipe import input");
+      let draft;
+      if (aiJob.type === AiJobType.PANTRY_IMPORT) {
+        const parsed = pantryExtractionRequestSchema.safeParse(aiJob.inputJson);
+        if (!parsed.success) {
+          throw new Error("Invalid stored pantry import input");
+        }
+        if (!(await updateAiJobStage(aiJobId, "normalizing"))) {
+          return;
+        }
+        draft = {
+          items: await stopWhenAborted(
+            extractPantryItems(parsed.data, { signal }),
+            signal,
+          ),
+        };
+      } else {
+        const recipeInputRequest = recipeInputRequestSchema.safeParse(
+          aiJob.inputJson,
+        );
+        if (!recipeInputRequest.success) {
+          throw new Error("Invalid stored recipe import input");
+        }
+
+        console.info("[ai-job-worker] starting recipe import", {
+          aiJobId,
+          sourceType: recipeInputRequest.data.type,
+        });
+
+        draft = await stopWhenAborted(
+          importRecipe(recipeInputRequest.data, {
+            signal,
+            onProgress: async (stage) => {
+              if (!(await updateAiJobStage(aiJobId, stage))) {
+                cancellation.abort(
+                  new Error("Recipe import is no longer processing"),
+                );
+                throw cancellation.signal.reason;
+              }
+            },
+          }),
+          signal,
+        );
       }
 
-      console.info("[ai-job-worker] starting recipe import", {
-        aiJobId,
-        sourceType: recipeInputRequest.data.type,
-      });
-
-      const draft = await stopWhenAborted(
-        importRecipe(recipeInputRequest.data, {
-          signal,
-          onProgress: async (stage) => {
-            if (!(await updateAiJobStage(aiJobId, stage))) {
-              cancellation.abort(
-                new Error("Recipe import is no longer processing"),
-              );
-              throw cancellation.signal.reason;
-            }
-          },
-        }),
-        signal,
-      );
-
       if (timeoutSignal.aborted) {
-        throw new RecipeImportError("timeout");
+        throw new Error("AI import timed out");
       }
 
       const result = await updateAiJobResult(draft, aiJobId);
@@ -178,7 +231,7 @@ const worker = new Worker<{ aiJobId: string }>(
           });
         }
       }
-      const failure = failureDetails(error, timeoutSignal.aborted);
+      const failure = failureDetails(error, timeoutSignal.aborted, jobType);
 
       console.error("[ai-job-worker] job failed", {
         aiJobId,
@@ -248,14 +301,21 @@ worker.on("error", (error) => {
 });
 
 const reconciliation = setInterval(() => {
-  reconcileStaleAiJobs().catch((error) => {
-    console.error("[ai-job-worker] reconciliation failed", { error });
-  });
+  for (const type of [AiJobType.RECIPE_IMPORT, AiJobType.PANTRY_IMPORT]) {
+    reconcileStaleAiJobs(undefined, undefined, type).catch((error) => {
+      console.error("[ai-job-worker] reconciliation failed", { type, error });
+    });
+  }
 }, 60_000);
 reconciliation.unref();
-reconcileStaleAiJobs().catch((error) => {
-  console.error("[ai-job-worker] startup reconciliation failed", { error });
-});
+for (const type of [AiJobType.RECIPE_IMPORT, AiJobType.PANTRY_IMPORT]) {
+  reconcileStaleAiJobs(undefined, undefined, type).catch((error) => {
+    console.error("[ai-job-worker] startup reconciliation failed", {
+      type,
+      error,
+    });
+  });
+}
 
 let shuttingDown = false;
 async function shutdown() {
@@ -265,7 +325,7 @@ async function shutdown() {
   shuttingDown = true;
   clearInterval(reconciliation);
   for (const controller of activeControllers) {
-    controller.abort(new Error("Recipe import worker is shutting down"));
+    controller.abort(new Error("AI import worker is shutting down"));
   }
   await Promise.allSettled([worker.close(), aiJobQueue.close()]);
   await redis.quit();

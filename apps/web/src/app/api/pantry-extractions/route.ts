@@ -1,11 +1,12 @@
 import { requireAuth } from "@/lib/auth";
-import { imageDataError, MAX_IMAGE_REQUEST_BYTES } from "@/lib/image-upload";
+import { imageContentError, MAX_IMAGE_REQUEST_BYTES } from "@/lib/image-upload";
 import { readBoundedJson, RequestTooLargeError } from "@/lib/request-json";
 import { pantryExtractionRequestSchema } from "@/schemas/pantry-item";
 import {
-  extractPantryItems,
-  PantryImportError,
-} from "@/services/pantry-extraction-service";
+  ActiveImportLimitError,
+  AiJobEnqueueError,
+  createAiJob,
+} from "@/services/ai-job-service";
 
 export async function POST(request: Request) {
   const auth = await requireAuth(request);
@@ -34,7 +35,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const errorStatus = imageDataError(parsed.data.image.data);
+  const errorStatus = imageContentError(
+    parsed.data.image.data,
+    parsed.data.image.mimeType,
+  );
   if (errorStatus) {
     return Response.json(
       {
@@ -46,21 +50,32 @@ export async function POST(request: Request) {
   }
 
   try {
-    const items = await extractPantryItems(parsed.data);
-    return Response.json({ items }, { status: 200 });
+    const job = await createAiJob({
+      jobType: "pantry_import",
+      input: parsed.data,
+      userId: auth.user.id,
+    });
+    return Response.json(
+      {
+        id: job.id,
+        status: "queued",
+        sourceType: "image",
+        stage: "queued",
+        expiresAt: job.expiresAt.toISOString(),
+      },
+      { status: 202 },
+    );
   } catch (error) {
-    if (error instanceof PantryImportError) {
-      const status = {
-        invalid_source: 400,
-        invalid_extraction: 502,
-        rate_limited: 429,
-        not_configured: 503,
-        provider_failure: 503,
-        timeout: 504,
-      }[error.code];
+    if (error instanceof AiJobEnqueueError) {
       return Response.json(
-        { error: "Pantry extraction failed", code: error.code },
-        { status },
+        { error: "Pantry import queue is unavailable" },
+        { status: 503 },
+      );
+    }
+    if (error instanceof ActiveImportLimitError) {
+      return Response.json(
+        { error: "Too many active pantry imports" },
+        { status: 429 },
       );
     }
     console.error("[pantry-extraction] unexpected failure", error);
