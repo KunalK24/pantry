@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -377,11 +378,14 @@ export default function GroceryList() {
     null,
   );
   const attemptedImportRef = useRef<string | null>(null);
+  const sourceActionsRef = useRef<HTMLDivElement>(null);
   const allRecipesRef = useRef(allRecipes);
   const pantryItemsRef = useRef(pantryItems);
   const recipeOccurrencesRef = useRef(recipeOccurrences);
   const selectedPantryItemsRef = useRef(selectedPantryItems);
   const lineStatesRef = useRef(lineStates);
+  const importedWeeklyPlanIdRef = useRef(importedWeeklyPlanId);
+  const dirtyRef = useRef(dirty);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -572,8 +576,12 @@ export default function GroceryList() {
     recipeOccurrencesRef.current = recipeOccurrences;
     selectedPantryItemsRef.current = selectedPantryItems;
     lineStatesRef.current = reconciledLineStates;
+    importedWeeklyPlanIdRef.current = importedWeeklyPlanId;
+    dirtyRef.current = dirty;
   }, [
     allRecipes,
+    dirty,
+    importedWeeklyPlanId,
     pantryItems,
     recipeOccurrences,
     reconciledLineStates,
@@ -626,6 +634,24 @@ export default function GroceryList() {
         }
         if (!planPayload.plan) {
           throw new Error("No weekly plan exists for that week.");
+        }
+
+        const hasImportedWeek = importedWeeklyPlanIdRef.current !== null;
+        if (hasImportedWeek || dirtyRef.current) {
+          const previousMealCount = recipeOccurrencesRef.current.filter(
+            (occurrence) => occurrence.source === "WEEKLY_PLAN",
+          ).length;
+          const nextMealCount = planPayload.plan.meals.length;
+          const planChange = hasImportedWeek
+            ? `Replace the currently imported week's ${previousMealCount} ${previousMealCount === 1 ? "meal" : "meals"} with ${nextMealCount} ${nextMealCount === 1 ? "meal" : "meals"} from the selected week?`
+            : `Add ${nextMealCount} ${nextMealCount === 1 ? "meal" : "meals"} from the selected week?`;
+          const unsavedChanges = dirtyRef.current
+            ? " Your unsaved grocery list changes will be included in this save."
+            : "";
+          if (!window.confirm(`${planChange} Manual recipes will stay. The updated grocery list will be saved immediately.${unsavedChanges}`)) {
+            router.replace("/grocery-list");
+            return;
+          }
         }
 
         const manualOccurrences = recipeOccurrencesRef.current.filter(
@@ -728,6 +754,13 @@ export default function GroceryList() {
     () =>
       calculatedLines.filter(
         (line) => !(reconciledLineStates[line.id]?.dismissed ?? false),
+      ),
+    [calculatedLines, reconciledLineStates],
+  );
+  const dismissedLines = useMemo(
+    () =>
+      calculatedLines.filter(
+        (line) => reconciledLineStates[line.id]?.dismissed ?? false,
       ),
     [calculatedLines, reconciledLineStates],
   );
@@ -992,6 +1025,23 @@ export default function GroceryList() {
     });
   }
 
+  function restoreLine(line: GroceryLineCalculation) {
+    if (mutating) {
+      return;
+    }
+    setLineStates((current) => ({
+      ...current,
+      [line.id]: {
+        ...(reconciledLineStates[line.id] ?? defaultLineState(line)),
+        dismissed: false,
+      },
+    }));
+    markDirty();
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-grocery-items-heading]")?.focus();
+    });
+  }
+
   function resetCalculatedAmount(line: GroceryLineCalculation) {
     if (mutating) {
       return;
@@ -1052,7 +1102,10 @@ export default function GroceryList() {
   }
 
   async function clearList() {
-    if (mutating || !window.confirm("Clear the entire grocery list?")) {
+    const message = dirty
+      ? "Clear the entire grocery list? Your unsaved changes will also be lost."
+      : "Clear the entire grocery list?";
+    if (mutating || !window.confirm(message)) {
       return;
     }
     setClearing(true);
@@ -1092,6 +1145,9 @@ export default function GroceryList() {
 
   const noSources =
     recipeOccurrences.length === 0 && selectedPantryItems.length === 0;
+  const purchasedCount = visibleLines.filter(
+    (line) => (reconciledLineStates[line.id] ?? defaultLineState(line)).checked,
+  ).length;
   const recommendationEmptyMessage =
     allRecipes.length === 0
       ? "Create a recipe to receive recommendations."
@@ -1103,61 +1159,6 @@ export default function GroceryList() {
 
   return (
     <div className="space-y-7">
-      <div className="flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4">
-        <RecipePickerDialog
-          disabled={mutating || (!initialized && recipeLoadState !== "error")}
-          onCommit={commitRecipes}
-          onLoadStateChange={handleRecipeLoadStateChange}
-          pantryItems={pantryItems}
-          pantryStatus={pantryLoadState}
-          selectedRecipes={manualRecipes}
-        />
-        <PantryPickerDialog
-          disabled={mutating || (!initialized && pantryLoadState !== "error")}
-          onCommit={commitPantryItems}
-          onLoadStateChange={handlePantryLoadStateChange}
-          selectedItems={selectedPantryItems}
-        />
-        <RecipeRecommendationsDialog
-          disabled={
-            !sourcesReady ||
-            mutating ||
-            recipeOccurrences.length >= MAX_GROCERY_RECIPES
-          }
-          emptyMessage={recommendationEmptyMessage}
-          onAddRecipe={addRecommendedRecipe}
-          recommendations={recommendations}
-        />
-        {recipeOccurrences.length >= MAX_GROCERY_RECIPES ? (
-          <span className="text-sm font-semibold text-[#6f7a71]" role="status">
-            Maximum of 200 recipe selections reached.
-          </span>
-        ) : null}
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          {dirty ? (
-            <span className="text-sm font-semibold text-[#9b5f34]">
-              Unsaved changes
-            </span>
-          ) : null}
-          <button
-            className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!dirty || !sourcesReady || mutating}
-            onClick={() => void saveList()}
-            type="button"
-          >
-            {saving ? "Saving..." : "Save grocery list"}
-          </button>
-          <button
-            className="min-h-10 rounded-xl border border-[#d8c5bd] bg-white px-4 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!initialized || mutating}
-            onClick={() => void clearList()}
-            type="button"
-          >
-            {clearing ? "Clearing..." : "Clear list"}
-          </button>
-        </div>
-      </div>
-
       {listLoadState === "loading" ? (
         <p
           className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
@@ -1216,78 +1217,6 @@ export default function GroceryList() {
         </p>
       ) : null}
 
-      {initialized &&
-      (effectiveRecipes.length || selectedPantryItems.length) ? (
-        <div className="grid gap-5 border-y border-[#e5e1d8] py-5 md:grid-cols-2">
-          {effectiveRecipes.length ? (
-            <section aria-labelledby="selected-recipes-title">
-              <h2
-                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
-                id="selected-recipes-title"
-              >
-                Recipes
-              </h2>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {effectiveRecipes.map((recipe) => {
-                  const count = recipeCounts.get(recipe.id) ?? 1;
-                  return (
-                    <li
-                      className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
-                      key={recipe.id}
-                    >
-                      <span className="truncate">
-                        {recipe.name}
-                        {count > 1 ? ` ×${count}` : ""}
-                      </span>
-                      <button
-                        aria-label={`Remove every ${recipe.name} preparation from grocery list`}
-                        className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
-                        data-recipe-source-remove
-                        disabled={mutating}
-                        onClick={() => removeRecipe(recipe.id)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-          {selectedPantryItems.length ? (
-            <section aria-labelledby="selected-pantry-title">
-              <h2
-                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
-                id="selected-pantry-title"
-              >
-                Pantry items
-              </h2>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {selectedPantryItems.map((item) => (
-                  <li
-                    className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
-                    key={item.id}
-                  >
-                    <span className="truncate">{item.name}</span>
-                    <button
-                      aria-label={`Remove ${item.name} from grocery list sources`}
-                      className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
-                      data-pantry-source-remove
-                      disabled={mutating}
-                      onClick={() => removePantryItem(item.id)}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
-
       {pantryLoadState === "loading" ? (
         <p className="text-sm font-semibold text-[#69736b]" role="status">
           Loading pantry data...
@@ -1321,12 +1250,40 @@ export default function GroceryList() {
               Items to buy
             </h2>
             {visibleLines.length ? (
-              <span className="text-sm font-semibold text-[#78837b]">
-                {visibleLines.length}{" "}
-                {visibleLines.length === 1 ? "item" : "items"}
+              <span className="text-sm font-semibold text-[#78837b]" role="status">
+                {purchasedCount} of {visibleLines.length} purchased
               </span>
             ) : null}
           </div>
+          <div className="mb-5 flex flex-wrap items-center gap-3">
+            {dirty ? (
+              <span className="text-sm font-semibold text-[#9b5f34]">
+                Unsaved changes
+              </span>
+            ) : null}
+            <button
+              className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!dirty || !sourcesReady || mutating}
+              onClick={() => void saveList()}
+              type="button"
+            >
+              {saving ? "Saving..." : "Save grocery list"}
+            </button>
+            <button
+              className="min-h-10 rounded-xl border border-[#d8c5bd] bg-white px-4 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!initialized || mutating}
+              onClick={() => void clearList()}
+              type="button"
+            >
+              {clearing ? "Clearing..." : "Clear list"}
+            </button>
+          </div>
+          {visibleLines.length ? (
+            <p className="mb-4 text-sm text-[#6f7a71]">
+              Amounts use your selected recipes and pantry stock. You can adjust
+              them before saving.
+            </p>
+          ) : null}
           {visibleLines.length ? (
             <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
               {visibleLines.map((line, index) => {
@@ -1461,10 +1418,176 @@ export default function GroceryList() {
                   ? "Add recipes or low pantry items to start your grocery list."
                   : "Your pantry covers the selected recipes, or all generated items have been removed."}
               </p>
+              {recipeLoadState === "ready" && allRecipes.length > 0 ? (
+                <button
+                  className="mt-4 min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={mutating}
+                  onClick={() => sourceActionsRef.current?.querySelector<HTMLButtonElement>("[data-recipe-picker-trigger]")?.click()}
+                  type="button"
+                >
+                  Add from recipes
+                </button>
+              ) : pantryLoadState === "ready" && pantryItems.length > 0 ? (
+                <button
+                  className="mt-4 min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={mutating}
+                  onClick={() => sourceActionsRef.current?.querySelector<HTMLButtonElement>("[data-pantry-picker-trigger]")?.click()}
+                  type="button"
+                >
+                  Add from pantry
+                </button>
+              ) : recipeLoadState === "ready" ? (
+                <Link
+                  className="mt-4 inline-flex min-h-10 items-center rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                  href="/recipes"
+                >
+                  Add your first recipe
+                </Link>
+              ) : (
+                <p className="mt-3 text-sm text-[#6f7a71]" role="status">
+                  {recipeLoadState === "error" || pantryLoadState === "error"
+                    ? "Some options could not be loaded. Try the controls below again."
+                    : "Loading ways to build your list..."}
+                </p>
+              )}
             </div>
           )}
+          {dismissedLines.length ? (
+            <div className="mt-5 rounded-xl border border-[#e5e1d8] bg-white px-4 py-3">
+              <h3 className="text-sm font-bold text-[#24342b]">Removed items</h3>
+              <p className="mt-1 text-xs text-[#6f7a71]">
+                Restore an item if you still need to buy it.
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {dismissedLines.map((line) => (
+                  <li className="flex items-center gap-2 rounded-lg bg-[#f5f3ed] px-3 py-2 text-sm" key={line.id}>
+                    <span>{line.name}</span>
+                    <button
+                      aria-label={`Restore ${line.name} to grocery list`}
+                      className="font-bold text-[#35644f] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
+                      disabled={mutating}
+                      onClick={() => restoreLine(line)}
+                      type="button"
+                    >
+                      Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
+      <section aria-labelledby="grocery-sources-title" className="border-t border-[#e5e1d8] pt-6">
+        <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b]" id="grocery-sources-title">
+          Build your list
+        </h2>
+        <p className="mt-2 text-sm text-[#6f7a71]">Choose recipes or pantry items to update the shopping list above.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4" ref={sourceActionsRef}>
+          <RecipePickerDialog
+            disabled={mutating || (!initialized && recipeLoadState !== "error")}
+            onCommit={commitRecipes}
+            onLoadStateChange={handleRecipeLoadStateChange}
+            pantryItems={pantryItems}
+            pantryStatus={pantryLoadState}
+            selectedRecipes={manualRecipes}
+          />
+          <PantryPickerDialog
+            disabled={mutating || (!initialized && pantryLoadState !== "error")}
+            onCommit={commitPantryItems}
+            onLoadStateChange={handlePantryLoadStateChange}
+            selectedItems={selectedPantryItems}
+          />
+          <RecipeRecommendationsDialog
+            disabled={
+              !sourcesReady ||
+              mutating ||
+              recipeOccurrences.length >= MAX_GROCERY_RECIPES
+            }
+            emptyMessage={recommendationEmptyMessage}
+            onAddRecipe={addRecommendedRecipe}
+            recommendations={recommendations}
+          />
+          {recipeOccurrences.length >= MAX_GROCERY_RECIPES ? (
+            <span className="text-sm font-semibold text-[#6f7a71]" role="status">
+              Maximum of 200 recipe selections reached.
+            </span>
+          ) : null}
+      </div>
+
+      {initialized &&
+      (effectiveRecipes.length || selectedPantryItems.length) ? (
+        <div className="grid gap-5 border-y border-[#e5e1d8] py-5 md:grid-cols-2">
+          {effectiveRecipes.length ? (
+            <section aria-labelledby="selected-recipes-title">
+              <h2
+                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
+                id="selected-recipes-title"
+              >
+                Recipe inputs
+              </h2>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {effectiveRecipes.map((recipe) => {
+                  const count = recipeCounts.get(recipe.id) ?? 1;
+                  return (
+                    <li
+                      className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
+                      key={recipe.id}
+                    >
+                      <span className="truncate">
+                        {recipe.name}
+                        {count > 1 ? ` ×${count}` : ""}
+                      </span>
+                      <button
+                        aria-label={`Remove every ${recipe.name} preparation from grocery list`}
+                        className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
+                        data-recipe-source-remove
+                        disabled={mutating}
+                        onClick={() => removeRecipe(recipe.id)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+          {selectedPantryItems.length ? (
+            <section aria-labelledby="selected-pantry-title">
+              <h2
+                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
+                id="selected-pantry-title"
+              >
+                Pantry inputs
+              </h2>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {selectedPantryItems.map((item) => (
+                  <li
+                    className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
+                    key={item.id}
+                  >
+                    <span className="truncate">{item.name}</span>
+                    <button
+                      aria-label={`Remove ${item.name} from grocery list sources`}
+                      className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
+                      data-pantry-source-remove
+                      disabled={mutating}
+                      onClick={() => removePantryItem(item.id)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      </section>
     </div>
   );
 }

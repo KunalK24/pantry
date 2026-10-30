@@ -14,6 +14,7 @@ import {
 type RecipeSummary = RecipeForGroceryList & {
   description: string | null;
   updatedAt: string;
+  imageUrl: string | null;
 };
 
 type LibraryResponse = { recipes: RecipeSummary[] };
@@ -48,6 +49,8 @@ function isRecipeSummary(value: unknown): value is RecipeSummary {
     (typeof value.description === "string" || value.description === null) &&
     "updatedAt" in value &&
     typeof value.updatedAt === "string" &&
+    "imageUrl" in value &&
+    isNullableString(value.imageUrl) &&
     "ingredients" in value &&
     Array.isArray(value.ingredients) &&
     value.ingredients.every(isIngredient)
@@ -318,6 +321,10 @@ export default function RecipeLibrary() {
         <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#6f7a71]">
           Create a recipe manually or import one from text, a URL, or an image.
         </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <CreateRecipeDialog onRecipeCreated={retry} triggerLabel="Add a recipe" />
+          <ImportRecipeDialog onRecipeCreated={retry} />
+        </div>
       </div>
     );
   } else if (visibleRecipes?.length === 0) {
@@ -329,6 +336,9 @@ export default function RecipeLibrary() {
         <p className="mt-3 text-sm text-[#6f7a71]">
           Try searching by recipe name, description, or ingredient.
         </p>
+        <button className="mt-4 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => setSearchQuery("")} type="button">
+          Clear search
+        </button>
       </div>
     );
   } else {
@@ -342,22 +352,24 @@ export default function RecipeLibrary() {
           return (
             <li key={recipe.id}>
               <article className="grid gap-4 py-6 md:grid-cols-[7.5rem_minmax(0,1fr)_auto] md:items-center">
-                <div
-                  className={`flex aspect-[4/3] w-full max-w-36 items-center justify-center rounded-xl bg-gradient-to-br ${thumbnailTone(recipe)} shadow-inner md:w-32`}
-                >
-                  <span className="[font-family:Georgia,serif] text-3xl font-bold">
-                    {recipeInitials(recipe.name) || "R"}
-                  </span>
-                </div>
+                {recipe.imageUrl ? (
+                  <img
+                    alt={`${recipe.name} cover`}
+                    className="aspect-[4/3] w-full max-w-36 rounded-xl object-cover shadow-inner md:w-32"
+                    src={recipe.imageUrl}
+                  />
+                ) : (
+                  <div
+                    className={`flex aspect-[4/3] w-full max-w-36 items-center justify-center rounded-xl bg-gradient-to-br ${thumbnailTone(recipe)} shadow-inner md:w-32`}
+                  >
+                    <span className="[font-family:Georgia,serif] text-3xl font-bold">
+                      {recipeInitials(recipe.name) || "R"}
+                    </span>
+                  </div>
+                )}
 
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-bold uppercase tracking-[0.14em] text-[#c5745a]">
-                      Recipe
-                    </span>
-                    <span aria-hidden="true" className="text-[#d6d0c4]">
-                      •
-                    </span>
                     <span className="font-semibold text-[#78837b]">
                       {recipe.ingredients.length}{" "}
                       {recipe.ingredients.length === 1
@@ -368,7 +380,7 @@ export default function RecipeLibrary() {
                   <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b] md:text-[1.8rem]">
                     <Link
                       className="rounded-md transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
-                      href={`/recipes/${recipe.id}/edit`}
+                      href={`/recipes/${recipe.id}`}
                     >
                       {recipe.name}
                     </Link>
@@ -431,28 +443,23 @@ export default function RecipeLibrary() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 lg:justify-end">
-          <ImportRecipeDialog
-            onRecipeCreated={retry}
-            triggerClassName="min-h-11 rounded-xl border border-[#d9d4c9] bg-white px-4 text-[0.9rem] font-bold text-[#35644f] shadow-[0_12px_25px_rgba(42,48,38,0.05)] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
-          />
-          <CreateRecipeDialog
-            onRecipeCreated={retry}
-            triggerClassName="min-h-11 rounded-xl bg-[#35644f] px-5 text-[0.9rem] font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
-            triggerLabel="+ Add recipe"
-          />
-        </div>
+        {recipes !== null && recipes.length > 0 ? (
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <ImportRecipeDialog
+              onRecipeCreated={retry}
+              triggerClassName="min-h-11 rounded-xl border border-[#d9d4c9] bg-white px-4 text-[0.9rem] font-bold text-[#35644f] shadow-[0_12px_25px_rgba(42,48,38,0.05)] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+            />
+            <CreateRecipeDialog
+              onRecipeCreated={retry}
+              triggerClassName="min-h-11 rounded-xl bg-[#35644f] px-5 text-[0.9rem] font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+              triggerLabel="+ Add recipe"
+            />
+          </div>
+        ) : null}
       </header>
 
       <div className="mt-9 grid gap-4 border-b border-[#e5e1d8] pb-6 md:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)] md:items-end">
-        <div className="flex flex-wrap gap-3">
-          <button
-            className="rounded-xl bg-[#e8f1e9] px-4 py-2.5 text-[0.9rem] font-bold text-[#285843]"
-            type="button"
-          >
-            All recipes
-          </button>
-        </div>
+        <p className="text-sm font-semibold text-[#69736b]">{recipes?.length ?? 0} saved {recipes?.length === 1 ? "recipe" : "recipes"}</p>
         <div>
           <label className="sr-only" htmlFor="recipe-search">
             Search your recipes

@@ -3,6 +3,7 @@ import { RecipeInput } from "@/schemas/recipe";
 import { Prisma } from "@/generated/prisma/client";
 
 const recipeWithIngredients = {
+  image: { select: { recipeId: true } },
   ingredients: {
     include: {
       ingredient: true,
@@ -22,6 +23,7 @@ function flattenRecipe(recipe: CompleteRecipe) {
     instructions: recipe.instructions,
     createdAt: recipe.createdAt,
     updatedAt: recipe.updatedAt,
+    imageUrl: recipe.image ? `/api/recipes/${recipe.id}/image` : null,
     ingredients: recipe.ingredients.map((recipeIngredient) => ({
       name: recipeIngredient.ingredient.name,
       quantity: recipeIngredient.quantity,
@@ -85,6 +87,7 @@ export async function listRecipes(userId: string) {
       name: true,
       description: true,
       updatedAt: true,
+      image: { select: { recipeId: true } },
       ingredients: {
         select: {
           quantity: true,
@@ -99,8 +102,9 @@ export async function listRecipes(userId: string) {
     },
   });
 
-  return recipes.map(({ ingredients, ...recipe }) => ({
+  return recipes.map(({ ingredients, image, ...recipe }) => ({
     ...recipe,
+    imageUrl: image ? `/api/recipes/${recipe.id}/image` : null,
     ingredients: ingredients.map((recipeIngredient) => ({
       name: recipeIngredient.ingredient.name,
       quantity: recipeIngredient.quantity,

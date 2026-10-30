@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import PantryItemForm from "@/components/PantryItemForm";
 
@@ -19,9 +19,19 @@ export default function CreatePantryItemDialog({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const generationRef = useRef(0);
   const submittingRef = useRef(false);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const confirmationReturnFocusRef = useRef<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openGeneration, setOpenGeneration] = useState(0);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
+
+  useEffect(() => {
+    if (isConfirmingDiscard) {
+      keepEditingRef.current?.focus();
+    }
+  }, [isConfirmingDiscard]);
 
   function openDialog() {
     const generation = generationRef.current + 1;
@@ -29,6 +39,8 @@ export default function CreatePantryItemDialog({
     submittingRef.current = false;
     setIsSubmitting(false);
     setOpenGeneration(generation);
+    setIsDirty(false);
+    setIsConfirmingDiscard(false);
     setIsOpen(true);
     dialogRef.current?.showModal();
     requestAnimationFrame(() => {
@@ -38,11 +50,25 @@ export default function CreatePantryItemDialog({
     });
   }
 
-  function closeDialog() {
+  function closeDialog(force = false) {
     if (submittingRef.current) {
       return;
     }
+    if (isDirty && !force) {
+      if (!isConfirmingDiscard) {
+        confirmationReturnFocusRef.current = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      }
+      setIsConfirmingDiscard(true);
+      return;
+    }
     dialogRef.current?.close();
+  }
+
+  function keepEditing() {
+    setIsConfirmingDiscard(false);
+    requestAnimationFrame(() => confirmationReturnFocusRef.current?.focus());
   }
 
   function handleClose() {
@@ -67,7 +93,7 @@ export default function CreatePantryItemDialog({
       return;
     }
 
-    closeDialog();
+    closeDialog(true);
     onPantryItemCreated();
   }
 
@@ -89,15 +115,11 @@ export default function CreatePantryItemDialog({
         aria-labelledby="create-pantry-item-dialog-title"
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
         onCancel={(event) => {
-          if (submittingRef.current) {
-            event.preventDefault();
-          }
+          event.preventDefault();
+          closeDialog();
         }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget && !submittingRef.current) {
-            closeDialog();
-          }
-        }}
+        onChangeCapture={() => setIsDirty(true)}
+        onInputCapture={() => setIsDirty(true)}
         onClose={handleClose}
         ref={dialogRef}
       >
@@ -114,7 +136,7 @@ export default function CreatePantryItemDialog({
                 aria-label="Close add ingredient dialog"
                 className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
-                onClick={closeDialog}
+                onClick={() => closeDialog()}
                 type="button"
               >
                 Close
@@ -129,6 +151,15 @@ export default function CreatePantryItemDialog({
               }
               onSuccess={() => handleCreated(openGeneration)}
             />
+            {isConfirmingDiscard ? (
+              <div aria-live="polite" className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4" role="group">
+                <p className="text-sm font-semibold text-[#24342b]">Discard your ingredient changes?</p>
+                <div className="mt-3 flex gap-3">
+                  <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f]" onClick={keepEditing} ref={keepEditingRef} type="button">Keep editing</button>
+                  <button className="rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white" onClick={() => closeDialog(true)} type="button">Discard changes</button>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </dialog>

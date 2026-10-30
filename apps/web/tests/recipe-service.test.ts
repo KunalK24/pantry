@@ -78,6 +78,7 @@ const completeRecipe = {
 
 const flattenedRecipe = {
   id: completeRecipe.id,
+  imageUrl: null,
   name: completeRecipe.name,
   description: completeRecipe.description,
   instructions: completeRecipe.instructions,
@@ -180,6 +181,7 @@ describe("createRecipe", () => {
       }),
     ).resolves.toEqual({
       id: "recipe_1",
+      imageUrl: null,
       name: "Tomato Soup",
       description: "A quick soup",
       instructions: "Simmer until warm.",
@@ -241,6 +243,7 @@ describe("createRecipe", () => {
         },
       },
       include: {
+        image: { select: { recipeId: true } },
         ingredients: {
           include: {
             ingredient: true,
@@ -259,6 +262,7 @@ describe("listRecipes", () => {
         name: "New recipe",
         description: null,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
+        image: { recipeId: "recipe_2" },
         ingredients: [
           {
             quantity: "2",
@@ -272,6 +276,7 @@ describe("listRecipes", () => {
         name: "Old recipe",
         description: "Earlier",
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
+        image: null,
         ingredients: [
           {
             quantity: "to taste",
@@ -286,6 +291,7 @@ describe("listRecipes", () => {
     await expect(listRecipes(userId)).resolves.toEqual([
       {
         id: "recipe_2",
+        imageUrl: "/api/recipes/recipe_2/image",
         name: "New recipe",
         description: null,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
@@ -293,6 +299,7 @@ describe("listRecipes", () => {
       },
       {
         id: "recipe_1",
+        imageUrl: null,
         name: "Old recipe",
         description: "Earlier",
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
@@ -310,6 +317,7 @@ describe("listRecipes", () => {
         name: true,
         description: true,
         updatedAt: true,
+        image: { select: { recipeId: true } },
         ingredients: {
           select: {
             quantity: true,
@@ -334,6 +342,7 @@ describe("getRecipeById", () => {
     expect(findRecipeByIdMock).toHaveBeenCalledWith({
       where: { id: completeRecipe.id, userId },
       include: {
+        image: { select: { recipeId: true } },
         ingredients: {
           include: {
             ingredient: true,
@@ -409,6 +418,7 @@ describe("updateRecipe", () => {
         },
       },
       include: {
+        image: { select: { recipeId: true } },
         ingredients: {
           include: { ingredient: true },
         },
@@ -510,6 +520,7 @@ describe("deleteRecipe", () => {
     expect(transactionFindRecipeMock).toHaveBeenCalledWith({
       where: { id: completeRecipe.id, userId },
       include: {
+        image: { select: { recipeId: true } },
         ingredients: {
           include: { ingredient: true },
         },

@@ -22,11 +22,7 @@ type SessionStatus = "loading" | "signed-in" | "signed-out";
 
 function isLinkActive(pathname: string, href: string) {
   if (href === "/recipes") {
-    return (
-      pathname === href ||
-      pathname === "/recipes/new" ||
-      /^\/recipes\/[^/]+\/edit\/?$/.test(pathname)
-    );
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -78,10 +74,10 @@ export default function AppNav() {
             <li key={link.href}>
               <Link
                 aria-current={isActive ? "page" : undefined}
-                className={`block px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 dark:focus-visible:outline-zinc-100 ${
+                className={`block rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${
                   isActive
-                    ? "bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                    : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white"
+                    ? "bg-white text-[#285843] shadow-[0_8px_20px_rgba(42,48,38,0.06)]"
+                    : "text-[#66746a] hover:bg-white/60 hover:text-[#285843]"
                 }`}
                 href={link.href}
               >

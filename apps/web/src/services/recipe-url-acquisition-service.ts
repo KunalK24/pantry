@@ -70,7 +70,7 @@ function safeAddress(address: string): boolean {
   return false;
 }
 
-function validateUrl(raw: string): URL {
+export function validateUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -96,14 +96,15 @@ function validateUrl(raw: string): URL {
     hostname.endsWith(".localhost") ||
     hostname.endsWith(".local") ||
     hostname.endsWith(".internal") ||
-    (!hostname.includes(".") && !isIP(hostname))
+    (!hostname.includes(".") && !isIP(hostname)) ||
+    (isIP(hostname) !== 0 && !safeAddress(hostname))
   ) {
     throw new RecipeUrlAcquisitionError("unsafe_url");
   }
   return url;
 }
 
-async function pinAddress(
+export async function pinAddress(
   url: URL,
 ): Promise<{ address: string; family: 4 | 6 }> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
@@ -191,8 +192,13 @@ async function requestPage(
       url,
       {
         agent: false,
-        lookup: (_hostname, _options, callback) =>
-          callback(null, pinned.address, pinned.family),
+        lookup: (_hostname, options, callback) => {
+          if (typeof options === "object" && options.all) {
+            callback(null, [pinned]);
+            return;
+          }
+          callback(null, pinned.address, pinned.family);
+        },
         headers: {
           Accept: "text/html,application/xhtml+xml",
           "Accept-Encoding": "identity",

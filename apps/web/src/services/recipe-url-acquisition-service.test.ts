@@ -40,8 +40,12 @@ function mockPages(pages: FakePage[]) {
     // Exercise the exact socket lookup supplied by the fetcher.
     const pinnedLookup = options?.lookup;
     if (typeof pinnedLookup === "function") {
-      pinnedLookup("example.com", {}, (_error, address) => {
+      pinnedLookup("example.com", {}, (_error, address, family) => {
         expect(address).toBe("93.184.216.34");
+        expect(family).toBe(4);
+      });
+      pinnedLookup("example.com", { all: true }, (_error, addresses) => {
+        expect(addresses).toEqual([{ address: "93.184.216.34", family: 4 }]);
       });
     }
     return request;

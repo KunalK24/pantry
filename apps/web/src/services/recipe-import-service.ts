@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { imageDataError } from "@/lib/image-upload";
 import { parseRecipeWithPython } from "@/lib/python-parser";
+import { imageCandidatesFromHtml, imageCandidatesFromMarkdown } from "@/services/recipe-image-candidate-service";
 import {
   recipeInputSchema,
   type RecipeInput,
@@ -30,6 +31,14 @@ export type RecipeImportStage =
   | "acquiring_source"
   | "normalizing"
   | "validating";
+
+export type RecipeImageCandidate =
+  | { kind: "source_url"; url: string }
+  | { kind: "source_upload" };
+export type RecipeImportResult = {
+  draft: RecipeInput;
+  imageCandidate: RecipeImageCandidate | null;
+};
 
 type ImportRecipeOptions = {
   signal?: AbortSignal;
@@ -156,6 +165,8 @@ const recipeJSONSchema = {
         required: ["name", "quantity"],
       },
     },
+    imageUrl: { type: ["string", "null"] },
+    finishedDishPhoto: { type: "boolean" },
   },
   required: ["name", "instructions", "ingredients"],
 } satisfies z.core.JSONSchema.JSONSchema;
@@ -164,7 +175,8 @@ async function extractWithGemini(
   input: string | GeminiInputPart[],
   sourceType: RecipeInputRequest["type"],
   options: ImportRecipeOptions,
-): Promise<RecipeInput> {
+  imageUrls: string[] = [],
+): Promise<RecipeImportResult> {
   const { signal } = options;
   await reportProgress("normalizing", options);
   const apiKey = process.env.GEMINI_API_KEY;
@@ -182,7 +194,7 @@ async function extractWithGemini(
         {
           model: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
           input,
-          system_instruction: `Extract a recipe from the supplied ${sourceType === "url" ? "recipe page markdown" : sourceType === "image" ? "recipe image" : "recipe text"}.\n${baseInstruction}`,
+          system_instruction: `Extract a recipe from the supplied ${sourceType === "url" ? "recipe page" : sourceType === "image" ? "recipe image" : "recipe text"}.\n${baseInstruction}\nFor URL sources, choose imageUrl only from the supplied candidate URLs when one clearly depicts the finished dish; otherwise use null. Do not invent or alter image URLs. For image sources, set finishedDishPhoto true only if the source image clearly depicts the finished dish, not recipe text or a screenshot.`,
           ...(sourceType === "url"
             ? { generation_config: { thinking_level: "low" as const } }
             : {}),
@@ -234,7 +246,20 @@ async function extractWithGemini(
   if (!parsed.success) {
     throw new RecipeImportError("invalid_extraction", { cause: parsed.error });
   }
-  return parsed.data;
+  const imageFields = z.object({
+    imageUrl: z.string().nullable().optional(),
+    finishedDishPhoto: z.boolean().optional(),
+  }).safeParse(extracted);
+  const imageUrl = imageFields.success ? imageFields.data.imageUrl : null;
+  return {
+    draft: parsed.data,
+    imageCandidate:
+      sourceType === "url" && imageUrl && imageUrls.includes(imageUrl)
+        ? { kind: "source_url", url: imageUrl }
+        : sourceType === "image" && imageFields.success && imageFields.data.finishedDishPhoto
+          ? { kind: "source_upload" }
+          : null,
+  };
 }
 
 const FirecrawlResponseSchema = z.object({
@@ -404,7 +429,7 @@ async function scrapeMarkdown(
 async function importUrl(
   url: string,
   options: ImportRecipeOptions,
-): Promise<RecipeInput> {
+): Promise<RecipeImportResult> {
   const { signal } = options;
   await reportProgress("acquiring_source", options);
   let source: Awaited<ReturnType<typeof fetchRecipeHtml>> | undefined;
@@ -423,40 +448,52 @@ async function importUrl(
   }
   if (source) {
     await reportProgress("normalizing", options);
-    let parsed: RecipeInput | undefined;
+    const imageUrls = imageCandidatesFromHtml(source.html, source.finalUrl);
+    let parsedPageRecipe: RecipeInput | undefined;
     try {
-      parsed = await parseRecipeWithPython(
-        source.finalUrl,
-        source.html,
-        signal,
-      );
+      parsedPageRecipe = await parseRecipeWithPython(source.finalUrl, source.html, signal);
     } catch (error) {
       if (signal?.aborted) {
         throw new RecipeImportError("timeout", { cause: error });
       }
-      // Incomplete or unavailable Python output proceeds to one scrape.
     }
-    if (parsed) {
-      await reportProgress("validating", options);
-      const valid = recipeInputSchema.safeParse(parsed);
-      if (valid.success) {
-        return valid.data;
+    if (parsedPageRecipe) {
+      try {
+        return await extractWithGemini(
+          `Recipe page HTML from ${source.finalUrl}:\n${source.html.slice(0, MAX_MARKDOWN_CHARS)}\nStructured recipe extracted from this page for reference:\n${JSON.stringify(parsedPageRecipe)}\nImage candidates from the page:\n${imageUrls.join("\n")}`,
+          "url",
+          options,
+          imageUrls,
+        );
+      } catch (error) {
+        if (
+          !(error instanceof RecipeImportError) ||
+          !["invalid_extraction", "invalid_source"].includes(error.code)
+        ) {
+          throw error;
+        }
+        // A scraper may recover readable recipe content from difficult HTML.
       }
     }
   }
   await reportProgress("acquiring_source", options);
   const markdown = await scrapeMarkdown(url, signal);
+  const imageUrls = [
+    ...(source ? imageCandidatesFromHtml(source.html, source.finalUrl) : []),
+    ...imageCandidatesFromMarkdown(markdown, url),
+  ].filter((candidate, index, all) => all.indexOf(candidate) === index).slice(0, 40);
   return extractWithGemini(
-    `Recipe page markdown from ${url}:\n${markdown}`,
+    `Recipe page markdown from ${url}:\n${markdown}\nImage candidates from the page:\n${imageUrls.join("\n")}`,
     "url",
     options,
+    imageUrls,
   );
 }
 
 export async function importRecipe(
   input: RecipeInputRequest,
   options: ImportRecipeOptions = {},
-): Promise<RecipeInput> {
+): Promise<RecipeImportResult> {
   throwIfAborted(options.signal);
   if (input.type === "url") {
     return importUrl(input.url, options);

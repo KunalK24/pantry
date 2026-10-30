@@ -27,7 +27,7 @@ function authErrorMessage(payload: unknown, status: number) {
 }
 
 const inputClasses =
-  "mt-1 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition-colors focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/20 dark:disabled:bg-zinc-900";
+  "mt-1 w-full rounded-xl border border-[#d8d3c8] bg-white px-3 py-2.5 text-sm text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:bg-[#f4f1e8]";
 
 export default function SignInForm() {
   const router = useRouter();
@@ -96,17 +96,17 @@ export default function SignInForm() {
   return (
     <form className="w-full space-y-6" onSubmit={handleSubmit}>
       <fieldset className="space-y-6" disabled={isSubmitting}>
-        <legend className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+        <legend className="[font-family:Georgia,serif] text-3xl font-bold text-[#24342b]">
           Sign in
         </legend>
 
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-[#6f7a71]">
           Access your recipes, pantry, meal plans, and grocery list.
         </p>
 
         <div>
           <label
-            className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+            className="text-sm font-bold text-[#334238]"
             htmlFor="sign-in-email"
           >
             Email
@@ -125,7 +125,7 @@ export default function SignInForm() {
 
         <div>
           <label
-            className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
+            className="text-sm font-bold text-[#334238]"
             htmlFor="sign-in-password"
           >
             Password
@@ -143,7 +143,7 @@ export default function SignInForm() {
         </div>
 
         <button
-          className="h-11 bg-emerald-700 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 dark:focus-visible:outline-emerald-400"
+          className="min-h-11 rounded-xl bg-[#35644f] px-5 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
           type="submit"
         >
           {isSubmitting ? "Signing in..." : "Sign in"}
@@ -152,17 +152,17 @@ export default function SignInForm() {
 
       {status ? (
         <p
-          className="text-sm font-medium text-red-700 dark:text-red-400"
+          className="text-sm font-semibold text-[#9b4f40]"
           role="alert"
         >
           {status.message}
         </p>
       ) : null}
 
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-[#6f7a71]">
         Need an account?{" "}
         <Link
-          className="font-medium text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-400"
+          className="font-bold text-[#35644f] underline-offset-4 hover:underline"
           href="/sign-up"
         >
           Sign up

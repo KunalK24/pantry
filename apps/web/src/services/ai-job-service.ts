@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { aiJobQueue } from "@/lib/ai-job-queue";
 import { CreateAIJobInput } from "@/schemas/ai-job";
 import type { RecipeInput } from "@/schemas/recipe";
+import type { RecipeImportResult } from "@/services/recipe-import-service";
 import type { PantryExtraction } from "@/schemas/pantry-item";
 
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -186,7 +187,7 @@ export async function failAiJob(
 }
 
 export async function updateAiJobResult(
-  input: RecipeInput | PantryExtraction,
+  input: RecipeInput | RecipeImportResult | PantryExtraction,
   jobId: string,
 ) {
   const result = await prisma.aiJob.updateMany({

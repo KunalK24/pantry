@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import RecipeForm from "@/components/RecipeForm";
+import SignedInShell from "@/components/SignedInShell";
 
 export default function NewRecipePage() {
   return (
-    <main className="min-h-dvh bg-[#fbfaf6] px-5 py-8 text-[#24342b] sm:px-8 lg:px-10 lg:py-16">
+    <SignedInShell activeSection="recipes">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-8">
           <Link
@@ -24,6 +25,6 @@ export default function NewRecipePage() {
           <RecipeForm />
         </div>
       </div>
-    </main>
+    </SignedInShell>
   );
 }

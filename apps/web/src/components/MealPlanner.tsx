@@ -7,7 +7,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MealRecipeDialog, {
   type MealPlannerRecipe,
 } from "@/components/MealRecipeDialog";
-import { getWeekDates, resolveWeekStart, shiftWeek } from "@/lib/week";
+import {
+  formatLocalDate,
+  getLocalWeekStart,
+  getWeekDates,
+  resolveWeekStart,
+  shiftWeek,
+} from "@/lib/week";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 
 type DraftMeal = {
@@ -310,7 +316,11 @@ export default function MealPlanner() {
     }
   }, [draftMeals, loadedWeek, planLoadState, saving, weekStart]);
 
-  function navigateWeek(amount: number) {
+  function navigateToWeek(nextWeek: string) {
+    if (nextWeek === weekStart) {
+      return;
+    }
+
     if (dirty && !window.confirm("Discard unsaved changes and change weeks?")) {
       return;
     }
@@ -322,7 +332,7 @@ export default function MealPlanner() {
     setDirty(false);
     setSaveError(null);
     setPickerDay(null);
-    router.push(`/meal-planner?week=${shiftWeek(weekStart, amount)}`);
+    router.push(`/meal-planner?week=${nextWeek}`);
   }
 
   function addMeal(recipeId: string) {
@@ -399,17 +409,18 @@ export default function MealPlanner() {
     hasLoadError ||
     saving ||
     draftMeals.length === 0;
+  const currentWeekStart = formatLocalDate(getLocalWeekStart());
+  const isCurrentWeek = weekStart === currentWeekStart;
 
   return (
     <div className="space-y-7">
       <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-            {rangeFormatter.format(weekDates[0])} -{" "}
-            {rangeFormatter.format(weekDates[6])}
+            Weekly plans
           </p>
           <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
-            This week
+            Meal planner
           </h1>
           <p className="mt-4 max-w-2xl text-lg leading-7 text-[#6f7a71]">
             Plan recipes for the week and add their ingredients to your grocery
@@ -418,23 +429,42 @@ export default function MealPlanner() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e1d8] py-4">
+      <div
+        aria-label="Choose planning week"
+        className="flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e1d8] py-4"
+        role="group"
+      >
         <button
           className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving}
-          onClick={() => navigateWeek(-1)}
+          onClick={() => navigateToWeek(shiftWeek(weekStart, -1))}
           type="button"
         >
           Previous week
         </button>
-        <p className="text-center text-sm font-bold text-[#69736b]">
-          {rangeFormatter.format(weekDates[0])} -{" "}
-          {rangeFormatter.format(weekDates[6])}
-        </p>
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78837b]">
+            {isCurrentWeek ? "Current week" : "Selected week"}
+          </p>
+          <p className="mt-1 text-sm font-bold text-[#24342b]">
+            {rangeFormatter.format(weekDates[0])} -{" "}
+            {rangeFormatter.format(weekDates[6])}
+          </p>
+          {!isCurrentWeek ? (
+            <button
+              className="mt-1 rounded-md text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
+              disabled={saving}
+              onClick={() => navigateToWeek(currentWeekStart)}
+              type="button"
+            >
+              Go to current week
+            </button>
+          ) : null}
+        </div>
         <button
           className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving}
-          onClick={() => navigateWeek(1)}
+          onClick={() => navigateToWeek(shiftWeek(weekStart, 1))}
           type="button"
         >
           Next week

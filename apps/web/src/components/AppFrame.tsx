@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import AppNav from "@/components/AppNav";
@@ -22,9 +23,9 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   return (
     <>
       {hideHeader ? null : (
-        <header className="border-b border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <span className="text-lg font-semibold">Pantry</span>
+        <header className="border-b border-[#e5e1d8] bg-[#f4f1e8] text-[#24342b]">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 sm:px-8">
+            <Link className="[font-family:Georgia,serif] text-2xl font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href="/recipes">Pantry</Link>
             <AppNav />
           </div>
         </header>

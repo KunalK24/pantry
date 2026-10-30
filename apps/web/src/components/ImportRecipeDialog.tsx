@@ -9,7 +9,7 @@ import {
 } from "react";
 import { z } from "zod";
 
-import RecipeForm, { type RecipeFormValues } from "@/components/RecipeForm";
+import RecipeForm, { type RecipeFormValues, type RecipeImageCandidate } from "@/components/RecipeForm";
 import { recipeInputSchema } from "@/schemas/recipe";
 import { aiJobIdSchema } from "@/schemas/ai-job";
 
@@ -80,6 +80,10 @@ const jobStatusResponseSchema = z.object({
   sourceType: z.enum(["text", "image", "url"]),
   stage: z.string().nullable(),
   draft: z.unknown(),
+  imageCandidate: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("source_url"), url: z.url() }),
+    z.object({ kind: z.literal("source_upload") }),
+  ]).nullable(),
   error: z
     .object({
       code: z.string().nullable(),
@@ -163,6 +167,8 @@ export default function ImportRecipeDialog({
   const importGenerationRef = useRef(0);
   const savingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const keepWorkingRef = useRef<HTMLButtonElement>(null);
+  const confirmationReturnFocusRef = useRef<HTMLElement | null>(null);
   const [step, setStep] = useState<DialogStep>("paste");
   const [importMode, setImportMode] = useState<ImportMode>("text");
   const [sourceText, setSourceText] = useState("");
@@ -170,10 +176,18 @@ export default function ImportRecipeDialog({
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [draft, setDraft] = useState<RecipeFormValues | null>(null);
   const [draftJobId, setDraftJobId] = useState<string | null>(null);
+  const [imageCandidate, setImageCandidate] = useState<RecipeImageCandidate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
+  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
+
+  useEffect(() => {
+    if (isConfirmingDiscard) {
+      keepWorkingRef.current?.focus();
+    }
+  }, [isConfirmingDiscard]);
 
   useEffect(
     () => () => {
@@ -192,26 +206,40 @@ export default function ImportRecipeDialog({
   }
 
   function openDialog() {
-    importGenerationRef.current += 1;
-    activeJobIdRef.current = null;
-    parsingRef.current = false;
-    savingRef.current = false;
-    setIsParsing(false);
-    setIsSaving(false);
-    setStep("paste");
-    setImportMode("text");
-    setSourceText("");
-    setSourceUrl("");
-    setSourceImage(null);
-    setDraft(null);
-    setDraftJobId(null);
-    setError(null);
-    setStage(null);
+    setIsConfirmingDiscard(false);
     dialogRef.current?.showModal();
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    requestAnimationFrame(() => {
+      if (step === "review") {
+        dialogRef.current?.querySelector<HTMLInputElement>("#recipe-name")?.focus();
+      } else if (importMode === "image") {
+        fileInputRef.current?.focus();
+      } else if (importMode === "url") {
+        dialogRef.current?.querySelector<HTMLInputElement>("#recipe-source-url")?.focus();
+      } else {
+        textareaRef.current?.focus();
+      }
+    });
   }
 
   function closeDialog() {
+    if (savingRef.current) {
+      return;
+    }
+
+    if (parsingRef.current) {
+      if (!isConfirmingDiscard) {
+        confirmationReturnFocusRef.current = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      }
+      setIsConfirmingDiscard(true);
+      return;
+    }
+
+    dialogRef.current?.close();
+  }
+
+  function discardImport() {
     if (savingRef.current) {
       return;
     }
@@ -227,7 +255,36 @@ export default function ImportRecipeDialog({
     parsingRef.current = false;
     setIsParsing(false);
     setStage(null);
+    setStep("paste");
+    setImportMode("text");
+    setSourceText("");
+    setSourceUrl("");
+    setSourceImage(null);
+    setDraft(null);
+    setDraftJobId(null);
+    setImageCandidate(null);
+    setError(null);
+    setIsConfirmingDiscard(false);
     dialogRef.current?.close();
+  }
+
+  function requestDiscard() {
+    if (savingRef.current) {
+      return;
+    }
+    if (parsingRef.current || sourceText.trim() || sourceUrl.trim() || sourceImage || draft) {
+      confirmationReturnFocusRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      setIsConfirmingDiscard(true);
+      return;
+    }
+    discardImport();
+  }
+
+  function keepWorking() {
+    setIsConfirmingDiscard(false);
+    requestAnimationFrame(() => confirmationReturnFocusRef.current?.focus());
   }
 
   function handleClose() {
@@ -443,6 +500,13 @@ export default function ImportRecipeDialog({
 
           setDraft(parsedDraft);
           setDraftJobId(jobId);
+          setImageCandidate(
+            job.imageCandidate?.kind === "source_url"
+              ? { ...job.imageCandidate, importJobId: jobId }
+              : job.imageCandidate?.kind === "source_upload" && sourceImage
+                ? { kind: "source_upload", file: sourceImage }
+                : null,
+          );
           setStep("review");
           requestAnimationFrame(() => {
             dialogRef.current
@@ -552,7 +616,7 @@ export default function ImportRecipeDialog({
   }
 
   function handleCreated() {
-    closeDialog();
+    discardImport();
     onRecipeCreated();
   }
 
@@ -576,11 +640,6 @@ export default function ImportRecipeDialog({
         onCancel={(event) => {
           event.preventDefault();
           closeDialog();
-        }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) {
-            closeDialog();
-          }
         }}
         onClose={handleClose}
         ref={dialogRef}
@@ -660,7 +719,7 @@ export default function ImportRecipeDialog({
                   id="recipe-import-disclosure"
                 >
                   {importMode === "url"
-                    ? "We read the recipe page and may use Firecrawl and Google Gemini if needed. Review the draft before saving."
+                    ? "We read the recipe page and send its contents and image candidates to Google Gemini. Review the draft and suggested image before saving."
                     : "Recipe sources are sent to Google Gemini for conversion. Review the draft before saving."}
                 </p>
                 {importMode === "text" ? (
@@ -774,6 +833,7 @@ export default function ImportRecipeDialog({
                 Back to import source
               </button>
               <RecipeForm
+                imageCandidate={imageCandidate}
                 initialValues={draft}
                 key={draftJobId}
                 onSubmittingChange={handleSavingChange}
@@ -786,12 +846,24 @@ export default function ImportRecipeDialog({
             <button
               className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSaving}
-              onClick={closeDialog}
+              onClick={requestDiscard}
               type="button"
             >
               Cancel
             </button>
           </div>
+          {isConfirmingDiscard ? (
+            <div aria-live="polite" className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4" role="group">
+              <p className="text-sm font-semibold text-[#24342b]">
+                {isParsing ? "Cancel this import and discard your progress?" : "Discard this import and your draft?"}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f]" onClick={keepWorking} ref={keepWorkingRef} type="button">Keep working</button>
+                {!isParsing ? <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f]" onClick={closeDialog} type="button">Close and keep draft</button> : null}
+                <button className="rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white" onClick={discardImport} type="button">Discard import</button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </dialog>
     </>

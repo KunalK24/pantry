@@ -192,6 +192,7 @@ describe("recipe import job routes", () => {
       sourceType: "text",
       stage: "complete",
       draft,
+      imageCandidate: null,
       error: null,
       createdAt: timestamp.toISOString(),
       updatedAt: timestamp.toISOString(),

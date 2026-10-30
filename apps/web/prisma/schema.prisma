@@ -23,11 +23,22 @@ model Recipe {
   ingredients        RecipeIngredient[]
   plannedMeals       PlannedMeal[]
   groceryListRecipes GroceryListRecipe[]
+  image              RecipeImage?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model RecipeImage {
+  recipeId  String   @id
+  data      Bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }
 
 model Ingredient {

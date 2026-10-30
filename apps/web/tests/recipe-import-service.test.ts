@@ -19,6 +19,7 @@ vi.mock("@google/genai", () => ({
 }));
 vi.mock("@/services/recipe-url-acquisition-service", () => ({
   fetchRecipeHtml: fetchHtml,
+  validateUrl: (raw: string) => new URL(raw),
   RecipeUrlAcquisitionError: class extends Error {
     constructor(public code: string) {
       super(code);
@@ -75,10 +76,8 @@ afterEach(() => {
 });
 
 describe("recipe import service", () => {
-  it("returns a valid Python draft without either paid provider", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "");
-    vi.stubEnv("FIRECRAWL_API_KEY", "");
-    await expect(importRecipe({ type: "url", url })).resolves.toEqual(recipe);
+  it("sends a directly acquired URL through Gemini even when Python finds a draft", async () => {
+    await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
     expect(fetchHtml).toHaveBeenCalledWith(url, undefined);
     expect(pythonParse).toHaveBeenCalledWith(
       url,
@@ -86,7 +85,7 @@ describe("recipe import service", () => {
       undefined,
     );
     expect(fetch).not.toHaveBeenCalled();
-    expect(geminiCreate).not.toHaveBeenCalled();
+    expect(geminiCreate).toHaveBeenCalledOnce();
   });
 
   it("reports direct import stages in order and awaits each callback", async () => {
@@ -99,7 +98,7 @@ describe("recipe import service", () => {
         },
       },
     );
-    expect(stages).toEqual(["acquiring_source", "normalizing", "validating"]);
+    expect(stages).toEqual(["acquiring_source", "normalizing", "normalizing", "validating"]);
   });
 
   it("uses the final redirected URL for Python parsing", async () => {
@@ -115,19 +114,34 @@ describe("recipe import service", () => {
     );
   });
 
+  it("returns only an image URL actually found on the acquired page", async () => {
+    const imageUrl = "https://example.com/finished-dish.jpg";
+    fetchHtml.mockResolvedValue({
+      html: `<script type="application/ld+json">{"@type":"Recipe","image":"${imageUrl}"}</script>`,
+      finalUrl: url,
+    });
+    geminiCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify({ ...recipe, imageUrl }),
+    });
+    await expect(importRecipe({ type: "url", url })).resolves.toEqual({
+      draft: recipe,
+      imageCandidate: { kind: "source_url", url: imageUrl },
+    });
+    geminiCreate.mockResolvedValueOnce({
+      output_text: JSON.stringify({ ...recipe, imageUrl: "https://example.com/invented.jpg" }),
+    });
+    await expect(importRecipe({ type: "url", url })).resolves.toEqual({
+      draft: recipe,
+      imageCandidate: null,
+    });
+  });
+
   it.each(["incomplete", "unavailable", "timeout", "invalid_output"])(
-    "scrapes once and calls Gemini once when Python is %s",
+    "uses guarded markdown when Python is %s",
     async (reason) => {
       pythonParse.mockRejectedValue(new Error(reason));
-      await expect(importRecipe({ type: "url", url })).resolves.toEqual(recipe);
+      await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
       expect(fetch).toHaveBeenCalledOnce();
-      expect(fetch).toHaveBeenCalledWith(
-        "https://api.firecrawl.dev/v2/scrape",
-        expect.objectContaining({
-          method: "POST",
-          signal: expect.any(AbortSignal),
-        }),
-      );
       const [, request] = vi.mocked(fetch).mock.calls[0];
       expect(JSON.parse(request!.body as string)).toEqual({
         url,
@@ -147,14 +161,21 @@ describe("recipe import service", () => {
 
   it("falls back when the direct acquisition fails", async () => {
     fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
-    await expect(importRecipe({ type: "url", url })).resolves.toEqual(recipe);
+    await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
     expect(pythonParse).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("does not send non-recipe direct HTML to Gemini before guarded fallback", async () => {
+    pythonParse.mockResolvedValue(null);
+    vi.mocked(fetch).mockResolvedValue(firecrawlResponse("# Travel guide\nVisit museums and parks."));
+    await expect(importRecipe({ type: "url", url })).rejects.toMatchObject({ code: "invalid_source" });
+    expect(geminiCreate).not.toHaveBeenCalled();
+  });
+
   it("reports the acquisition and extraction stages through fallback", async () => {
     const stages: string[] = [];
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     await importRecipe(
       { type: "url", url },
       {
@@ -165,7 +186,6 @@ describe("recipe import service", () => {
     );
     expect(stages).toEqual([
       "acquiring_source",
-      "normalizing",
       "acquiring_source",
       "normalizing",
       "validating",
@@ -191,7 +211,7 @@ describe("recipe import service", () => {
   });
 
   it("reports missing Firecrawl configuration only when fallback is needed", async () => {
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     vi.stubEnv("FIRECRAWL_API_KEY", "");
     await expect(importRecipe({ type: "url", url })).rejects.toMatchObject({
       code: "not_configured",
@@ -209,7 +229,7 @@ describe("recipe import service", () => {
   });
 
   it("requires both Firecrawl API success and a successful target-page status", async () => {
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     vi.mocked(fetch).mockResolvedValueOnce(
       firecrawlResponse("# Toast", 200, false),
     );
@@ -230,7 +250,7 @@ describe("recipe import service", () => {
   it.each(["CAPTCHA required", "Checking your browser", "Access denied"])(
     "rejects a Firecrawl access page: %s",
     async (markdown) => {
-      pythonParse.mockRejectedValue(new Error("incomplete"));
+      fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
       vi.mocked(fetch).mockResolvedValue(firecrawlResponse(markdown));
       await expect(importRecipe({ type: "url", url })).rejects.toMatchObject({
         code: "source_access_denied",
@@ -244,7 +264,7 @@ describe("recipe import service", () => {
     "Accept cookies to continue",
     "Cookie consent required",
   ])("rejects a Firecrawl access or consent page: %s", async (markdown) => {
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     vi.mocked(fetch).mockResolvedValue(firecrawlResponse(markdown));
     await expect(importRecipe({ type: "url", url })).rejects.toMatchObject({
       code: "source_access_denied",
@@ -253,7 +273,7 @@ describe("recipe import service", () => {
   });
 
   it("rejects non-recipe markdown before Gemini", async () => {
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     vi.mocked(fetch).mockResolvedValue(
       firecrawlResponse("# Travel guide\nVisit museums and parks."),
     );
@@ -264,7 +284,7 @@ describe("recipe import service", () => {
   });
 
   it("validates the Gemini fallback draft", async () => {
-    pythonParse.mockRejectedValue(new Error("incomplete"));
+    fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     geminiCreate.mockResolvedValue({
       output_text: JSON.stringify({ ...recipe, ingredients: [] }),
     });
@@ -277,14 +297,14 @@ describe("recipe import service", () => {
   it("keeps text and image on one Gemini request with no Firecrawl", async () => {
     await expect(
       importRecipe({ type: "text", text: "Toast bread" }),
-    ).resolves.toEqual(recipe);
+    ).resolves.toEqual({ draft: recipe, imageCandidate: null });
     const imageData = Buffer.from("image").toString("base64");
     await expect(
       importRecipe({
         type: "image",
         image: { mimeType: "image/png", data: imageData },
       }),
-    ).resolves.toEqual(recipe);
+    ).resolves.toEqual({ draft: recipe, imageCandidate: null });
     expect(geminiCreate).toHaveBeenCalledTimes(2);
     expect(geminiCreate.mock.calls[0][0].store).toBe(false);
     expect(geminiCreate.mock.calls[1][0].input[1]).toEqual({
@@ -293,6 +313,20 @@ describe("recipe import service", () => {
       data: imageData,
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suggests an uploaded image only when Gemini identifies a finished dish photo", async () => {
+    const image = { mimeType: "image/png" as const, data: Buffer.from("image").toString("base64") };
+    geminiCreate.mockResolvedValueOnce({ output_text: JSON.stringify({ ...recipe, finishedDishPhoto: true }) });
+    await expect(importRecipe({ type: "image", image })).resolves.toEqual({
+      draft: recipe,
+      imageCandidate: { kind: "source_upload" },
+    });
+    geminiCreate.mockResolvedValueOnce({ output_text: JSON.stringify({ ...recipe, finishedDishPhoto: false }) });
+    await expect(importRecipe({ type: "image", image })).resolves.toEqual({
+      draft: recipe,
+      imageCandidate: null,
+    });
   });
 
   it("reports text and image stages in order", async () => {
@@ -323,7 +357,7 @@ describe("recipe import service", () => {
         type: "image",
         image: { mimeType: "image/jpeg", data: imageData },
       }),
-    ).resolves.toEqual(recipe);
+    ).resolves.toEqual({ draft: recipe, imageCandidate: null });
     expect(geminiCreate).toHaveBeenCalledOnce();
     expect(fetch).not.toHaveBeenCalled();
   });

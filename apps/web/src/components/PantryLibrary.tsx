@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import CreatePantryItemDialog from "@/components/CreatePantryItemDialog";
 import EditPantryItemDialog from "@/components/EditPantryItemDialog";
@@ -65,6 +65,11 @@ export default function PantryLibrary({
   const [editingItem, setEditingItem] = useState<PantryItemSummary | null>(
     null,
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const visibleItems = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return items?.filter((item) => item.name.toLocaleLowerCase().includes(query)) ?? [];
+  }, [items, searchQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -200,6 +205,17 @@ export default function PantryLibrary({
 
   return (
     <>
+      <div className="mb-5">
+        <label className="sr-only" htmlFor="pantry-search">Search your pantry</label>
+        <input
+          className="h-11 w-full max-w-sm border-0 border-b border-[#d8d3c8] bg-transparent px-1 text-sm font-semibold text-[#24342b] outline-none placeholder:text-[#a0a69e] focus:border-[#35644f]"
+          id="pantry-search"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search your pantry"
+          type="search"
+          value={searchQuery}
+        />
+      </div>
       {deleteError ? (
         <p
           className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
@@ -208,29 +224,20 @@ export default function PantryLibrary({
           {deleteError}
         </p>
       ) : null}
+      {visibleItems.length === 0 ? (
+        <div className="border-y border-dashed border-[#d8d3c8] py-8 text-center">
+          <p className="text-sm text-[#6f7a71]">No pantry items match your search.</p>
+          <button className="mt-3 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => setSearchQuery("")} type="button">Clear search</button>
+        </div>
+      ) : (
       <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const amount = pantryAmount(item);
 
           return (
             <li key={item.id}>
               <div className="grid gap-4 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                 <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-bold uppercase tracking-[0.14em] text-[#c5745a]">
-                      Ingredient
-                    </span>
-                    {amount ? (
-                      <>
-                        <span aria-hidden="true" className="text-[#d6d0c4]">
-                          •
-                        </span>
-                        <span className="font-semibold text-[#78837b]">
-                          {amount}
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
                   <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b] md:text-[1.8rem]">
                     <button
                       className="rounded-md text-left transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
@@ -240,11 +247,9 @@ export default function PantryLibrary({
                       {item.name}
                     </button>
                   </h2>
-                  {!amount ? (
-                    <p className="mt-2 text-sm leading-6 text-[#7b857d]">
-                      Amount not specified
-                    </p>
-                  ) : null}
+                  <p className="mt-2 text-sm leading-6 text-[#7b857d]">
+                    {amount ? `Quantity: ${amount}` : "Quantity not specified"}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   <button
@@ -269,6 +274,7 @@ export default function PantryLibrary({
           );
         })}
       </ul>
+      )}
       {editingItem ? (
         <EditPantryItemDialog
           itemId={editingItem.id}

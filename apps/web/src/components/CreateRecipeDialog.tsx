@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import RecipeForm from "@/components/RecipeForm";
 
@@ -19,9 +19,19 @@ export default function CreateRecipeDialog({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const generationRef = useRef(0);
   const submittingRef = useRef(false);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const confirmationReturnFocusRef = useRef<HTMLElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openGeneration, setOpenGeneration] = useState(0);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
+
+  useEffect(() => {
+    if (isConfirmingDiscard) {
+      keepEditingRef.current?.focus();
+    }
+  }, [isConfirmingDiscard]);
 
   function openDialog() {
     const generation = generationRef.current + 1;
@@ -29,6 +39,8 @@ export default function CreateRecipeDialog({
     submittingRef.current = false;
     setIsSubmitting(false);
     setOpenGeneration(generation);
+    setIsDirty(false);
+    setIsConfirmingDiscard(false);
     setIsOpen(true);
     dialogRef.current?.showModal();
     requestAnimationFrame(() => {
@@ -38,12 +50,27 @@ export default function CreateRecipeDialog({
     });
   }
 
-  function closeDialog() {
+  function closeDialog(force = false) {
     if (submittingRef.current) {
       return;
     }
 
+    if (isDirty && !force) {
+      if (!isConfirmingDiscard) {
+        confirmationReturnFocusRef.current = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      }
+      setIsConfirmingDiscard(true);
+      return;
+    }
+
     dialogRef.current?.close();
+  }
+
+  function keepEditing() {
+    setIsConfirmingDiscard(false);
+    requestAnimationFrame(() => confirmationReturnFocusRef.current?.focus());
   }
 
   function handleClose() {
@@ -68,7 +95,7 @@ export default function CreateRecipeDialog({
       return;
     }
 
-    closeDialog();
+    closeDialog(true);
     onRecipeCreated();
   }
 
@@ -89,16 +116,17 @@ export default function CreateRecipeDialog({
       <dialog
         aria-labelledby="create-recipe-dialog-title"
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-[#ded9cf] bg-[#fbfaf6] p-0 text-[#24342b] shadow-[0_24px_60px_rgba(42,48,38,0.18)] backdrop:bg-[#24342b]/35"
-        onClick={(event) => {
-          if (event.target === event.currentTarget && !submittingRef.current) {
-            closeDialog();
+        onChangeCapture={() => setIsDirty(true)}
+        onInputCapture={() => setIsDirty(true)}
+        onClickCapture={(event) => {
+          if (event.target instanceof Element && event.target.closest("button")?.textContent?.match(/^(Add ingredient|Remove)$/)) {
+            setIsDirty(true);
           }
         }}
         onClose={handleClose}
         onCancel={(event) => {
-          if (submittingRef.current) {
-            event.preventDefault();
-          }
+          event.preventDefault();
+          closeDialog();
         }}
         ref={dialogRef}
       >
@@ -115,7 +143,7 @@ export default function CreateRecipeDialog({
                 aria-label="Close create recipe dialog"
                 className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
-                onClick={closeDialog}
+                onClick={() => closeDialog()}
                 type="button"
               >
                 Close
@@ -130,11 +158,21 @@ export default function CreateRecipeDialog({
               onSuccess={() => handleCreated(openGeneration)}
             />
 
+            {isConfirmingDiscard ? (
+              <div aria-live="polite" className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4" role="group">
+                <p className="text-sm font-semibold text-[#24342b]">Discard your recipe changes?</p>
+                <div className="mt-3 flex gap-3">
+                  <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f]" onClick={keepEditing} ref={keepEditingRef} type="button">Keep editing</button>
+                  <button className="rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white" onClick={() => closeDialog(true)} type="button">Discard changes</button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-6 border-t border-[#e5e1d8] pt-4">
               <button
                 className="rounded-lg border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting}
-                onClick={closeDialog}
+                onClick={() => closeDialog()}
                 type="button"
               >
                 Cancel

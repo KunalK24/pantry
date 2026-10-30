@@ -14,6 +14,7 @@ type RecipeResponse = Omit<RecipeFormValues, "instructions" | "ingredients"> & {
   }>;
   createdAt: string;
   updatedAt: string;
+  imageUrl: string | null;
 };
 
 function isRecipeIngredient(value: unknown) {
@@ -42,7 +43,9 @@ function isRecipeResponse(payload: unknown): payload is RecipeResponse {
       payload.instructions === null) &&
     "ingredients" in payload &&
     Array.isArray(payload.ingredients) &&
-    payload.ingredients.every(isRecipeIngredient)
+    payload.ingredients.every(isRecipeIngredient) &&
+    "imageUrl" in payload &&
+    (typeof payload.imageUrl === "string" || payload.imageUrl === null)
   );
 }
 
@@ -63,6 +66,7 @@ function responseErrorMessage(payload: unknown, status: number) {
 
 export default function RecipeEditor({ recipeId }: { recipeId: string }) {
   const [recipe, setRecipe] = useState<RecipeFormValues | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState(0);
 
@@ -91,6 +95,7 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
             unit: ingredient.unit ?? "",
           })),
         });
+        setImageUrl(payload.imageUrl);
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -151,5 +156,5 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
     );
   }
 
-  return <RecipeForm initialValues={recipe} mode="edit" recipeId={recipeId} />;
+  return <RecipeForm initialValues={recipe} initialImageUrl={imageUrl} mode="edit" recipeId={recipeId} />;
 }

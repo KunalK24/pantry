@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import PantryItemEditor from "@/components/PantryItemEditor";
+import SignedInShell from "@/components/SignedInShell";
 
 export default async function EditPantryItemPage({
   params,
@@ -10,7 +11,7 @@ export default async function EditPantryItemPage({
   const { id } = await params;
 
   return (
-    <main className="min-h-dvh bg-[#fbfaf6] px-5 py-8 text-[#24342b] sm:px-8 lg:px-10 lg:py-16">
+    <SignedInShell activeSection="pantry">
       <div className="mx-auto w-full max-w-3xl">
         <header className="mb-8">
           <Link
@@ -30,6 +31,6 @@ export default async function EditPantryItemPage({
           <PantryItemEditor pantryItemId={id} />
         </div>
       </div>
-    </main>
+    </SignedInShell>
   );
 }

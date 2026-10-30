@@ -28,7 +28,7 @@ export default function SignOutButton() {
 
   return (
     <button
-      className="block px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-white dark:focus-visible:outline-zinc-100"
+      className="block rounded-lg px-3 py-2 text-sm font-bold text-[#66746a] transition-colors hover:bg-white/60 hover:text-[#285843] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
       disabled={isSubmitting}
       onClick={handleSignOut}
       type="button"
