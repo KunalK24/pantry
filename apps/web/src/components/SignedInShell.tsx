@@ -31,7 +31,7 @@ export default function SignedInShell({
   return (
     <main className="min-h-dvh bg-[#fbfaf6] text-[#24342b]">
       <div className="grid min-h-dvh lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="border-b border-[#e5e1d8] bg-[#f4f1e8] lg:flex lg:min-h-dvh lg:flex-col lg:border-b-0 lg:border-r">
+        <aside className="border-b border-[#e5e1d8] bg-[#f4f1e8] lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between gap-3 px-5 py-3 lg:px-5 lg:py-7">
             <Link
               className="flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f] lg:gap-3"

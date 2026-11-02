@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Recipe = {
   id: string;
@@ -10,6 +10,9 @@ type Recipe = {
   description: string | null;
   instructions: string | null;
   imageUrl: string | null;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  timeMinutes: number | null;
+  isFavorite: boolean;
   ingredients: Array<{
     name: string;
     quantity: string | null;
@@ -29,6 +32,9 @@ function isRecipe(value: unknown): value is Recipe {
     "description" in value && isNullableString(value.description) &&
     "instructions" in value && isNullableString(value.instructions) &&
     "imageUrl" in value && isNullableString(value.imageUrl) &&
+    "mealType" in value && (value.mealType === null || ["breakfast", "lunch", "dinner", "snack"].includes(value.mealType as string)) &&
+    "timeMinutes" in value && (value.timeMinutes === null || (typeof value.timeMinutes === "number" && Number.isSafeInteger(value.timeMinutes) && value.timeMinutes > 0)) &&
+    "isFavorite" in value && typeof value.isFavorite === "boolean" &&
     "ingredients" in value && Array.isArray(value.ingredients) &&
     value.ingredients.every((ingredient) =>
       typeof ingredient === "object" && ingredient !== null &&
@@ -43,6 +49,9 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState(0);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const favoritePendingRef = useRef(false);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -83,6 +92,32 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
     setRequestNumber((current) => current + 1);
   }
 
+  async function handleFavorite() {
+    if (!recipe || favoritePendingRef.current) {
+      return;
+    }
+    favoritePendingRef.current = true;
+    setFavoritePending(true);
+    setFavoriteError(null);
+    try {
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFavorite: !recipe.isFavorite }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok || !isRecipe(payload)) {
+        throw new Error("Unable to update favorite. Please try again.");
+      }
+      setRecipe(payload);
+    } catch (error) {
+      setFavoriteError(error instanceof Error ? error.message : "Unable to update favorite. Please try again.");
+    } finally {
+      favoritePendingRef.current = false;
+      setFavoritePending(false);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl">
       <Link className="inline-flex rounded-lg text-sm font-bold text-[#35644f] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href="/recipes">
@@ -106,8 +141,13 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
               <h1 className="mt-3 [font-family:Georgia,serif] text-[2.5rem] font-bold leading-tight text-[#24342b] sm:text-[3.5rem]">{recipe.name}</h1>
               {recipe.description ? <p className="mt-4 max-w-2xl whitespace-pre-line text-lg leading-7 text-[#6f7a71]">{recipe.description}</p> : null}
             </div>
-            <Link className="rounded-xl border border-[#d9d4c9] bg-white px-4 py-2.5 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href={`/recipes/${recipe.id}/edit`}>Edit recipe</Link>
+            <div className="flex items-center gap-3">
+              <button aria-label={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"} aria-pressed={recipe.isFavorite} className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-3xl leading-none text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a] disabled:opacity-50" disabled={favoritePending} onClick={() => void handleFavorite()} type="button">{recipe.isFavorite ? "♥" : "♡"}</button>
+              <Link className="inline-flex min-h-12 items-center rounded-xl border border-[#d9d4c9] bg-white px-5 py-3 text-base font-bold text-[#35644f] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href={`/recipes/${recipe.id}/edit`}>Edit recipe</Link>
+            </div>
           </header>
+          {recipe.mealType || recipe.timeMinutes !== null ? <p className="mt-4 flex flex-wrap gap-3 text-sm font-semibold text-[#69736b]">{recipe.mealType ? <span className="capitalize text-[#c5745a]">{recipe.mealType}</span> : null}{recipe.timeMinutes !== null ? <span>◷ {recipe.timeMinutes} min</span> : null}</p> : null}
+          {favoriteError ? <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" role="alert">{favoriteError}</p> : null}
 
           {recipe.imageUrl ? (
             <Image alt={recipe.name} className="mt-8 aspect-[16/9] max-h-[32rem] w-full rounded-2xl object-cover" height={675} src={recipe.imageUrl} unoptimized width={1200} />

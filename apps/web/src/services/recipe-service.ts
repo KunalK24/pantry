@@ -21,6 +21,9 @@ function flattenRecipe(recipe: CompleteRecipe) {
     name: recipe.name,
     description: recipe.description,
     instructions: recipe.instructions,
+    mealType: recipe.mealType,
+    timeMinutes: recipe.timeMinutes,
+    isFavorite: recipe.isFavorite,
     createdAt: recipe.createdAt,
     updatedAt: recipe.updatedAt,
     imageUrl: recipe.image ? `/api/recipes/${recipe.id}/image` : null,
@@ -64,6 +67,8 @@ export async function createRecipe(userId: string, input: RecipeInput) {
       name: input.name,
       description: input.description ?? null,
       instructions: input.instructions,
+      mealType: input.mealType ?? null,
+      timeMinutes: input.timeMinutes ?? null,
       ingredients: {
         create: ingredientCreates(input),
       },
@@ -86,6 +91,9 @@ export async function listRecipes(userId: string) {
       id: true,
       name: true,
       description: true,
+      mealType: true,
+      timeMinutes: true,
+      isFavorite: true,
       updatedAt: true,
       image: { select: { recipeId: true } },
       ingredients: {
@@ -167,6 +175,8 @@ export async function updateRecipe(
           name: input.name,
           description: input.description ?? null,
           instructions: input.instructions,
+          mealType: input.mealType ?? null,
+          timeMinutes: input.timeMinutes ?? null,
           ingredients: {
             deleteMany: {},
             create: ingredientCreates(input),
@@ -198,6 +208,22 @@ export async function updateRecipe(
       throw new RecipeNotFoundError(id);
     }
 
+    throw error;
+  }
+}
+
+export async function setRecipeFavorite(userId: string, id: string, isFavorite: boolean) {
+  try {
+    const recipe = await prisma.recipe.update({
+      where: { id, userId },
+      data: { isFavorite },
+      include: recipeWithIngredients,
+    });
+    return flattenRecipe(recipe);
+  } catch (error) {
+    if (isKnownPrismaError(error, "P2025")) {
+      throw new RecipeNotFoundError(id);
+    }
     throw error;
   }
 }

@@ -14,6 +14,8 @@ const scrapedRecipeSchema = z.object({
   description: z.string().optional().nullable(),
   ingredients: z.array(z.string().trim().min(1)).min(1),
   instructions: z.array(z.string().trim().min(1)).min(1),
+  mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).nullable().optional(),
+  timeMinutes: z.number().int().positive().nullable().optional(),
 });
 
 export type PythonRecipeParseErrorCode =
@@ -71,6 +73,8 @@ export function mapScrapedRecipe(value: unknown): RecipeInput {
     name: scraped.data.name,
     description: scraped.data.description || undefined,
     instructions: scraped.data.instructions.join("\n"),
+    mealType: scraped.data.mealType ?? undefined,
+    timeMinutes: scraped.data.timeMinutes ?? undefined,
     ingredients,
   });
   if (!result.success) {

@@ -29,6 +29,27 @@ def main():
         result["description"] = scraper.description()
     except Exception:
         pass
+    try:
+        total_time = scraper.total_time()
+        if isinstance(total_time, int) and not isinstance(total_time, bool) and total_time > 0:
+            result["timeMinutes"] = total_time
+    except Exception:
+        pass
+    try:
+        category = scraper.schema.data.get("recipeCategory")
+        if isinstance(category, str):
+            categories = [category]
+        elif isinstance(category, list):
+            categories = [item for item in category if isinstance(item, str)]
+        else:
+            categories = []
+        for category in categories:
+            normalized = category.strip().lower()
+            if normalized in {"breakfast", "lunch", "dinner", "snack"}:
+                result["mealType"] = normalized
+                break
+    except Exception:
+        pass
     json.dump(result, sys.stdout, ensure_ascii=False)
 
 

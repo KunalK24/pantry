@@ -125,6 +125,17 @@ describe("request schema limits", () => {
     ).toBe(true);
   });
 
+  it("limits recipe time to PostgreSQL's integer range", () => {
+    expect(
+      recipeInputSchema.safeParse({ ...recipe, timeMinutes: 2_147_483_647 })
+        .success,
+    ).toBe(true);
+    expect(
+      recipeInputSchema.safeParse({ ...recipe, timeMinutes: 2_147_483_648 })
+        .success,
+    ).toBe(false);
+  });
+
   it("limits pantry fields and extracted item count", () => {
     expect(
       pantryItemInputSchema.safeParse({ name: "x".repeat(201) }).success,

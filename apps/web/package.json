@@ -10,6 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "pantry:normalize": "tsx scripts/normalize-pantry-items.ts",
+    "test-user:seed": "tsx scripts/seed-test-user.ts",
+    "test-user:remove": "tsx scripts/remove-test-user.ts",
     "compare:providers": "tsx scripts/compare-image-providers.ts",
     "worker:ai": "tsx src/workers/ai-job-worker.ts"
   },

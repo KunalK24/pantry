@@ -45,7 +45,11 @@ function isRecipeResponse(payload: unknown): payload is RecipeResponse {
     Array.isArray(payload.ingredients) &&
     payload.ingredients.every(isRecipeIngredient) &&
     "imageUrl" in payload &&
-    (typeof payload.imageUrl === "string" || payload.imageUrl === null)
+    (typeof payload.imageUrl === "string" || payload.imageUrl === null) &&
+    "mealType" in payload &&
+    (payload.mealType === null || ["breakfast", "lunch", "dinner", "snack"].includes(payload.mealType as string)) &&
+    "timeMinutes" in payload &&
+    (payload.timeMinutes === null || (typeof payload.timeMinutes === "number" && Number.isSafeInteger(payload.timeMinutes) && payload.timeMinutes > 0))
   );
 }
 
@@ -89,6 +93,8 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
           name: payload.name,
           description: payload.description ?? "",
           instructions: payload.instructions ?? "",
+          mealType: payload.mealType ?? null,
+          timeMinutes: payload.timeMinutes ?? null,
           ingredients: payload.ingredients.map((ingredient) => ({
             name: ingredient.name,
             quantity: ingredient.quantity ?? "",

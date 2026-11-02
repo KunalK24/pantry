@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import CreatePantryItemDialog from "@/components/CreatePantryItemDialog";
 import EditPantryItemDialog from "@/components/EditPantryItemDialog";
+import { PANTRY_LOCATIONS } from "@/components/PantryItemForm";
 
 type PantryItemSummary = {
   id: string;
   name: string;
   quantity: string | null;
   unit: string | null;
+  location: string | null;
+  expiresOn: string | null;
   updatedAt: string;
 };
 
@@ -27,6 +30,10 @@ function isPantryItemSummary(value: unknown): value is PantryItemSummary {
     (typeof value.quantity === "string" || value.quantity === null) &&
     "unit" in value &&
     (typeof value.unit === "string" || value.unit === null) &&
+    "location" in value &&
+    (typeof value.location === "string" || value.location === null) &&
+    "expiresOn" in value &&
+    (typeof value.expiresOn === "string" || value.expiresOn === null) &&
     "updatedAt" in value &&
     typeof value.updatedAt === "string"
   );
@@ -48,6 +55,23 @@ function pantryAmount(item: PantryItemSummary) {
   return [item.quantity, item.unit].filter(Boolean).join(" ");
 }
 
+function localDateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function expirationLabel(expiresOn: string) {
+  const [year, month, day] = expiresOn.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
 type PantryLibraryProps = {
   onPantryItemCreated?: () => void;
   refreshSignal?: number;
@@ -66,10 +90,27 @@ export default function PantryLibrary({
     null,
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState("");
   const visibleItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
-    return items?.filter((item) => item.name.toLocaleLowerCase().includes(query)) ?? [];
-  }, [items, searchQuery]);
+    return items?.filter((item) =>
+      item.name.toLocaleLowerCase().includes(query) &&
+      (!selectedLocation || item.location === selectedLocation),
+    ) ?? [];
+  }, [items, searchQuery, selectedLocation]);
+  const expirationCounts = useMemo(() => {
+    const today = new Date();
+    const start = localDateKey(today);
+    const end = localDateKey(
+      new Date(today.getFullYear(), today.getMonth(), today.getDate() + 3),
+    );
+    return {
+      expired: items?.filter((item) => item.expiresOn && item.expiresOn < start).length ?? 0,
+      expiringSoon: items?.filter((item) =>
+        item.expiresOn && item.expiresOn >= start && item.expiresOn <= end,
+      ).length ?? 0,
+    };
+  }, [items]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -205,7 +246,34 @@ export default function PantryLibrary({
 
   return (
     <>
-      <div className="mb-5">
+      {expirationCounts.expired > 0 || expirationCounts.expiringSoon > 0 ? (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2" role="status">
+          {expirationCounts.expired > 0 ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+              {expirationCounts.expired} {expirationCounts.expired === 1 ? "ingredient has" : "ingredients have"} expired.
+            </p>
+          ) : null}
+          {expirationCounts.expiringSoon > 0 ? (
+            <p className="rounded-xl border border-[#ead8bd] bg-[#fff7e9] px-4 py-3 text-sm font-semibold text-[#71502b]">
+              {expirationCounts.expiringSoon} {expirationCounts.expiringSoon === 1 ? "ingredient is" : "ingredients are"} expiring in the next 3 days.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by location">
+          {["", ...PANTRY_LOCATIONS].map((pantryLocation) => (
+            <button
+              aria-pressed={selectedLocation === pantryLocation}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${selectedLocation === pantryLocation ? "bg-[#e8f1e9] text-[#244d39]" : "text-[#68736b] hover:bg-[#f1f0e9]"}`}
+              key={pantryLocation}
+              onClick={() => setSelectedLocation(pantryLocation)}
+              type="button"
+            >
+              {pantryLocation || "All"}
+            </button>
+          ))}
+        </div>
         <label className="sr-only" htmlFor="pantry-search">Search your pantry</label>
         <input
           className="h-11 w-full max-w-sm border-0 border-b border-[#d8d3c8] bg-transparent px-1 text-sm font-semibold text-[#24342b] outline-none placeholder:text-[#a0a69e] focus:border-[#35644f]"
@@ -226,8 +294,8 @@ export default function PantryLibrary({
       ) : null}
       {visibleItems.length === 0 ? (
         <div className="border-y border-dashed border-[#d8d3c8] py-8 text-center">
-          <p className="text-sm text-[#6f7a71]">No pantry items match your search.</p>
-          <button className="mt-3 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => setSearchQuery("")} type="button">Clear search</button>
+          <p className="text-sm text-[#6f7a71]">No pantry items match these filters.</p>
+          <button className="mt-3 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => { setSearchQuery(""); setSelectedLocation(""); }} type="button">Clear filters</button>
         </div>
       ) : (
       <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
@@ -250,10 +318,15 @@ export default function PantryLibrary({
                   <p className="mt-2 text-sm leading-6 text-[#7b857d]">
                     {amount ? `Quantity: ${amount}` : "Quantity not specified"}
                   </p>
+                  {item.location || item.expiresOn ? (
+                    <p className="mt-1 text-sm leading-6 text-[#7b857d]">
+                      {[item.location, item.expiresOn ? `Expires ${expirationLabel(item.expiresOn)}` : null].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
                   <button
-                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                     onClick={() => setEditingItem(item)}
                     type="button"
                   >
@@ -261,7 +334,7 @@ export default function PantryLibrary({
                   </button>
                   <button
                     aria-label={`Delete ${item.name}`}
-                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={deletingId === item.id}
                     onClick={() => void handleDeletePantryItem(item)}
                     type="button"

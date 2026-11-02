@@ -21,6 +21,13 @@ describe("Python recipe scraper mapping", () => {
     });
   });
 
+  it("includes source meal type and total time when provided", () => {
+    expect(mapScrapedRecipe({ ...scraped, mealType: "breakfast", timeMinutes: 45 }))
+      .toMatchObject({ mealType: "breakfast", timeMinutes: 45 });
+    expect(() => mapScrapedRecipe({ ...scraped, timeMinutes: -1 }))
+      .toThrowError(PythonRecipeParseError);
+  });
+
   it("treats missing quantity as incomplete instead of inventing one", () => {
     expect(() =>
       mapScrapedRecipe({ ...scraped, ingredients: ["salt"] }),

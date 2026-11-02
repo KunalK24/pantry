@@ -43,6 +43,8 @@ const pantryItemSelect = {
   name: true,
   quantity: true,
   unit: true,
+  location: true,
+  expiresOn: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -54,6 +56,8 @@ const pantryItem = {
   name: "Olive Oil",
   quantity: "1/2",
   unit: "bottle",
+  location: null,
+  expiresOn: null,
   createdAt: new Date("2026-09-28T12:00:00.000Z"),
   updatedAt: new Date("2026-09-28T12:00:00.000Z"),
 };
@@ -98,9 +102,44 @@ describe("pantry item validation and normalization", () => {
       unit: undefined,
     });
   });
+
+  it("accepts the supported locations and real calendar dates", () => {
+    expect(pantryItemInputSchema.parse({
+      name: "Milk",
+      location: "Fridge",
+      expiresOn: "2028-02-29",
+    })).toMatchObject({ location: "Fridge", expiresOn: "2028-02-29" });
+
+    for (const location of ["Pantry", "Cupboard", "Freezer", "Spice Cabinet"]) {
+      expect(pantryItemInputSchema.safeParse({ name: "Milk", location }).success).toBe(true);
+    }
+  });
+
+  it.each(["2027-02-29", "2026-04-31", "2026-13-01", "2026-1-01", "tomorrow"])(
+    "rejects an invalid expiration date: %s",
+    (expiresOn) => {
+      expect(pantryItemInputSchema.safeParse({ name: "Milk", expiresOn }).success).toBe(false);
+    },
+  );
+
+  it("rejects unsupported locations", () => {
+    expect(pantryItemInputSchema.safeParse({ name: "Milk", location: "Garage" }).success).toBe(false);
+  });
 });
 
 describe("listPantryItems", () => {
+  it("returns date-only expiration values", async () => {
+    findManyPantryItemsMock.mockResolvedValue([{
+      ...pantryItem,
+      expiresOn: new Date("2026-11-03T00:00:00.000Z"),
+    }]);
+
+    await expect(listPantryItems(userId)).resolves.toEqual([{
+      ...pantryItem,
+      expiresOn: "2026-11-03",
+    }]);
+  });
+
   it("returns public fields ordered by normalized name", async () => {
     findManyPantryItemsMock.mockResolvedValue([pantryItem]);
 
@@ -118,6 +157,27 @@ describe("listPantryItems", () => {
 });
 
 describe("createPantryItem", () => {
+  it("stores a date without a timezone shift and returns a date-only string", async () => {
+    createPantryItemMock.mockResolvedValue({
+      ...pantryItem,
+      location: "Fridge",
+      expiresOn: new Date("2026-11-03T00:00:00.000Z"),
+    });
+
+    await expect(createPantryItem(userId, {
+      name: "Milk",
+      location: "Fridge",
+      expiresOn: "2026-11-03",
+    })).resolves.toMatchObject({ location: "Fridge", expiresOn: "2026-11-03" });
+
+    expect(createPantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        location: "Fridge",
+        expiresOn: new Date("2026-11-03T00:00:00.000Z"),
+      }),
+    }));
+  });
+
   it("creates an item with a normalized name and textual quantity", async () => {
     createPantryItemMock.mockResolvedValue(pantryItem);
 
@@ -136,6 +196,8 @@ describe("createPantryItem", () => {
         normalizedName: "olive oil",
         quantity: "1/2",
         unit: "bottle",
+        location: null,
+        expiresOn: null,
       },
       select: pantryItemSelect,
     });
@@ -157,6 +219,8 @@ describe("createPantryItem", () => {
         normalizedName: "salt",
         quantity: null,
         unit: null,
+        location: null,
+        expiresOn: null,
       },
       select: pantryItemSelect,
     });
@@ -182,6 +246,8 @@ describe("createPantryItem", () => {
           normalizedName: "green onion",
           quantity: "2",
           unit: "bunches",
+          location: null,
+          expiresOn: null,
         },
       }),
     );
@@ -240,6 +306,40 @@ describe("getPantryItemById", () => {
 });
 
 describe("updatePantryItem", () => {
+  it("stores an updated expiration date", async () => {
+    updatePantryItemMock.mockResolvedValue({
+      ...pantryItem,
+      expiresOn: new Date("2026-11-05T00:00:00.000Z"),
+    });
+
+    await expect(updatePantryItem(userId, pantryItemId, {
+      name: "Olive Oil",
+      expiresOn: "2026-11-05",
+    })).resolves.toMatchObject({ expiresOn: "2026-11-05" });
+
+    expect(updatePantryItemMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        expiresOn: new Date("2026-11-05T00:00:00.000Z"),
+      }),
+    }));
+  });
+
+  it("clears metadata explicitly and preserves it when omitted", async () => {
+    updatePantryItemMock.mockResolvedValue({ ...pantryItem });
+    await updatePantryItem(userId, pantryItemId, {
+      name: "Olive Oil",
+      location: null,
+      expiresOn: null,
+    });
+    expect(updatePantryItemMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ location: null, expiresOn: null }),
+    }));
+
+    await updatePantryItem(userId, pantryItemId, { name: "Olive Oil" });
+    expect(updatePantryItemMock.mock.lastCall?.[0].data).not.toHaveProperty("location");
+    expect(updatePantryItemMock.mock.lastCall?.[0].data).not.toHaveProperty("expiresOn");
+  });
+
   it("updates every editable field and its normalized name", async () => {
     const updatedItem = {
       ...pantryItem,

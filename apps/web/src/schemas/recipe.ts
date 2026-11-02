@@ -12,6 +12,8 @@ export const recipeInputSchema = z
       .transform((value) => value || undefined)
       .optional(),
     instructions: z.string().trim().min(1).max(20000),
+    mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).nullable().optional(),
+    timeMinutes: z.number().int().min(1).max(2_147_483_647).nullable().optional(),
     ingredients: z
       .array(
         z.object({
@@ -96,6 +98,10 @@ export const recipeInputRequestSchema = z.preprocess((value) => {
 }, typedRecipeInputRequestSchema);
 
 export type RecipeInput = z.infer<typeof recipeInputSchema>;
+
+export const recipeFavoriteSchema = z.object({
+  isFavorite: z.boolean(),
+}).strict();
 
 export type RecipeInputRequest = z.infer<typeof recipeInputRequestSchema>;
 

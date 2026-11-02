@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   getRecipeByIdMock,
   updateRecipeMock,
+  setRecipeFavoriteMock,
   deleteRecipeMock,
   RecipeNotFoundErrorMock,
   requireAuthMock,
@@ -12,6 +13,7 @@ const {
   return {
     getRecipeByIdMock: vi.fn(),
     updateRecipeMock: vi.fn(),
+    setRecipeFavoriteMock: vi.fn(),
     deleteRecipeMock: vi.fn(),
     RecipeNotFoundErrorMock,
     requireAuthMock: vi.fn(),
@@ -21,6 +23,7 @@ const {
 vi.mock("@/services/recipe-service", () => ({
   getRecipeById: getRecipeByIdMock,
   updateRecipe: updateRecipeMock,
+  setRecipeFavorite: setRecipeFavoriteMock,
   deleteRecipe: deleteRecipeMock,
   RecipeNotFoundError: RecipeNotFoundErrorMock,
 }));
@@ -29,7 +32,7 @@ vi.mock("@/lib/auth", () => ({
   requireAuth: requireAuthMock,
 }));
 
-import { DELETE, GET, PUT } from "@/app/api/recipes/[id]/route";
+import { DELETE, GET, PATCH, PUT } from "@/app/api/recipes/[id]/route";
 
 const recipeId = "cm12345678901234567890123";
 const userId = "auth-user";
@@ -57,9 +60,34 @@ const recipe = {
   updatedAt: "2026-09-25T12:00:00.000Z",
 };
 
+describe("PATCH /api/recipes/[id]", () => {
+  it("updates a favorite for the authenticated owner", async () => {
+    setRecipeFavoriteMock.mockResolvedValue({ ...recipe, isFavorite: true });
+    const response = await PATCH(new Request(
+      `http://localhost:3000/api/recipes/${recipeId}`,
+      { method: "PATCH", body: JSON.stringify({ isFavorite: true }) },
+    ), context());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ isFavorite: true });
+    expect(setRecipeFavoriteMock).toHaveBeenCalledWith(userId, recipeId, true);
+  });
+
+  it("rejects fields other than isFavorite", async () => {
+    const response = await PATCH(new Request(
+      `http://localhost:3000/api/recipes/${recipeId}`,
+      { method: "PATCH", body: JSON.stringify({ isFavorite: true, name: "Other" }) },
+    ), context());
+
+    expect(response.status).toBe(400);
+    expect(setRecipeFavoriteMock).not.toHaveBeenCalled();
+  });
+});
+
 beforeEach(() => {
   getRecipeByIdMock.mockReset();
   updateRecipeMock.mockReset();
+  setRecipeFavoriteMock.mockReset();
   deleteRecipeMock.mockReset();
   requireAuthMock.mockReset();
   requireAuthMock.mockResolvedValue({ user: authUser, response: null });

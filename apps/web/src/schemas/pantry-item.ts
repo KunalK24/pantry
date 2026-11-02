@@ -9,6 +9,22 @@ const pantryItemNameSchema = z
   .transform(collapseWhitespace)
   .pipe(z.string().min(1).max(200));
 
+export const pantryItemLocationSchema = z.enum([
+  "Fridge",
+  "Pantry",
+  "Cupboard",
+  "Freezer",
+  "Spice Cabinet",
+]);
+
+const expirationDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date in YYYY-MM-DD format")
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "Expected a valid calendar date");
+
 export const pantryItemInputSchema = z.object({
   name: pantryItemNameSchema,
   quantity: z
@@ -23,6 +39,8 @@ export const pantryItemInputSchema = z.object({
     .max(100)
     .transform((value) => value || undefined)
     .optional(),
+  location: pantryItemLocationSchema.nullable().optional(),
+  expiresOn: expirationDateSchema.nullable().optional(),
 });
 
 export const pantryExtractionSchema = z.object({

@@ -95,6 +95,26 @@ describe("GET /api/pantry-items", () => {
 });
 
 describe("POST /api/pantry-items", () => {
+  it("accepts location and expiration metadata", async () => {
+    createPantryItemMock.mockResolvedValue({
+      ...pantryItem,
+      location: "Fridge",
+      expiresOn: "2026-11-03",
+    });
+    const response = await POST(new Request("http://localhost:3000/api/pantry-items", {
+      method: "POST",
+      body: JSON.stringify({ name: "Milk", location: "Fridge", expiresOn: "2026-11-03" }),
+    }));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({ location: "Fridge", expiresOn: "2026-11-03" });
+    expect(createPantryItemMock).toHaveBeenCalledWith(userId, {
+      name: "Milk",
+      location: "Fridge",
+      expiresOn: "2026-11-03",
+    });
+  });
+
   it("normalizes and creates an item with a textual quantity", async () => {
     createPantryItemMock.mockResolvedValue(pantryItem);
     const request = new Request("http://localhost:3000/api/pantry-items", {
@@ -147,6 +167,8 @@ describe("POST /api/pantry-items", () => {
     ["a blank name", { name: "   " }],
     ["a numeric quantity", { name: "Salt", quantity: 2 }],
     ["a non-string unit", { name: "Salt", unit: false }],
+    ["an unsupported location", { name: "Salt", location: "Garage" }],
+    ["an impossible expiration date", { name: "Salt", expiresOn: "2026-02-30" }],
   ])("returns 400 for %s", async (_case, input) => {
     const request = new Request("http://localhost:3000/api/pantry-items", {
       method: "POST",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import CreateRecipeDialog from "@/components/CreateRecipeDialog";
 import ImportRecipeDialog from "@/components/ImportRecipeDialog";
@@ -15,7 +15,17 @@ type RecipeSummary = RecipeForGroceryList & {
   description: string | null;
   updatedAt: string;
   imageUrl: string | null;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  timeMinutes: number | null;
+  isFavorite: boolean;
 };
+
+const mealTypes = ["breakfast", "lunch", "dinner", "snack"] as const;
+type MealFilter = "all" | (typeof mealTypes)[number];
+
+function isMealType(value: unknown): value is RecipeSummary["mealType"] {
+  return value === null || mealTypes.some((mealType) => mealType === value);
+}
 
 type LibraryResponse = { recipes: RecipeSummary[] };
 type PantryResponse = { items: PantryItemForGroceryList[] };
@@ -51,6 +61,12 @@ function isRecipeSummary(value: unknown): value is RecipeSummary {
     typeof value.updatedAt === "string" &&
     "imageUrl" in value &&
     isNullableString(value.imageUrl) &&
+    "mealType" in value &&
+    isMealType(value.mealType) &&
+    "timeMinutes" in value &&
+    (value.timeMinutes === null || (typeof value.timeMinutes === "number" && Number.isSafeInteger(value.timeMinutes) && value.timeMinutes > 0)) &&
+    "isFavorite" in value &&
+    typeof value.isFavorite === "boolean" &&
     "ingredients" in value &&
     Array.isArray(value.ingredients) &&
     value.ingredients.every(isIngredient)
@@ -92,6 +108,24 @@ function isLibraryResponse(payload: unknown): payload is LibraryResponse {
   );
 }
 
+export function filterRecipes(recipes: RecipeSummary[], searchQuery: string, mealFilter: MealFilter) {
+  const query = searchQuery.trim().toLowerCase();
+  return recipes.filter((recipe) => {
+    if (mealFilter !== "all" && recipe.mealType !== mealFilter) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+    const searchableText = [
+      recipe.name,
+      recipe.description ?? "",
+      ...recipe.ingredients.map((ingredient) => ingredient.name),
+    ].join(" ").toLowerCase();
+    return searchableText.includes(query);
+  });
+}
+
 export default function RecipeLibrary() {
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +138,10 @@ export default function RecipeLibrary() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mealFilter, setMealFilter] = useState<MealFilter>("all");
+  const [favoritePendingId, setFavoritePendingId] = useState<string | null>(null);
+  const favoritePendingRef = useRef(false);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -233,28 +271,39 @@ export default function RecipeLibrary() {
     }
   }
 
+  async function handleFavoriteRecipe(recipe: RecipeSummary) {
+    if (favoritePendingRef.current) {
+      return;
+    }
+
+    favoritePendingRef.current = true;
+    setFavoritePendingId(recipe.id);
+    setFavoriteError(null);
+    try {
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFavorite: !recipe.isFavorite }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok || !isRecipeSummary(payload)) {
+        throw new Error("Unable to update favorite. Please try again.");
+      }
+      setRecipes((current) => current?.map((item) => item.id === recipe.id ? payload : item) ?? null);
+    } catch (error) {
+      setFavoriteError(error instanceof Error ? error.message : "Unable to update favorite. Please try again.");
+    } finally {
+      favoritePendingRef.current = false;
+      setFavoritePendingId(null);
+    }
+  }
+
   const visibleRecipes = useMemo(() => {
     if (recipes === null) {
       return null;
     }
-
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return recipes;
-    }
-
-    return recipes.filter((recipe) => {
-      const searchableText = [
-        recipe.name,
-        recipe.description ?? "",
-        ...recipe.ingredients.map((ingredient) => ingredient.name),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchableText.includes(query);
-    });
-  }, [recipes, searchQuery]);
+    return filterRecipes(recipes, searchQuery, mealFilter);
+  }, [recipes, searchQuery, mealFilter]);
 
   function handleSearchChange(event: ChangeEvent<HTMLInputElement>) {
     setSearchQuery(event.target.value);
@@ -334,10 +383,10 @@ export default function RecipeLibrary() {
           No recipes found.
         </h2>
         <p className="mt-3 text-sm text-[#6f7a71]">
-          Try searching by recipe name, description, or ingredient.
+          Try another meal type or search by recipe name, description, or ingredient.
         </p>
-        <button className="mt-4 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => setSearchQuery("")} type="button">
-          Clear search
+        <button className="mt-4 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => { setSearchQuery(""); setMealFilter("all"); }} type="button">
+          Clear filters
         </button>
       </div>
     );
@@ -370,6 +419,8 @@ export default function RecipeLibrary() {
 
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                    {recipe.mealType ? <span className="font-bold uppercase tracking-[0.12em] text-[#c5745a]">{recipe.mealType}</span> : null}
+                    {recipe.timeMinutes !== null ? <span className="font-semibold text-[#78837b]">◷ {recipe.timeMinutes} min</span> : null}
                     <span className="font-semibold text-[#78837b]">
                       {recipe.ingredients.length}{" "}
                       {recipe.ingredients.length === 1
@@ -403,15 +454,26 @@ export default function RecipeLibrary() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  <button
+                    aria-label={`${recipe.isFavorite ? "Remove" : "Add"} ${recipe.name} ${recipe.isFavorite ? "from" : "to"} favorites`}
+                    aria-pressed={recipe.isFavorite}
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-2xl leading-none text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a] disabled:opacity-50"
+                    disabled={favoritePendingId !== null}
+                    onClick={() => void handleFavoriteRecipe(recipe)}
+                    title={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"}
+                    type="button"
+                  >
+                    {recipe.isFavorite ? "♥" : "♡"}
+                  </button>
                   <Link
-                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    className="inline-flex min-h-11 items-center rounded-lg px-4 py-2.5 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                     href={`/recipes/${recipe.id}/edit`}
                   >
                     Edit
                   </Link>
                   <button
                     aria-label={`Delete ${recipe.name}`}
-                    className="rounded-lg px-3 py-2 text-xs font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={deletingId === recipe.id}
                     onClick={() => void handleDeleteRecipe(recipe)}
                     type="button"
@@ -459,7 +521,14 @@ export default function RecipeLibrary() {
       </header>
 
       <div className="mt-9 grid gap-4 border-b border-[#e5e1d8] pb-6 md:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)] md:items-end">
-        <p className="text-sm font-semibold text-[#69736b]">{recipes?.length ?? 0} saved {recipes?.length === 1 ? "recipe" : "recipes"}</p>
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-[#69736b]">{recipes?.length ?? 0} saved {recipes?.length === 1 ? "recipe" : "recipes"}</p>
+          <div aria-label="Filter recipes by meal type" className="flex flex-wrap gap-1" role="group">
+            {(["all", ...mealTypes] as const).map((filter) => (
+              <button aria-pressed={mealFilter === filter} className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${mealFilter === filter ? "bg-[#e8f1e9] text-[#244a38]" : "text-[#69736b] hover:bg-[#f0eee8]"}`} key={filter} onClick={() => setMealFilter(filter)} type="button">{filter === "all" ? "All recipes" : filter}</button>
+            ))}
+          </div>
+        </div>
         <div>
           <label className="sr-only" htmlFor="recipe-search">
             Search your recipes
@@ -502,6 +571,7 @@ export default function RecipeLibrary() {
             {deleteError}
           </p>
         ) : null}
+        {favoriteError ? <p className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" role="alert">{favoriteError}</p> : null}
         {libraryContent}
       </div>
     </div>

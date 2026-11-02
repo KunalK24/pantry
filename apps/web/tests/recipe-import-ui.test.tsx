@@ -35,6 +35,8 @@ describe("recipe import UI", () => {
           name: "French Toast",
           description: "A quick breakfast",
           instructions: "Whisk, soak, and cook.",
+          mealType: "breakfast",
+          timeMinutes: 25,
           ingredients: [
             { name: "Bread", quantity: "2", unit: "slices" },
             { name: "Egg", quantity: "1" },
@@ -46,6 +48,9 @@ describe("recipe import UI", () => {
     expect(markup).toContain('value="French Toast"');
     expect(markup).toContain("A quick breakfast");
     expect(markup).toContain("Whisk, soak, and cook.");
+    expect(markup).toContain('<option value="breakfast" selected="">Breakfast</option>');
+    expect(markup).toContain('name="timeMinutes"');
+    expect(markup).toContain('value="25"');
     expect(markup).toContain('value="Bread"');
     expect(markup).toContain('value="2"');
     expect(markup).toContain('value="slices"');

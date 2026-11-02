@@ -131,6 +131,28 @@ describe("GET /api/pantry-items/[id]", () => {
 });
 
 describe("PUT /api/pantry-items/[id]", () => {
+  it("passes explicit null metadata to clear saved values", async () => {
+    updatePantryItemMock.mockResolvedValue({
+      ...pantryItem,
+      location: null,
+      expiresOn: null,
+    });
+    const response = await PUT(new Request(
+      `http://localhost:3000/api/pantry-items/${pantryItemId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ name: "Olive Oil", location: null, expiresOn: null }),
+      },
+    ), context());
+
+    expect(response.status).toBe(200);
+    expect(updatePantryItemMock).toHaveBeenCalledWith(userId, pantryItemId, {
+      name: "Olive Oil",
+      location: null,
+      expiresOn: null,
+    });
+  });
+
   it("fully updates and normalizes a pantry item", async () => {
     updatePantryItemMock.mockResolvedValue(pantryItem);
     const request = new Request(

@@ -42,6 +42,7 @@ import {
   updateRecipe,
 } from "@/services/recipe-service";
 import { Prisma } from "@/generated/prisma/client";
+import type { RecipeInput } from "@/schemas/recipe";
 
 const userId = "cm92345678901234567890123";
 
@@ -50,6 +51,9 @@ const completeRecipe = {
   name: "Tomato Soup",
   description: "A quick soup",
   instructions: "Simmer until warm.",
+  mealType: "lunch",
+  timeMinutes: 30,
+  isFavorite: true,
   createdAt: new Date("2026-09-24T12:00:00.000Z"),
   updatedAt: new Date("2026-09-25T12:00:00.000Z"),
   ingredients: [
@@ -82,6 +86,9 @@ const flattenedRecipe = {
   name: completeRecipe.name,
   description: completeRecipe.description,
   instructions: completeRecipe.instructions,
+  mealType: completeRecipe.mealType,
+  timeMinutes: completeRecipe.timeMinutes,
+  isFavorite: completeRecipe.isFavorite,
   createdAt: completeRecipe.createdAt,
   updatedAt: completeRecipe.updatedAt,
   ingredients: [
@@ -119,6 +126,9 @@ describe("createRecipe", () => {
       name: "Tomato Soup",
       description: "A quick soup",
       instructions: "Simmer until warm.",
+      mealType: "lunch",
+      timeMinutes: 30,
+      isFavorite: false,
       createdAt,
       updatedAt,
       ingredients: [
@@ -172,6 +182,8 @@ describe("createRecipe", () => {
         name: "Tomato Soup",
         description: "A quick soup",
         instructions: "Simmer until warm.",
+        mealType: "lunch",
+        timeMinutes: 30,
         ingredients: [
           { name: "Tomatoes", quantity: "2", unit: "cans" },
           { name: "Stock", quantity: "1/2", unit: "cup" },
@@ -185,6 +197,9 @@ describe("createRecipe", () => {
       name: "Tomato Soup",
       description: "A quick soup",
       instructions: "Simmer until warm.",
+      mealType: "lunch",
+      timeMinutes: 30,
+      isFavorite: false,
       createdAt,
       updatedAt,
       ingredients: [
@@ -201,6 +216,8 @@ describe("createRecipe", () => {
         name: "Tomato Soup",
         description: "A quick soup",
         instructions: "Simmer until warm.",
+        mealType: "lunch",
+        timeMinutes: 30,
         ingredients: {
           create: [
             {
@@ -261,6 +278,9 @@ describe("listRecipes", () => {
         id: "recipe_2",
         name: "New recipe",
         description: null,
+        mealType: "breakfast",
+        timeMinutes: 10,
+        isFavorite: true,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
         image: { recipeId: "recipe_2" },
         ingredients: [
@@ -275,6 +295,9 @@ describe("listRecipes", () => {
         id: "recipe_1",
         name: "Old recipe",
         description: "Earlier",
+        mealType: null,
+        timeMinutes: null,
+        isFavorite: false,
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
         image: null,
         ingredients: [
@@ -294,6 +317,9 @@ describe("listRecipes", () => {
         imageUrl: "/api/recipes/recipe_2/image",
         name: "New recipe",
         description: null,
+        mealType: "breakfast",
+        timeMinutes: 10,
+        isFavorite: true,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
         ingredients: [{ name: "Eggs", quantity: "2", unit: "large" }],
       },
@@ -302,6 +328,9 @@ describe("listRecipes", () => {
         imageUrl: null,
         name: "Old recipe",
         description: "Earlier",
+        mealType: null,
+        timeMinutes: null,
+        isFavorite: false,
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
         ingredients: [{ name: "Salt", quantity: "to taste", unit: null }],
       },
@@ -316,6 +345,9 @@ describe("listRecipes", () => {
         id: true,
         name: true,
         description: true,
+        mealType: true,
+        timeMinutes: true,
+        isFavorite: true,
         updatedAt: true,
         image: { select: { recipeId: true } },
         ingredients: {
@@ -367,11 +399,13 @@ describe("updateRecipe", () => {
       name: "Tomato Soup",
       description: "A quick soup",
       instructions: "Simmer until warm.",
+      mealType: "lunch",
+      timeMinutes: 30,
       ingredients: [
         { name: "Tomatoes", quantity: "2 cans" },
         { name: "Salt", quantity: "to taste" },
       ],
-    };
+    } satisfies RecipeInput;
     transactionFindRecipeMock.mockResolvedValue({
       ingredients: [
         { ingredientId: "ingredient_old_1" },
@@ -401,6 +435,8 @@ describe("updateRecipe", () => {
         name: input.name,
         description: input.description,
         instructions: input.instructions,
+        mealType: input.mealType,
+        timeMinutes: input.timeMinutes,
         ingredients: {
           deleteMany: {},
           create: [

@@ -3,13 +3,14 @@ import {
   readBoundedJson,
   RequestTooLargeError,
 } from "@/lib/request-json";
-import { recipeIdSchema, recipeInputSchema } from "@/schemas/recipe";
+import { recipeFavoriteSchema, recipeIdSchema, recipeInputSchema } from "@/schemas/recipe";
 import { requireAuth } from "@/lib/auth";
 import {
   getRecipeById,
   RecipeNotFoundError,
   updateRecipe,
   deleteRecipe,
+  setRecipeFavorite,
 } from "@/services/recipe-service";
 
 type RecipeRouteContext = {
@@ -138,6 +139,44 @@ export async function PUT(request: Request, context: RecipeRouteContext) {
       return recipeNotFoundResponse();
     }
 
+    return internalServerErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: Request, context: RecipeRouteContext) {
+  const auth = await requireAuth(request);
+  if (auth.response) {
+    return auth.response;
+  }
+
+  const { id } = await context.params;
+  const idResult = recipeIdSchema.safeParse(id);
+  if (!idResult.success) {
+    return invalidRecipeIdResponse();
+  }
+
+  let input: unknown;
+  try {
+    input = await readBoundedJson(request, MAX_JSON_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestTooLargeError) {
+      return Response.json({ error: "Request body is too large" }, { status: 413 });
+    }
+    return Response.json({ error: "Malformed JSON" }, { status: 400 });
+  }
+
+  const result = recipeFavoriteSchema.safeParse(input);
+  if (!result.success) {
+    return Response.json({ error: "Invalid Recipe", details: result.error.flatten() }, { status: 400 });
+  }
+
+  try {
+    const recipe = await setRecipeFavorite(auth.user.id, idResult.data, result.data.isFavorite);
+    return Response.json(recipe);
+  } catch (error) {
+    if (error instanceof RecipeNotFoundError) {
+      return recipeNotFoundResponse();
+    }
     return internalServerErrorResponse(error);
   }
 }

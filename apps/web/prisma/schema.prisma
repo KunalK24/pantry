@@ -17,6 +17,9 @@ model Recipe {
   name         String
   description  String?
   instructions String?
+  mealType     String?
+  timeMinutes  Int?
+  isFavorite   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -67,6 +70,8 @@ model PantryItem {
   normalizedName String
   quantity       String?
   unit           String?
+  location       String?
+  expiresOn      DateTime? @db.Date
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

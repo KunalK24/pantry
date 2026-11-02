@@ -13,6 +13,8 @@ export type RecipeFormValues = {
   name: string;
   description?: string | null;
   instructions: string;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  timeMinutes?: number | null;
   ingredients: RecipeIngredientValue[];
 };
 
@@ -47,6 +49,7 @@ type SubmissionStatus =
   | null;
 
 const MAX_INGREDIENTS = 100;
+const MAX_TIME_MINUTES = 2_147_483_647;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 type ImageChoice = "keep" | "omit" | "upload" | "suggested";
@@ -97,6 +100,10 @@ export default function RecipeForm(props: RecipeFormProps) {
   );
   const [instructions, setInstructions] = useState(
     initialValues?.instructions ?? "",
+  );
+  const [mealType, setMealType] = useState(initialValues?.mealType ?? "");
+  const [timeMinutes, setTimeMinutes] = useState(
+    initialValues?.timeMinutes?.toString() ?? "",
   );
   const [ingredients, setIngredients] = useState<IngredientRow[]>(initialRows);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -291,6 +298,7 @@ export default function RecipeForm(props: RecipeFormProps) {
     const trimmedName = name.trim();
     const trimmedDescription = description.trim();
     const trimmedInstructions = instructions.trim();
+    const parsedTimeMinutes = timeMinutes === "" ? null : Number(timeMinutes);
     const normalizedIngredients = ingredients.map((ingredient) => {
       const unit = ingredient.unit.trim();
 
@@ -323,6 +331,11 @@ export default function RecipeForm(props: RecipeFormProps) {
       return;
     }
 
+    if (parsedTimeMinutes !== null && (!Number.isSafeInteger(parsedTimeMinutes) || parsedTimeMinutes < 1 || parsedTimeMinutes > MAX_TIME_MINUTES)) {
+      setStatus({ type: "error", message: `Total time must be a whole number of minutes between 1 and ${MAX_TIME_MINUTES.toLocaleString()}.` });
+      return;
+    }
+
     if (
       trimmedName.length > 200 ||
       trimmedDescription.length > 2000 ||
@@ -349,6 +362,8 @@ export default function RecipeForm(props: RecipeFormProps) {
       name: trimmedName,
       ...(trimmedDescription ? { description: trimmedDescription } : {}),
       instructions: trimmedInstructions,
+      mealType: mealType || null,
+      timeMinutes: parsedTimeMinutes,
       ingredients: normalizedIngredients,
     };
     let wasSuccessful = false;
@@ -479,6 +494,23 @@ export default function RecipeForm(props: RecipeFormProps) {
             rows={3}
             value={description}
           />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={labelClasses} htmlFor="recipe-meal-type">Meal type <span className={optionalClasses}>(optional)</span></label>
+            <select className={inputClasses} id="recipe-meal-type" name="mealType" onChange={(event) => { setStatus(null); setMealType(event.target.value as typeof mealType); }} value={mealType}>
+              <option value="">No meal type</option>
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+              <option value="snack">Snack</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClasses} htmlFor="recipe-time-minutes">Total time in minutes <span className={optionalClasses}>(optional)</span></label>
+            <input className={inputClasses} id="recipe-time-minutes" max={MAX_TIME_MINUTES} min={1} name="timeMinutes" onChange={(event) => { setStatus(null); setTimeMinutes(event.target.value); }} step={1} type="number" value={timeMinutes} />
+          </div>
         </div>
 
         <fieldset className="space-y-3">

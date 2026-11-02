@@ -7,7 +7,17 @@ export type PantryItemFormValues = {
   name: string;
   quantity: string;
   unit: string;
+  location: string;
+  expiresOn: string;
 };
+
+export const PANTRY_LOCATIONS = [
+  "Fridge",
+  "Pantry",
+  "Cupboard",
+  "Freezer",
+  "Spice Cabinet",
+] as const;
 
 type PantryItemFormProps =
   | { mode?: "create"; initialValues?: never; pantryItemId?: never }
@@ -53,6 +63,8 @@ export default function PantryItemForm(
   const [name, setName] = useState(initialValues?.name ?? "");
   const [quantity, setQuantity] = useState(initialValues?.quantity ?? "");
   const [unit, setUnit] = useState(initialValues?.unit ?? "");
+  const [location, setLocation] = useState(initialValues?.location ?? "");
+  const [expiresOn, setExpiresOn] = useState(initialValues?.expiresOn ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<SubmissionStatus>(null);
   const router = useRouter();
@@ -98,6 +110,8 @@ export default function PantryItemForm(
       name: trimmedName,
       ...(trimmedQuantity ? { quantity: trimmedQuantity } : {}),
       ...(trimmedUnit ? { unit: trimmedUnit } : {}),
+      location: location || null,
+      expiresOn: expiresOn || null,
     };
     let wasSuccessful = false;
 
@@ -125,6 +139,8 @@ export default function PantryItemForm(
         setName("");
         setQuantity("");
         setUnit("");
+        setLocation("");
+        setExpiresOn("");
         setStatus({
           type: "success",
           message: "Pantry item added successfully.",
@@ -148,8 +164,8 @@ export default function PantryItemForm(
 
     if (wasSuccessful) {
       props.onSuccess?.();
-      if (mode === "edit") {
-        router.replace("/recipes");
+      if (mode === "edit" && !props.onSuccess) {
+        router.replace("/pantry");
       }
     }
   }
@@ -225,6 +241,42 @@ export default function PantryItemForm(
               placeholder="bottle, cup, or can"
               type="text"
               value={unit}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={labelClasses} htmlFor="pantry-item-location">
+              Location <span className={optionalClasses}>(optional)</span>
+            </label>
+            <select
+              className={inputClasses}
+              id="pantry-item-location"
+              name="location"
+              onChange={(event) => updateField(setLocation, event.target.value)}
+              value={location}
+            >
+              <option value="">No location</option>
+              {PANTRY_LOCATIONS.map((pantryLocation) => (
+                <option key={pantryLocation} value={pantryLocation}>
+                  {pantryLocation}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClasses} htmlFor="pantry-item-expires-on">
+              Expiration date <span className={optionalClasses}>(optional)</span>
+            </label>
+            <input
+              className={inputClasses}
+              id="pantry-item-expires-on"
+              name="expiresOn"
+              onChange={(event) => updateField(setExpiresOn, event.target.value)}
+              type="date"
+              value={expiresOn}
             />
           </div>
         </div>

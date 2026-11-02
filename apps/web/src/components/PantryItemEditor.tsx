@@ -11,6 +11,8 @@ type PantryItemResponse = {
   name: string;
   quantity: string | null;
   unit: string | null;
+  location: string | null;
+  expiresOn: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,6 +29,10 @@ function isPantryItemResponse(payload: unknown): payload is PantryItemResponse {
     (typeof payload.quantity === "string" || payload.quantity === null) &&
     "unit" in payload &&
     (typeof payload.unit === "string" || payload.unit === null) &&
+    "location" in payload &&
+    (typeof payload.location === "string" || payload.location === null) &&
+    "expiresOn" in payload &&
+    (typeof payload.expiresOn === "string" || payload.expiresOn === null) &&
     "createdAt" in payload &&
     typeof payload.createdAt === "string" &&
     "updatedAt" in payload &&
@@ -79,6 +85,8 @@ export default function PantryItemEditor({
           name: payload.name,
           quantity: payload.quantity ?? "",
           unit: payload.unit ?? "",
+          location: payload.location ?? "",
+          expiresOn: payload.expiresOn ?? "",
         });
         setError(null);
       })

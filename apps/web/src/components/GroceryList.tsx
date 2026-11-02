@@ -1238,6 +1238,86 @@ export default function GroceryList() {
         </p>
       ) : null}
 
+      {initialized &&
+      (effectiveRecipes.length || selectedPantryItems.length) ? (
+        <div className="grid gap-5 border-y border-[#e5e1d8] py-5">
+          {effectiveRecipes.length ? (
+            <section aria-labelledby="selected-recipes-title">
+              <h2
+                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
+                id="selected-recipes-title"
+              >
+                Recipe inputs
+              </h2>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {effectiveRecipes.map((recipe) => {
+                  const count = recipeCounts.get(recipe.id) ?? 1;
+                  return (
+                    <li
+                      className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
+                      key={recipe.id}
+                    >
+                      <span className="truncate">
+                        {recipe.name}
+                        {count > 1 ? ` ×${count}` : ""}
+                      </span>
+                      <button
+                        aria-label={`Remove every ${recipe.name} preparation from grocery list`}
+                        className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
+                        data-recipe-source-remove
+                        disabled={mutating}
+                        onClick={() => removeRecipe(recipe.id)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      <section aria-labelledby="grocery-sources-title" className="border-t border-[#e5e1d8] pt-6">
+          <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b]" id="grocery-sources-title">
+            Build your list
+          </h2>
+          <p className="mt-2 text-sm text-[#6f7a71]">Choose recipes or pantry items to update the shopping list above.</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4" ref={sourceActionsRef}>
+            <RecipePickerDialog
+              disabled={mutating || (!initialized && recipeLoadState !== "error")}
+              onCommit={commitRecipes}
+              onLoadStateChange={handleRecipeLoadStateChange}
+              pantryItems={pantryItems}
+              pantryStatus={pantryLoadState}
+              selectedRecipes={manualRecipes}
+            />
+            <PantryPickerDialog
+              disabled={mutating || (!initialized && pantryLoadState !== "error")}
+              onCommit={commitPantryItems}
+              onLoadStateChange={handlePantryLoadStateChange}
+              selectedItems={selectedPantryItems}
+            />
+            <RecipeRecommendationsDialog
+              disabled={
+                !sourcesReady ||
+                mutating ||
+                recipeOccurrences.length >= MAX_GROCERY_RECIPES
+              }
+              emptyMessage={recommendationEmptyMessage}
+              onAddRecipe={addRecommendedRecipe}
+              recommendations={recommendations}
+            />
+            {recipeOccurrences.length >= MAX_GROCERY_RECIPES ? (
+              <span className="text-sm font-semibold text-[#6f7a71]" role="status">
+                Maximum of 200 recipe selections reached.
+              </span>
+            ) : null}
+        </div>
+      </section>
+
       {initialized ? (
         <section aria-labelledby="grocery-items-title">
           <div className="mb-4 flex items-center justify-between gap-4">
@@ -1478,116 +1558,6 @@ export default function GroceryList() {
           ) : null}
         </section>
       ) : null}
-      <section aria-labelledby="grocery-sources-title" className="border-t border-[#e5e1d8] pt-6">
-        <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b]" id="grocery-sources-title">
-          Build your list
-        </h2>
-        <p className="mt-2 text-sm text-[#6f7a71]">Choose recipes or pantry items to update the shopping list above.</p>
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4" ref={sourceActionsRef}>
-          <RecipePickerDialog
-            disabled={mutating || (!initialized && recipeLoadState !== "error")}
-            onCommit={commitRecipes}
-            onLoadStateChange={handleRecipeLoadStateChange}
-            pantryItems={pantryItems}
-            pantryStatus={pantryLoadState}
-            selectedRecipes={manualRecipes}
-          />
-          <PantryPickerDialog
-            disabled={mutating || (!initialized && pantryLoadState !== "error")}
-            onCommit={commitPantryItems}
-            onLoadStateChange={handlePantryLoadStateChange}
-            selectedItems={selectedPantryItems}
-          />
-          <RecipeRecommendationsDialog
-            disabled={
-              !sourcesReady ||
-              mutating ||
-              recipeOccurrences.length >= MAX_GROCERY_RECIPES
-            }
-            emptyMessage={recommendationEmptyMessage}
-            onAddRecipe={addRecommendedRecipe}
-            recommendations={recommendations}
-          />
-          {recipeOccurrences.length >= MAX_GROCERY_RECIPES ? (
-            <span className="text-sm font-semibold text-[#6f7a71]" role="status">
-              Maximum of 200 recipe selections reached.
-            </span>
-          ) : null}
-      </div>
-
-      {initialized &&
-      (effectiveRecipes.length || selectedPantryItems.length) ? (
-        <div className="grid gap-5 border-y border-[#e5e1d8] py-5 md:grid-cols-2">
-          {effectiveRecipes.length ? (
-            <section aria-labelledby="selected-recipes-title">
-              <h2
-                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
-                id="selected-recipes-title"
-              >
-                Recipe inputs
-              </h2>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {effectiveRecipes.map((recipe) => {
-                  const count = recipeCounts.get(recipe.id) ?? 1;
-                  return (
-                    <li
-                      className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
-                      key={recipe.id}
-                    >
-                      <span className="truncate">
-                        {recipe.name}
-                        {count > 1 ? ` ×${count}` : ""}
-                      </span>
-                      <button
-                        aria-label={`Remove every ${recipe.name} preparation from grocery list`}
-                        className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
-                        data-recipe-source-remove
-                        disabled={mutating}
-                        onClick={() => removeRecipe(recipe.id)}
-                        type="button"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-          {selectedPantryItems.length ? (
-            <section aria-labelledby="selected-pantry-title">
-              <h2
-                className="text-xs font-bold uppercase tracking-[0.18em] text-[#c5745a]"
-                id="selected-pantry-title"
-              >
-                Pantry inputs
-              </h2>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {selectedPantryItems.map((item) => (
-                  <li
-                    className="flex max-w-full items-center gap-2 rounded-full bg-[#edf3ed] px-3 py-1.5 text-sm font-semibold text-[#35644f]"
-                    key={item.id}
-                  >
-                    <span className="truncate">{item.name}</span>
-                    <button
-                      aria-label={`Remove ${item.name} from grocery list sources`}
-                      className="font-bold text-[#79857d] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
-                      data-pantry-source-remove
-                      disabled={mutating}
-                      onClick={() => removePantryItem(item.id)}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
-      ) : null}
-
-      </section>
     </div>
   );
 }
