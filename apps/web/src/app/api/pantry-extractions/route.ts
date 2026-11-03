@@ -1,12 +1,12 @@
 import { requireAuth } from "@/lib/auth";
+import { checkImportRateLimit } from "@/lib/import-rate-limit";
 import { imageContentError, MAX_IMAGE_REQUEST_BYTES } from "@/lib/image-upload";
 import { readBoundedJson, RequestTooLargeError } from "@/lib/request-json";
 import { pantryExtractionRequestSchema } from "@/schemas/pantry-item";
-import {
-  ActiveImportLimitError,
-  AiJobEnqueueError,
-  createAiJob,
-} from "@/services/ai-job-service";
+import { PantryImportError } from "@/services/pantry-extraction-service";
+import { extractPantrySynchronously, ImportDeadlineError } from "@/services/synchronous-import-service";
+
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const auth = await requireAuth(request);
@@ -43,40 +43,35 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          errorStatus === 413 ? "Image exceeds 5 MiB" : "Invalid image data",
+          errorStatus === 413 ? "Image exceeds 3 MiB" : "Invalid image data",
       },
       { status: errorStatus },
     );
   }
 
-  try {
-    const job = await createAiJob({
-      jobType: "pantry_import",
-      input: parsed.data,
-      userId: auth.user.id,
-    });
+  const rateLimit = await checkImportRateLimit(auth.user.id);
+  if (rateLimit.status === "limited") {
     return Response.json(
-      {
-        id: job.id,
-        status: "queued",
-        sourceType: "image",
-        stage: "queued",
-        expiresAt: job.expiresAt.toISOString(),
-      },
-      { status: 202 },
+      { error: "Daily import limit reached. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
     );
+  }
+  if (rateLimit.status === "unavailable") {
+    return Response.json({ error: "Pantry import is temporarily unavailable" }, { status: 503 });
+  }
+
+  try {
+    const draft = await extractPantrySynchronously(parsed.data);
+    return Response.json({ draft });
   } catch (error) {
-    if (error instanceof AiJobEnqueueError) {
-      return Response.json(
-        { error: "Pantry import queue is unavailable" },
-        { status: 503 },
-      );
+    if (error instanceof ImportDeadlineError || error instanceof PantryImportError && error.code === "timeout") {
+      return Response.json({ error: "Pantry import timed out. Please try again." }, { status: 504 });
     }
-    if (error instanceof ActiveImportLimitError) {
-      return Response.json(
-        { error: "Too many active pantry imports" },
-        { status: 429 },
-      );
+    if (error instanceof PantryImportError) {
+      if (error.code === "rate_limited") { return Response.json({ error: "Pantry provider is busy. Please try again." }, { status: 429 }); }
+      if (error.code === "not_configured") { return Response.json({ error: "Pantry import is unavailable" }, { status: 503 }); }
+      if (error.code === "invalid_source") { return Response.json({ error: "Invalid pantry image" }, { status: 400 }); }
+      return Response.json({ error: "Pantry import failed. Please try again." }, { status: 502 });
     }
     console.error("[pantry-extraction] unexpected failure", error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });

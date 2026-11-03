@@ -51,7 +51,9 @@ vi.mock("@/lib/prisma", () => ({
 
 import { Prisma } from "@/generated/prisma/client";
 import {
+  BetaAllowlistUnavailableError,
   EmailAlreadyRegisteredError,
+  EmailNotInvitedError,
   getSessionUser,
   hashSessionToken,
   InvalidCredentialsError,
@@ -74,6 +76,8 @@ function duplicateError() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("BETA_ALLOWED_EMAILS", "");
+  vi.stubEnv("NODE_ENV", "test");
   transactionMock.mockImplementation((operation) =>
     operation({
       user: { create: createUserMock },
@@ -83,6 +87,35 @@ beforeEach(() => {
 });
 
 describe("signUp", () => {
+  it("accepts invited emails after trimming and case normalization", async () => {
+    vi.stubEnv("BETA_ALLOWED_EMAILS", " Other@Example.com , COOK@EXAMPLE.COM ");
+    createUserMock.mockResolvedValue(user);
+    createSessionMock.mockResolvedValue({ id: "session-1" });
+
+    await expect(signUp({ email: user.email, password: "password123" }))
+      .resolves.toMatchObject({ user });
+    expect(createUserMock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects uninvited emails before hashing or writing a user", async () => {
+    vi.stubEnv("BETA_ALLOWED_EMAILS", "other@example.com");
+
+    await expect(signUp({ email: user.email, password: "password123" }))
+      .rejects.toBeInstanceOf(EmailNotInvitedError);
+    expect(scryptCallMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in production for empty or malformed allowlists", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    for (const configuredEmails of ["", "cook@example.com, invalid"]) {
+      vi.stubEnv("BETA_ALLOWED_EMAILS", configuredEmails);
+      await expect(signUp({ email: user.email, password: "password123" }))
+        .rejects.toBeInstanceOf(BetaAllowlistUnavailableError);
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
   it("creates a user with a scrypt password hash and opaque session", async () => {
     createUserMock.mockResolvedValue(user);
     createSessionMock.mockResolvedValue({ id: "session-1" });

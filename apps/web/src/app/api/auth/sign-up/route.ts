@@ -2,7 +2,12 @@ import { checkRequestOrigin, sessionCookie } from "@/lib/auth";
 import { checkAuthRateLimit } from "@/lib/auth-rate-limit";
 import { readBoundedJson, RequestTooLargeError } from "@/lib/request-json";
 import { signUpSchema } from "@/schemas/auth";
-import { EmailAlreadyRegisteredError, signUp } from "@/services/auth-service";
+import {
+  BetaAllowlistUnavailableError,
+  EmailAlreadyRegisteredError,
+  EmailNotInvitedError,
+  signUp,
+} from "@/services/auth-service";
 
 export async function POST(request: Request) {
   const originResponse = checkRequestOrigin(request);
@@ -67,6 +72,13 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
+    if (error instanceof EmailNotInvitedError) {
+      return Response.json({ error: "Email is not invited" }, { status: 403 });
+    }
+    if (error instanceof BetaAllowlistUnavailableError) {
+      console.error(error);
+      return Response.json({ error: "Service Unavailable" }, { status: 503 });
+    }
     if (error instanceof EmailAlreadyRegisteredError) {
       return Response.json(
         { error: "Email already registered" },

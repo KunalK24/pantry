@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { type SignInInput, type SignUpInput } from "@/schemas/auth";
+import { signUpSchema, type SignInInput, type SignUpInput } from "@/schemas/auth";
 
 const scrypt = promisify(scryptCallback);
 
@@ -44,6 +44,38 @@ export class InvalidCredentialsError extends Error {
   constructor() {
     super("Invalid email or password");
     this.name = "InvalidCredentialsError";
+  }
+}
+
+export class EmailNotInvitedError extends Error {
+  constructor() {
+    super("Email is not invited to this beta");
+    this.name = "EmailNotInvitedError";
+  }
+}
+
+export class BetaAllowlistUnavailableError extends Error {
+  constructor() {
+    super("Beta email allowlist is not configured");
+    this.name = "BetaAllowlistUnavailableError";
+  }
+}
+
+function checkBetaAllowlist(email: string) {
+  const configuredEmails = process.env.BETA_ALLOWED_EMAILS;
+  if (!configuredEmails && process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const emails = configuredEmails?.split(",").map((entry) =>
+    signUpSchema.shape.email.safeParse(entry),
+  );
+  if (!emails?.length || emails.some((entry) => !entry.success)) {
+    throw new BetaAllowlistUnavailableError();
+  }
+
+  if (!emails.some((entry) => entry.success && entry.data === email.trim().toLowerCase())) {
+    throw new EmailNotInvitedError();
   }
 }
 
@@ -111,6 +143,7 @@ async function createSession(
 }
 
 export async function signUp(input: SignUpInput) {
+  checkBetaAllowlist(input.email);
   const passwordHash = await hashPassword(input.password);
 
   return prisma.$transaction(async (tx) => {

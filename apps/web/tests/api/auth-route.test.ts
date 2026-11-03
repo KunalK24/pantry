@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   EmailAlreadyRegisteredErrorMock,
+  EmailNotInvitedErrorMock,
+  BetaAllowlistUnavailableErrorMock,
   InvalidCredentialsErrorMock,
   clearSessionCookieMock,
   getAuthenticatedUserMock,
@@ -13,10 +15,14 @@ const {
   checkAuthRateLimitMock,
 } = vi.hoisted(() => {
   class EmailAlreadyRegisteredErrorMock extends Error {}
+  class EmailNotInvitedErrorMock extends Error {}
+  class BetaAllowlistUnavailableErrorMock extends Error {}
   class InvalidCredentialsErrorMock extends Error {}
 
   return {
     EmailAlreadyRegisteredErrorMock,
+    EmailNotInvitedErrorMock,
+    BetaAllowlistUnavailableErrorMock,
     InvalidCredentialsErrorMock,
     clearSessionCookieMock: vi.fn(),
     getAuthenticatedUserMock: vi.fn(),
@@ -30,7 +36,9 @@ const {
 });
 
 vi.mock("@/services/auth-service", () => ({
+  BetaAllowlistUnavailableError: BetaAllowlistUnavailableErrorMock,
   EmailAlreadyRegisteredError: EmailAlreadyRegisteredErrorMock,
+  EmailNotInvitedError: EmailNotInvitedErrorMock,
   InvalidCredentialsError: InvalidCredentialsErrorMock,
   signIn: signInMock,
   signOut: signOutMock,
@@ -84,6 +92,37 @@ beforeEach(() => {
 });
 
 describe("POST /api/auth/sign-up", () => {
+  it("returns 403 for an uninvited email without creating a session", async () => {
+    signUpMock.mockRejectedValue(new EmailNotInvitedErrorMock());
+
+    const response = await signUpPOST(
+      jsonRequest("/api/auth/sign-up", {
+        email: user.email,
+        password: "password123",
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Email is not invited" });
+    expect(sessionCookieMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when the production allowlist is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    signUpMock.mockRejectedValue(new BetaAllowlistUnavailableErrorMock());
+
+    const response = await signUpPOST(
+      jsonRequest("/api/auth/sign-up", {
+        email: user.email,
+        password: "password123",
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(sessionCookieMock).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
   it("creates a user, normalizes email, and sets a session cookie", async () => {
     signUpMock.mockResolvedValue({ user, session });
 

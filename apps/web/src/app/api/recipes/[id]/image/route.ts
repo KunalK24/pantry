@@ -40,6 +40,9 @@ function errorResponse(error: unknown) {
 }
 
 async function readBoundedBody(request: Request, limit: number): Promise<Buffer> {
+  if (Number(request.headers.get("content-length")) > limit) {
+    throw new RecipeImageError("too_large");
+  }
   const reader = request.body?.getReader();
   if (!reader) {
     throw new RecipeImageError("invalid_image");
@@ -70,6 +73,9 @@ export async function GET(request: Request, context: Context) {
     const image = await getRecipeImage(scope.userId!, scope.recipeId!);
     if (!image) {
       return Response.json({ error: "Image not found" }, { status: 404 });
+    }
+    if (image.data.length > MAX_IMAGE_BYTES) {
+      throw new RecipeImageError("too_large");
     }
     return new Response(new Uint8Array(image.data), {
       headers: {

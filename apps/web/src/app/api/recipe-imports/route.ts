@@ -1,12 +1,12 @@
 import { requireAuth } from "@/lib/auth";
+import { checkImportRateLimit } from "@/lib/import-rate-limit";
 import { imageDataError, MAX_IMAGE_REQUEST_BYTES } from "@/lib/image-upload";
 import { readBoundedJson, RequestTooLargeError } from "@/lib/request-json";
 import { recipeInputRequestSchema } from "@/schemas/recipe";
-import {
-  ActiveImportLimitError,
-  AiJobEnqueueError,
-  createAiJob,
-} from "@/services/ai-job-service";
+import { RecipeImportError } from "@/services/recipe-import-service";
+import { ImportDeadlineError, importRecipeSynchronously } from "@/services/synchronous-import-service";
+
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const auth = await requireAuth(request);
@@ -40,40 +40,34 @@ export async function POST(request: Request) {
       return Response.json(
         {
           error:
-            errorStatus === 413 ? "Image exceeds 5 MiB" : "Invalid image data",
+            errorStatus === 413 ? "Image exceeds 3 MiB" : "Invalid image data",
         },
         { status: errorStatus },
       );
     }
   }
-  try {
-    const job = await createAiJob({
-      jobType: "recipe_import",
-      input: parsed.data,
-      userId: auth.user.id,
-    });
+  const rateLimit = await checkImportRateLimit(auth.user.id);
+  if (rateLimit.status === "limited") {
     return Response.json(
-      {
-        id: job.id,
-        status: "queued",
-        sourceType: parsed.data.type,
-        stage: "queued",
-        expiresAt: job.expiresAt.toISOString(),
-      },
-      { status: 202 },
+      { error: "Daily import limit reached. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } },
     );
+  }
+  if (rateLimit.status === "unavailable") {
+    return Response.json({ error: "Recipe import is temporarily unavailable" }, { status: 503 });
+  }
+  try {
+    const result = await importRecipeSynchronously(parsed.data, auth.user.id);
+    return Response.json(result);
   } catch (error) {
-    if (error instanceof AiJobEnqueueError) {
-      return Response.json(
-        { error: "Recipe import queue is unavailable" },
-        { status: 503 },
-      );
+    if (error instanceof ImportDeadlineError || error instanceof RecipeImportError && error.code === "timeout") {
+      return Response.json({ error: "Recipe import timed out. Please try again." }, { status: 504 });
     }
-    if (error instanceof ActiveImportLimitError) {
-      return Response.json(
-        { error: "Too many active recipe imports" },
-        { status: 429 },
-      );
+    if (error instanceof RecipeImportError) {
+      if (error.code === "rate_limited") { return Response.json({ error: "Recipe provider is busy. Please try again." }, { status: 429 }); }
+      if (error.code === "not_configured") { return Response.json({ error: "Recipe import is unavailable" }, { status: 503 }); }
+      if (error.code === "invalid_source" || error.code === "source_access_denied") { return Response.json({ error: "Recipe source could not be accessed" }, { status: 422 }); }
+      return Response.json({ error: "Recipe import failed. Please try again." }, { status: 502 });
     }
     throw error;
   }

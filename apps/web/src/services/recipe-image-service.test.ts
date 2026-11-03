@@ -66,6 +66,9 @@ describe("recipe image validation", () => {
   });
 
   it("rejects oversized and mislabeled data", () => {
+    const atLimit = Buffer.alloc(MAX_IMAGE_BYTES);
+    jpeg.copy(atLimit);
+    expect(validateImage(atLimit, "image/jpeg")).toBe("image/jpeg");
     expect(() => validateImage(Buffer.alloc(MAX_IMAGE_BYTES + 1), "image/jpeg")).toThrowError(RecipeImageError);
     expect(() => validateImage(Buffer.from("not an image"), "image/png")).toThrowError(RecipeImageError);
   });

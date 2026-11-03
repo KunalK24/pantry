@@ -25,6 +25,7 @@ vi.mock("@/services/recipe-image-service", () => ({
 }));
 
 import { GET, POST, DELETE } from "@/app/api/recipes/[id]/image/route";
+import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
 import { RecipeNotFoundError } from "@/services/recipe-service";
 
 const recipeId = "cm12345678901234567890123";
@@ -54,6 +55,12 @@ describe("recipe image route", () => {
     expect((await GET(new Request(endpoint), context)).status).toBe(404);
   });
 
+  it("rejects a stored image that exceeds the response limit", async () => {
+    getImage.mockResolvedValue({ mimeType: "image/jpeg", data: new Uint8Array(MAX_IMAGE_BYTES + 1) });
+    const response = await GET(new Request(endpoint), context);
+    expect(response.status).toBe(413);
+  });
+
   it("returns 404 for an unowned recipe on GET, POST, and DELETE", async () => {
     const missing = new RecipeNotFoundError(recipeId);
     getImage.mockRejectedValue(missing);
@@ -76,7 +83,7 @@ describe("recipe image route", () => {
   it("rejects malformed JSON and oversized upload bodies before saving", async () => {
     const malformed = await POST(new Request(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{" }), context);
     expect(malformed.status).toBe(400);
-    const oversized = await POST(new Request(endpoint, { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=test" }, body: new Uint8Array(5 * 1024 * 1024 + 64 * 1024 + 1) }), context);
+    const oversized = await POST(new Request(endpoint, { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=test" }, body: new Uint8Array(MAX_IMAGE_BYTES + 64 * 1024 + 1) }), context);
     expect(oversized.status).toBe(413);
     expect(saveImage).not.toHaveBeenCalled();
   });

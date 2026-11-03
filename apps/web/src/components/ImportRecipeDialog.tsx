@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 
 import RecipeForm, { type RecipeFormValues, type RecipeImageCandidate } from "@/components/RecipeForm";
+import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
 import { recipeInputSchema } from "@/schemas/recipe";
 import { aiJobIdSchema } from "@/schemas/ai-job";
 
@@ -28,9 +29,7 @@ const importModeOptions = [
   { value: "image", label: "Image" },
   { value: "url", label: "URL" },
 ] as const;
-const maxImageBytes = 5 * 1024 * 1024;
-const importTimeoutMs = 120_000;
-const jobPollIntervalMs = 1_500;
+const importTimeoutMs = 100_000;
 
 function isSupportedImageType(
   type: string,
@@ -53,87 +52,14 @@ function responseErrorMessage(payload: unknown) {
   return "Unable to import the recipe. Please try again.";
 }
 
-function parseDraft(value: unknown): RecipeFormValues | null {
-  const result = recipeInputSchema.safeParse(value);
-  return result.success ? result.data : null;
-}
-
-function parseJobId(payload: unknown): string | null {
-  if (typeof payload !== "object" || payload === null || !("id" in payload)) {
-    return null;
-  }
-
-  const result = aiJobIdSchema.safeParse(payload.id);
-  return result.success ? result.data : null;
-}
-
-const jobStatusResponseSchema = z.object({
-  id: aiJobIdSchema,
-  status: z.enum([
-    "queued",
-    "processing",
-    "retrying",
-    "succeeded",
-    "failed",
-    "canceled",
-  ]),
-  sourceType: z.enum(["text", "image", "url"]),
-  stage: z.string().nullable(),
-  draft: z.unknown(),
+const importResponseSchema = z.object({
+  draft: recipeInputSchema,
   imageCandidate: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("source_url"), url: z.url() }),
     z.object({ kind: z.literal("source_upload") }),
   ]).nullable(),
-  error: z
-    .object({
-      code: z.string().nullable(),
-      message: z.string().nullable(),
-    })
-    .nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  expiresAt: z.string(),
+  importJobId: aiJobIdSchema.nullable(),
 });
-
-function waitForNextPoll(signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      signal.removeEventListener("abort", handleAbort);
-      resolve();
-    }, jobPollIntervalMs);
-
-    function handleAbort() {
-      window.clearTimeout(timeoutId);
-      reject(signal.reason);
-    }
-
-    signal.addEventListener("abort", handleAbort, { once: true });
-  });
-}
-
-async function cancelJob(jobId: string) {
-  try {
-    const response = await fetch(`/api/recipe-imports/${jobId}/cancel`, {
-      method: "POST",
-    });
-    if (!response.ok) {
-      console.error("[recipe-import-ui] cancellation failed", {
-        jobId,
-        status: response.status,
-      });
-    }
-  } catch (error) {
-    console.error("[recipe-import-ui] cancellation request failed", {
-      jobId,
-      error,
-    });
-  }
-}
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -163,7 +89,6 @@ export default function ImportRecipeDialog({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const parsingRef = useRef(false);
   const requestAbortRef = useRef<AbortController | null>(null);
-  const activeJobIdRef = useRef<string | null>(null);
   const importGenerationRef = useRef(0);
   const savingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -193,10 +118,6 @@ export default function ImportRecipeDialog({
     () => () => {
       importGenerationRef.current += 1;
       requestAbortRef.current?.abort();
-      const jobId = activeJobIdRef.current;
-      if (jobId) {
-        void cancelJob(jobId);
-      }
     },
     [],
   );
@@ -247,11 +168,6 @@ export default function ImportRecipeDialog({
     importGenerationRef.current += 1;
     requestAbortRef.current?.abort();
     requestAbortRef.current = null;
-    const jobId = activeJobIdRef.current;
-    activeJobIdRef.current = null;
-    if (jobId) {
-      void cancelJob(jobId);
-    }
     parsingRef.current = false;
     setIsParsing(false);
     setStage(null);
@@ -344,8 +260,8 @@ export default function ImportRecipeDialog({
       throw new Error("Choose an image that is not empty.");
     }
 
-    if (sourceImage.size > maxImageBytes) {
-      throw new Error("Choose an image smaller than 5 MB.");
+    if (sourceImage.size > MAX_IMAGE_BYTES) {
+      throw new Error("Choose an image no larger than 3 MiB.");
     }
 
     const dataUrl = await readFileAsDataUrl(sourceImage).catch(() => {
@@ -417,137 +333,41 @@ export default function ImportRecipeDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
-        // Keep creation alive after close so its returned ID can be canceled.
-        signal: deadlineSignal,
+        signal: requestSignal,
       });
-      const jobPostPayload: unknown = await response.json().catch(() => null);
+      const payload: unknown = await response.json().catch(() => null);
 
-      if (!isCurrent()) {
-        const abandonedJobId = parseJobId(jobPostPayload);
-        if (response.ok && abandonedJobId) {
-          void cancelJob(abandonedJobId);
-        }
-        return;
-      }
+      if (!isCurrent()) { return; }
 
       if (!response.ok) {
-        setError(responseErrorMessage(jobPostPayload));
+        setError(responseErrorMessage(payload));
         return;
       }
 
-      const jobId = parseJobId(jobPostPayload);
-      if (!jobId) {
-        setError("The import could not be started. Please try again.");
+      const result = importResponseSchema.safeParse(payload);
+      if (!result.success) {
+        setError("The imported recipe was incomplete. Please try again.");
         return;
       }
-      activeJobIdRef.current = jobId;
-
-      console.info("[recipe-import-ui] job created", {
-        jobId,
-        timeoutMs: importTimeoutMs,
-      });
-
-      let previousStatus: string | undefined;
-
-      while (!requestSignal.aborted) {
-        const statusResponse = await fetch(`/api/recipe-imports/${jobId}`, {
-          cache: "no-store",
-          signal: requestSignal,
-        });
-        const statusPayload: unknown = await statusResponse
-          .json()
-          .catch(() => null);
-
-        if (!isCurrent()) {
-          return;
-        }
-
-        if (!statusResponse.ok) {
-          setError(responseErrorMessage(statusPayload));
-          return;
-        }
-
-        const parsedStatus = jobStatusResponseSchema.safeParse(statusPayload);
-        if (!parsedStatus.success) {
-          setError("The import status was incomplete. Please try again.");
-          return;
-        }
-
-        const job = parsedStatus.data;
-
-        if (job.id !== jobId) {
-          setError("The import status was incomplete. Please try again.");
-          return;
-        }
-
-        setStage(job.stage);
-
-        if (job.status !== previousStatus) {
-          console.info("[recipe-import-ui] job status changed", {
-            jobId,
-            status: job.status,
-          });
-          previousStatus = job.status;
-        }
-
-        if (job.status === "succeeded") {
-          activeJobIdRef.current = null;
-          const parsedDraft = parseDraft(job.draft);
-          if (!parsedDraft) {
-            setError("The imported recipe was incomplete. Please try again.");
-            return;
-          }
-
-          setDraft(parsedDraft);
-          setDraftJobId(jobId);
-          setImageCandidate(
-            job.imageCandidate?.kind === "source_url"
-              ? { ...job.imageCandidate, importJobId: jobId }
-              : job.imageCandidate?.kind === "source_upload" && sourceImage
-                ? { kind: "source_upload", file: sourceImage }
-                : null,
-          );
-          setStep("review");
-          requestAnimationFrame(() => {
-            dialogRef.current
-              ?.querySelector<HTMLInputElement>("#recipe-name")
-              ?.focus();
-          });
-          return;
-        }
-
-        if (job.status === "failed" || job.status === "canceled") {
-          activeJobIdRef.current = null;
-          console.error("[recipe-import-ui] job ended without a result", {
-            jobId,
-            status: job.status,
-            errorCode: job.error?.code,
-            errorMessage: job.error?.message,
-          });
-          setError(
-            job.status === "canceled"
-              ? "The recipe import was canceled."
-              : (job.error?.message ??
-                  "The recipe import failed. Please try again."),
-          );
-          return;
-        }
-
-        await waitForNextPoll(requestSignal);
-      }
+      setDraft(result.data.draft);
+      setDraftJobId(result.data.importJobId);
+      setImageCandidate(
+        result.data.imageCandidate?.kind === "source_url" && result.data.importJobId
+          ? { ...result.data.imageCandidate, importJobId: result.data.importJobId }
+          : result.data.imageCandidate?.kind === "source_upload" && sourceImage
+            ? { kind: "source_upload", file: sourceImage }
+            : null,
+      );
+      setStep("review");
+      requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLInputElement>("#recipe-name")?.focus());
     } catch (requestError) {
       if (!isCurrent()) {
         return;
       }
       if (deadlineSignal.aborted) {
-        console.error("[recipe-import-ui] polling timed out", {
+        console.error("[recipe-import-ui] request timed out", {
           timeoutMs: importTimeoutMs,
         });
-        const jobId = activeJobIdRef.current;
-        activeJobIdRef.current = null;
-        if (jobId) {
-          void cancelJob(jobId);
-        }
         setError(
           `Recipe import timed out after ${importTimeoutMs / 1000} seconds. Please try again.`,
         );
@@ -561,11 +381,6 @@ export default function ImportRecipeDialog({
         setError("Unable to reach the server. Please try again.");
       }
     } finally {
-      if (isCurrent() && activeJobIdRef.current) {
-        const jobId = activeJobIdRef.current;
-        activeJobIdRef.current = null;
-        void cancelJob(jobId);
-      }
       if (isCurrent() && requestAbortRef.current === controller) {
         requestAbortRef.current = null;
       }

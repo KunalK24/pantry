@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
+import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
 
 export type RecipeIngredientValue = {
   name: string;
@@ -50,7 +51,6 @@ type SubmissionStatus =
 
 const MAX_INGREDIENTS = 100;
 const MAX_TIME_MINUTES = 2_147_483_647;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 type ImageChoice = "keep" | "omit" | "upload" | "suggested";
 
@@ -158,7 +158,7 @@ export default function RecipeForm(props: RecipeFormProps) {
       return;
     }
     if (!supportedImageTypes.includes(file.type) || file.size === 0 || file.size > MAX_IMAGE_BYTES) {
-      setStatus({ type: "error", message: "Choose a nonempty JPEG, PNG, or WebP image smaller than 5 MB." });
+      setStatus({ type: "error", message: "Choose a nonempty JPEG, PNG, or WebP image up to 3 MiB." });
       event.target.value = "";
       return;
     }
@@ -539,7 +539,7 @@ export default function RecipeForm(props: RecipeFormProps) {
           <div>
             <label className={labelClasses} htmlFor="recipe-cover-image">Upload or replace image</label>
             <input accept="image/jpeg,image/png,image/webp" className={inputClasses} id="recipe-cover-image" onChange={handleImageChange} ref={imageInputRef} type="file" />
-            <p className="mt-1 text-xs text-[#6f7a71]">JPEG, PNG, or WebP, up to 5 MB.</p>
+            <p className="mt-1 text-xs text-[#6f7a71]">JPEG, PNG, or WebP, up to 3 MiB.</p>
           </div>
           {(candidate || props.initialImageUrl || imageChoice === "upload") ? (
             <label className="flex items-center gap-2 text-sm font-semibold text-[#334238]">

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from 
 import { z } from "zod";
 
 import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
-import { aiJobIdSchema } from "@/schemas/ai-job";
 import { pantryExtractionSchema, pantryItemInputSchema } from "@/schemas/pantry-item";
 
 type DraftRow = {
@@ -17,18 +16,8 @@ type DraftRow = {
 };
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const TIMEOUT_MS = 300_000;
-const jobSchema = z.object({
-  id: aiJobIdSchema,
-  status: z.enum(["queued", "processing", "retrying", "succeeded", "failed", "canceled"]),
-  sourceType: z.literal("image"),
-  stage: z.string().nullable(),
-  draft: z.unknown(),
-  error: z.object({ code: z.string().nullable(), message: z.string().nullable() }).nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  expiresAt: z.string(),
-});
+const TIMEOUT_MS = 100_000;
+const extractionResponseSchema = z.object({ draft: pantryExtractionSchema });
 
 function errorMessage(payload: unknown, fallback: string) {
   if (typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string") {
@@ -50,40 +39,12 @@ function readImage(file: File): Promise<string> {
   });
 }
 
-function waitForPoll(signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) {
-      reject(signal.reason);
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, 1500);
-    function onAbort() {
-      window.clearTimeout(timeout);
-      reject(signal.reason);
-    }
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-
-async function cancelJob(id: string) {
-  try {
-    const response = await fetch(`/api/pantry-extractions/${id}/cancel`, { method: "POST" });
-    if (!response.ok) {console.error("[pantry-import-ui] cancellation failed", { id, status: response.status });}
-  } catch (error) {
-    console.error("[pantry-import-ui] cancellation request failed", { id, error });
-  }
-}
-
 export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPantryItemsCreated: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const generationRef = useRef(0);
-  const activeJobRef = useRef<string | null>(null);
-  const pollAbortRef = useRef<AbortController | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
   const extractingRef = useRef(false);
   const savingRef = useRef(false);
   const [image, setImage] = useState<File | null>(null);
@@ -96,11 +57,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
 
   useEffect(() => () => {
     generationRef.current += 1;
-    pollAbortRef.current?.abort();
-    if (activeJobRef.current) {
-      void cancelJob(activeJobRef.current);
-      activeJobRef.current = null;
-    }
+    requestAbortRef.current?.abort();
   }, []);
 
   function openDialog() {
@@ -121,12 +78,8 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
   function closeDialog() {
     if (savingRef.current) {return;}
     generationRef.current += 1;
-    pollAbortRef.current?.abort();
-    pollAbortRef.current = null;
-    if (activeJobRef.current) {
-      void cancelJob(activeJobRef.current);
-      activeJobRef.current = null;
-    }
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     extractingRef.current = false;
     setIsExtracting(false);
     setStage(null);
@@ -153,7 +106,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
       return;
     }
     if (image.size === 0 || image.size > MAX_IMAGE_BYTES) {
-      setError(image.size === 0 ? "Choose an image that is not empty." : "Choose an image smaller than 5 MB.");
+      setError(image.size === 0 ? "Choose an image that is not empty." : "Choose an image no larger than 3 MiB.");
       fileInputRef.current?.focus();
       return;
     }
@@ -162,8 +115,8 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
     const isCurrent = () => generationRef.current === generation;
     const controller = new AbortController();
     const deadline = AbortSignal.timeout(TIMEOUT_MS);
-    const pollSignal = AbortSignal.any([controller.signal, deadline]);
-    pollAbortRef.current = controller;
+    const requestSignal = AbortSignal.any([controller.signal, deadline]);
+    requestAbortRef.current = controller;
     extractingRef.current = true;
     setIsExtracting(true);
     setError(null);
@@ -174,91 +127,44 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
     try {
       const data = await readImage(image);
       if (!isCurrent()) {return;}
-      // Keep creation alive after close so its returned job ID can be canceled.
       const response = await fetch("/api/pantry-extractions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "image", image: { mimeType: image.type, data } }),
-        signal: deadline,
+        signal: requestSignal,
       });
       const payload: unknown = await response.json().catch(() => null);
-      const parsedId = typeof payload === "object" && payload !== null && "id" in payload
-        ? aiJobIdSchema.safeParse(payload.id) : null;
-      const jobId = parsedId?.success ? parsedId.data : null;
-      if (!isCurrent()) {
-        if (response.ok && jobId) {void cancelJob(jobId);}
-        return;
-      }
+      if (!isCurrent()) { return; }
       if (!response.ok) {
-        setError(errorMessage(payload, "Unable to start the pantry import. Please try again."));
+        setError(errorMessage(payload, "Unable to import the pantry image. Please try again."));
         return;
       }
-      if (!jobId) {
-        setError("The import could not be started. Please try again.");
+      const parsed = extractionResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        setError("The extracted pantry items were incomplete. Please try again.");
         return;
       }
-      activeJobRef.current = jobId;
-
-      while (!pollSignal.aborted) {
-        const statusResponse = await fetch(`/api/pantry-extractions/${jobId}`, {
-          cache: "no-store",
-          signal: pollSignal,
-        });
-        const statusPayload: unknown = await statusResponse.json().catch(() => null);
-        if (!isCurrent()) {return;}
-        if (!statusResponse.ok) {
-          setError(errorMessage(statusPayload, "Unable to check the import. Please try again."));
-          return;
-        }
-        const parsed = jobSchema.safeParse(statusPayload);
-        if (!parsed.success || parsed.data.id !== jobId) {
-          setError("The import status was incomplete. Please try again.");
-          return;
-        }
-        const job = parsed.data;
-        setStage(job.stage);
-        if (job.status === "succeeded") {
-          activeJobRef.current = null;
-          const draft = pantryExtractionSchema.safeParse(job.draft);
-          if (!draft.success) {
-            setError("The extracted pantry items were incomplete. Please try again.");
-            return;
-          }
-          setRows(draft.data.items.map((item, index) => ({
+      setRows(parsed.data.draft.items.map((item, index) => ({
             id: index,
             name: item.name,
             quantity: item.quantity ?? "",
             unit: item.unit ?? "",
             selected: true,
             error: null,
-          })));
-          requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLInputElement>("#pantry-import-name-0")?.focus());
-          return;
-        }
-        if (job.status === "failed" || job.status === "canceled") {
-          activeJobRef.current = null;
-          setError(job.status === "canceled" ? "The pantry import was canceled."
-            : job.error?.message ?? "The pantry import failed. Please try again.");
-          return;
-        }
-        await waitForPoll(pollSignal);
-      }
+      })));
+      requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLInputElement>("#pantry-import-name-0")?.focus());
     } catch (requestError) {
       if (!isCurrent()) {return;}
       if (deadline.aborted) {
-        setError("Pantry import timed out after 5 minutes. Please try again.");
+        setError("Pantry import timed out. Please try again.");
       }
       else if (!controller.signal.aborted) {
         setError(requestError instanceof Error && requestError.message.startsWith("Unable to read")
           ? requestError.message : "Unable to reach the server. Please try again.");
       }
     } finally {
-      if (isCurrent() && activeJobRef.current) {
-        void cancelJob(activeJobRef.current);
-        activeJobRef.current = null;
-      }
       if (isCurrent()) {
-        pollAbortRef.current = null;
+        requestAbortRef.current = null;
         extractingRef.current = false;
         setIsExtracting(false);
         setStage(null);
@@ -372,7 +278,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
                 <p className="mb-4 text-sm leading-6 text-[#6f7a71]">Upload a photo of your groceries. Review the suggested items before adding them to your pantry.</p>
                 <label className="block text-sm font-bold" htmlFor="pantry-import-image">Pantry image</label>
                 <input accept="image/jpeg,image/png,image/webp" className="mt-2 block w-full rounded-xl border border-[#d8d3c8] bg-white p-3 text-sm" disabled={isExtracting} id="pantry-import-image" onChange={handleImageChange} ref={fileInputRef} type="file" />
-                <p className="mt-2 text-xs text-[#6f7a71]">JPEG, PNG, or WebP, up to 5 MB.</p>
+                <p className="mt-2 text-xs text-[#6f7a71]">JPEG, PNG, or WebP, up to 3 MiB.</p>
                 {isExtracting && <p aria-live="polite" className="mt-4 text-sm">{stage ?? "Reading image..."}</p>}
                 {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
                 <button className="mt-6 rounded-xl bg-[#35644f] px-5 py-3 text-sm font-bold text-white disabled:opacity-60" disabled={isExtracting} type="submit">{isExtracting ? "Importing..." : "Review items"}</button>
