@@ -28,6 +28,9 @@ importers:
       next:
         specifier: 16.3.5
         version: 16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      parse-ingredient:
+        specifier: ^3.1.0
+        version: 3.1.0
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -36,7 +39,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       recipe-scrapers:
         specifier: ^3.5.0
-        version: 3.5.0(cheerio@1.2.0)(zod@4.6.7)
+        version: 3.5.0(cheerio@1.2.0)(parse-ingredient@3.1.0)(zod@4.6.7)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -2625,6 +2628,10 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
+  numeric-quantity@3.3.3:
+    resolution: {integrity: sha512-XICjnIs8Q8vUlOvVOFI8Xe3kte8fknfpzASHjwy4R2GtRm4Q5lI+d62JqFe54X4kqj/xdsucWxYe8G+OD9O8Uw==}
+    engines: {node: '>=16'}
+
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
@@ -2687,6 +2694,10 @@ packages:
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
+
+  parse-ingredient@3.1.0:
+    resolution: {integrity: sha512-qMaidXMC/3Awb4sS0ZAc+EtXHmah8L+bGoMAOjjcB16C6Z7AD8NhASbwVrDLnRCjBf+XSW1ZG5nqDNKNAK/r4A==}
+    engines: {node: '>=20'}
 
   parse5-htmlparser2-tree-adapter@7.1.0:
     resolution: {integrity: sha512-ruw5xyKs6lrpo9x9rCZqZZnIUntICjQAd0Wsmp396Ul9lN/h+ifgVV1x1gZHi8euej6wTfpqX8j+BFQxF0NS/g==}
@@ -5856,6 +5867,8 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
+  numeric-quantity@3.3.3: {}
+
   object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
@@ -5934,6 +5947,10 @@ snapshots:
   parent-module@1.0.1:
     dependencies:
       callsites: 3.1.0
+
+  parse-ingredient@3.1.0:
+    dependencies:
+      numeric-quantity: 3.3.3
 
   parse5-htmlparser2-tree-adapter@7.1.0:
     dependencies:
@@ -6055,7 +6072,7 @@ snapshots:
 
   readdirp@5.1.1: {}
 
-  recipe-scrapers@3.5.0(cheerio@1.2.0)(zod@4.6.7):
+  recipe-scrapers@3.5.0(cheerio@1.2.0)(parse-ingredient@3.1.0)(zod@4.6.7):
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@standard-schema/utils': 0.3.0
@@ -6063,6 +6080,7 @@ snapshots:
       zod: 4.6.7
     optionalDependencies:
       cheerio: 1.2.0
+      parse-ingredient: 3.1.0
 
   reflect.getprototypeof@1.0.10:
     dependencies:
