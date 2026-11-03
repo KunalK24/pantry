@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 
 import { imageDataError } from "@/lib/image-upload";
-import { parseRecipeWithPython } from "@/lib/python-parser";
+import { parseRecipeHtml } from "@/lib/recipe-parser";
 import { imageCandidatesFromHtml, imageCandidatesFromMarkdown } from "@/services/recipe-image-candidate-service";
 import {
   recipeInputSchema,
@@ -454,7 +454,7 @@ async function importUrl(
     const imageUrls = imageCandidatesFromHtml(source.html, source.finalUrl);
     let parsedPageRecipe: RecipeInput | undefined;
     try {
-      parsedPageRecipe = await parseRecipeWithPython(source.finalUrl, source.html, signal);
+      parsedPageRecipe = await parseRecipeHtml(source.finalUrl, source.html, signal);
     } catch (error) {
       if (signal?.aborted) {
         throw new RecipeImportError("timeout", { cause: error });

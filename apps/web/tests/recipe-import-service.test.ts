@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { geminiCreate, geminiClient, fetchHtml, pythonParse } = vi.hoisted(
+const { geminiCreate, geminiClient, fetchHtml, htmlParse } = vi.hoisted(
   () => ({
     geminiCreate: vi.fn(),
     geminiClient: vi.fn(),
     fetchHtml: vi.fn(),
-    pythonParse: vi.fn(),
+    htmlParse: vi.fn(),
   }),
 );
 
@@ -26,7 +26,7 @@ vi.mock("@/services/recipe-url-acquisition-service", () => ({
     }
   },
 }));
-vi.mock("@/lib/python-parser", () => ({ parseRecipeWithPython: pythonParse }));
+vi.mock("@/lib/recipe-parser", () => ({ parseRecipeHtml: htmlParse }));
 
 import { importRecipe } from "@/services/recipe-import-service";
 import { RecipeUrlAcquisitionError } from "@/services/recipe-url-acquisition-service";
@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.stubEnv("FIRECRAWL_API_KEY", "firecrawl-test");
   vi.stubEnv("GEMINI_MODEL", "configured-model");
   fetchHtml.mockResolvedValue({ html: "<html>recipe</html>", finalUrl: url });
-  pythonParse.mockResolvedValue(recipe);
+  htmlParse.mockResolvedValue(recipe);
   geminiCreate.mockResolvedValue({ output_text: JSON.stringify(recipe) });
   vi.stubGlobal(
     "fetch",
@@ -76,10 +76,10 @@ afterEach(() => {
 });
 
 describe("recipe import service", () => {
-  it("sends a directly acquired URL through Gemini even when Python finds a draft", async () => {
+  it("sends a directly acquired URL through Gemini when the HTML parser finds a draft", async () => {
     await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
     expect(fetchHtml).toHaveBeenCalledWith(url, undefined);
-    expect(pythonParse).toHaveBeenCalledWith(
+    expect(htmlParse).toHaveBeenCalledWith(
       url,
       "<html>recipe</html>",
       undefined,
@@ -101,13 +101,13 @@ describe("recipe import service", () => {
     expect(stages).toEqual(["acquiring_source", "normalizing", "normalizing", "validating"]);
   });
 
-  it("uses the final redirected URL for Python parsing", async () => {
+  it("uses the final redirected URL for HTML parsing", async () => {
     fetchHtml.mockResolvedValue({
       html: "<html>recipe</html>",
       finalUrl: "https://example.com/final",
     });
     await importRecipe({ type: "url", url });
-    expect(pythonParse).toHaveBeenCalledWith(
+    expect(htmlParse).toHaveBeenCalledWith(
       "https://example.com/final",
       "<html>recipe</html>",
       undefined,
@@ -136,10 +136,10 @@ describe("recipe import service", () => {
     });
   });
 
-  it.each(["incomplete", "unavailable", "timeout", "invalid_output"])(
-    "uses guarded markdown when Python is %s",
+  it.each(["incomplete", "timeout", "invalid_input"])(
+    "uses guarded markdown when HTML parsing is %s",
     async (reason) => {
-      pythonParse.mockRejectedValue(new Error(reason));
+      htmlParse.mockRejectedValue(new Error(reason));
       await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
       expect(fetch).toHaveBeenCalledOnce();
       const [, request] = vi.mocked(fetch).mock.calls[0];
@@ -162,12 +162,12 @@ describe("recipe import service", () => {
   it("falls back when the direct acquisition fails", async () => {
     fetchHtml.mockRejectedValue(new RecipeUrlAcquisitionError("access_denied"));
     await expect(importRecipe({ type: "url", url })).resolves.toEqual({ draft: recipe, imageCandidate: null });
-    expect(pythonParse).not.toHaveBeenCalled();
+    expect(htmlParse).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledOnce();
   });
 
   it("does not send non-recipe direct HTML to Gemini before guarded fallback", async () => {
-    pythonParse.mockResolvedValue(null);
+    htmlParse.mockResolvedValue(null);
     vi.mocked(fetch).mockResolvedValue(firecrawlResponse("# Travel guide\nVisit museums and parks."));
     await expect(importRecipe({ type: "url", url })).rejects.toMatchObject({ code: "invalid_source" });
     expect(geminiCreate).not.toHaveBeenCalled();
@@ -206,7 +206,7 @@ describe("recipe import service", () => {
         },
       ),
     ).rejects.toBe(progressError);
-    expect(pythonParse).not.toHaveBeenCalled();
+    expect(htmlParse).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
 
