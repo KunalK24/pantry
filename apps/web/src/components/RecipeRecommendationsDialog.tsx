@@ -62,6 +62,7 @@ export default function RecipeRecommendationsDialog({
   return (
     <>
       <button
+        {...{ autoComplete: "off" }}
         className="min-h-10 rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled}
         onClick={openDialog}

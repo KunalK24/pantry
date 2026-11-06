@@ -161,6 +161,7 @@ export default function PantryPickerDialog({
   return (
     <>
       <button
+        {...{ autoComplete: "off" }}
         className="min-h-10 rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
         data-pantry-picker-trigger
         disabled={disabled}
@@ -277,6 +278,7 @@ export default function PantryPickerDialog({
               Cancel
             </button>
             <button
+              {...{ autoComplete: "off" }}
               className="rounded-xl bg-[#35644f] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={disabled || items === null || error !== null}
               onClick={commitSelection}

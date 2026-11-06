@@ -378,7 +378,6 @@ export default function GroceryList() {
     null,
   );
   const attemptedImportRef = useRef<string | null>(null);
-  const sourceActionsRef = useRef<HTMLDivElement>(null);
   const allRecipesRef = useRef(allRecipes);
   const pantryItemsRef = useRef(pantryItems);
   const recipeOccurrencesRef = useRef(recipeOccurrences);
@@ -1285,7 +1284,7 @@ export default function GroceryList() {
             Build your list
           </h2>
           <p className="mt-2 text-sm text-[#6f7a71]">Choose recipes or pantry items to update the shopping list above.</p>
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4" ref={sourceActionsRef}>
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[#e5e1d8] py-4">
             <RecipePickerDialog
               disabled={mutating || (!initialized && recipeLoadState !== "error")}
               onCommit={commitRecipes}
@@ -1498,38 +1497,20 @@ export default function GroceryList() {
                   ? "Add recipes or low pantry items to start your grocery list."
                   : "Your pantry covers the selected recipes, or all generated items have been removed."}
               </p>
-              {recipeLoadState === "ready" && allRecipes.length > 0 ? (
-                <button
-                  className="mt-4 min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={mutating}
-                  onClick={() => sourceActionsRef.current?.querySelector<HTMLButtonElement>("[data-recipe-picker-trigger]")?.click()}
-                  type="button"
-                >
-                  Add from recipes
-                </button>
-              ) : pantryLoadState === "ready" && pantryItems.length > 0 ? (
-                <button
-                  className="mt-4 min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={mutating}
-                  onClick={() => sourceActionsRef.current?.querySelector<HTMLButtonElement>("[data-pantry-picker-trigger]")?.click()}
-                  type="button"
-                >
-                  Add from pantry
-                </button>
-              ) : recipeLoadState === "ready" ? (
+              {recipeLoadState === "ready" && allRecipes.length === 0 ? (
                 <Link
                   className="mt-4 inline-flex min-h-10 items-center rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                   href="/recipes"
                 >
                   Add your first recipe
                 </Link>
-              ) : (
+              ) : recipeLoadState !== "ready" || pantryLoadState !== "ready" ? (
                 <p className="mt-3 text-sm text-[#6f7a71]" role="status">
                   {recipeLoadState === "error" || pantryLoadState === "error"
                     ? "Some options could not be loaded. Try the controls below again."
                     : "Loading ways to build your list..."}
                 </p>
-              )}
+              ) : null}
             </div>
           )}
           {dismissedLines.length ? (
