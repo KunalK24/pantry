@@ -229,7 +229,7 @@ export default function PantryLibrary({
     return (
       <div className="space-y-4 border-y border-dashed border-[#d8d3c8] py-8 text-center">
         <h2 className="[font-family:Georgia,serif] text-xl font-bold text-[#24342b]">
-          Your pantry is ready.
+          Your pantry is ready
         </h2>
         <p className="mx-auto max-w-md text-sm leading-6 text-[#6f7a71]">
           Your pantry is empty. Add an ingredient you have on hand.
