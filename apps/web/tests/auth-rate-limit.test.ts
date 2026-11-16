@@ -1,27 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { constructorMock, connectMock, disconnectMock, evalMock } = vi.hoisted(
-  () => ({
-    constructorMock: vi.fn(),
-    connectMock: vi.fn(),
-    disconnectMock: vi.fn(),
-    evalMock: vi.fn(),
-  }),
-);
-
-vi.mock("ioredis", () => ({
-  default: class {
-    constructor() {
-      constructorMock();
-    }
-    connect = connectMock;
-    disconnect = disconnectMock;
-    eval = evalMock;
-    on = vi.fn();
-  },
+const { executeRawMock, queryRawMock, transactionMock } = vi.hoisted(() => ({
+  executeRawMock: vi.fn(),
+  queryRawMock: vi.fn(),
+  transactionMock: vi.fn(),
 }));
 
-let checkAuthRateLimit: typeof import("@/lib/auth-rate-limit").checkAuthRateLimit;
+vi.mock("@/lib/prisma", () => ({
+  prisma: { $executeRaw: executeRawMock, $transaction: transactionMock },
+}));
+
+import { checkAuthRateLimit } from "@/lib/auth-rate-limit";
 
 function authRequest(headers?: HeadersInit) {
   return new Request("https://pantry.example.com/api/auth/sign-in", {
@@ -29,75 +18,42 @@ function authRequest(headers?: HeadersInit) {
   });
 }
 
-beforeEach(async () => {
-  vi.resetModules();
+beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv("REDIS_URL", "redis://localhost:6379");
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("AUTH_CLIENT_IP_HEADER", "");
-  connectMock.mockResolvedValue(undefined);
-  evalMock.mockResolvedValue([1, 1, 900, 900]);
-  ({ checkAuthRateLimit } = await import("@/lib/auth-rate-limit"));
+  vi.spyOn(Math, "random").mockReturnValue(1);
+  transactionMock.mockImplementation((operation) =>
+    operation({ $queryRaw: queryRawMock }),
+  );
+  queryRawMock.mockResolvedValue([
+    { count: 1, expiresAt: new Date(Date.now() + 900_000) },
+  ]);
+  executeRawMock.mockResolvedValue(0);
 });
 
 describe("auth rate limiting", () => {
-  it("uses one atomic Redis call with hashed normalized email and source keys", async () => {
-    const first = await checkAuthRateLimit(
-      "sign-in",
-      " Cook@Example.COM ",
-      authRequest(),
-    );
-    const firstKeys = evalMock.mock.calls[0].slice(2, 4);
-    const second = await checkAuthRateLimit(
-      "sign-in",
-      "cook@example.com",
-      authRequest(),
-    );
-    const secondKeys = evalMock.mock.calls[1].slice(2, 4);
+  it("updates normalized hashed email and source buckets in one transaction", async () => {
+    await expect(
+      checkAuthRateLimit("sign-in", " Cook@Example.COM ", authRequest()),
+    ).resolves.toEqual({ status: "allowed" });
 
-    expect(first).toEqual({ status: "allowed" });
-    expect(second).toEqual({ status: "allowed" });
-    expect(firstKeys).toEqual(secondKeys);
-    expect(firstKeys[0]).not.toContain("cook@example.com");
-    expect(firstKeys[1]).toMatch(/^auth-limit:sign-in:source:[a-f0-9]{64}$/);
-    expect(evalMock.mock.calls[0][4]).toBe(900);
-    expect(constructorMock).toHaveBeenCalledOnce();
-    expect(connectMock).toHaveBeenCalledOnce();
-    expect(disconnectMock).not.toHaveBeenCalled();
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
+    const firstCall = queryRawMock.mock.calls[0];
+    const secondCall = queryRawMock.mock.calls[1];
+    expect(firstCall[1]).toMatch(/^sign-in:email:[a-f0-9]{64}$/);
+    expect(secondCall[1]).toMatch(/^sign-in:source:[a-f0-9]{64}$/);
+    expect(firstCall[2]).toBe(900);
+    expect(firstCall[3]).toBe(900);
+    expect(firstCall[0].join(" ")).toContain("ON CONFLICT");
+    expect(firstCall[0].join(" ")).toContain("RETURNING");
+
+    await checkAuthRateLimit("sign-in", "cook@example.com", authRequest());
+    expect(queryRawMock.mock.calls[2][1]).toBe(firstCall[1]);
   });
 
-  it("shares one in-flight connection across concurrent auth requests", async () => {
-    let finishConnecting = () => {};
-    connectMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishConnecting = resolve;
-        }),
-    );
-
-    const first = checkAuthRateLimit(
-      "sign-in",
-      "first@example.com",
-      authRequest(),
-    );
-    const second = checkAuthRateLimit(
-      "sign-in",
-      "second@example.com",
-      authRequest(),
-    );
-    await Promise.resolve();
-
-    expect(constructorMock).toHaveBeenCalledOnce();
-    expect(connectMock).toHaveBeenCalledOnce();
-    finishConnecting();
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      { status: "allowed" },
-      { status: "allowed" },
-    ]);
-    expect(evalMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("uses only the configured trusted IP header and separates source buckets", async () => {
+  it("uses only the configured single trusted IP in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("AUTH_CLIENT_IP_HEADER", "x-trusted-client-ip");
 
@@ -120,148 +76,67 @@ describe("auth rate limiting", () => {
     await checkAuthRateLimit(
       "sign-in",
       "cook@example.com",
-      authRequest({
-        "x-trusted-client-ip": "203.0.113.11",
-        "x-forwarded-for": "198.51.100.1",
-      }),
+      authRequest({ "x-trusted-client-ip": "203.0.113.11" }),
     );
 
-    const keys = evalMock.mock.calls.map((call) => call[3]);
-    expect(keys[0]).toBe(keys[1]);
-    expect(keys[0]).not.toBe(keys[2]);
-    expect(keys[0]).not.toContain("203.0.113.10");
+    expect(queryRawMock.mock.calls[1][1]).toBe(queryRawMock.mock.calls[3][1]);
+    expect(queryRawMock.mock.calls[1][1]).not.toBe(queryRawMock.mock.calls[5][1]);
   });
 
-  it("fails closed in production without one valid trusted IP", async () => {
+  it("fails closed without one valid trusted production IP", async () => {
     vi.stubEnv("NODE_ENV", "production");
     const missingConfig = await checkAuthRateLimit(
-      "sign-in",
-      "cook@example.com",
-      authRequest(),
+      "sign-in", "cook@example.com", authRequest(),
     );
     vi.stubEnv("AUTH_CLIENT_IP_HEADER", "x-trusted-client-ip");
     const missingHeader = await checkAuthRateLimit(
-      "sign-in",
-      "cook@example.com",
-      authRequest(),
+      "sign-in", "cook@example.com", authRequest(),
     );
     const multipleIps = await checkAuthRateLimit(
-      "sign-in",
-      "cook@example.com",
-      authRequest({
-        "x-trusted-client-ip": "203.0.113.10, 198.51.100.1",
-      }),
+      "sign-in", "cook@example.com",
+      authRequest({ "x-trusted-client-ip": "203.0.113.10, 198.51.100.1" }),
     );
     const invalidIp = await checkAuthRateLimit(
-      "sign-in",
-      "cook@example.com",
-      authRequest({
-        "x-trusted-client-ip": "not-an-ip",
-      }),
+      "sign-in", "cook@example.com",
+      authRequest({ "x-trusted-client-ip": "not-an-ip" }),
     );
 
     expect([missingConfig, missingHeader, multipleIps, invalidIp]).toEqual(
       Array.from({ length: 4 }, () => ({ status: "unavailable" })),
     );
-    expect(constructorMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("returns the longer Retry-After when both signup limits are exceeded", async () => {
-    evalMock.mockResolvedValue([6, 21, 120, 180]);
+  it("returns the longer Retry-After when both signup buckets exceed limits", async () => {
+    const now = Date.now();
+    queryRawMock
+      .mockResolvedValueOnce([{ count: 6, expiresAt: new Date(now + 120_000) }])
+      .mockResolvedValueOnce([{ count: 21, expiresAt: new Date(now + 180_000) }]);
 
     await expect(
       checkAuthRateLimit("sign-up", "cook@example.com", authRequest()),
-    ).resolves.toEqual({
-      status: "limited",
-      retryAfterSeconds: 180,
-    });
-    expect(evalMock.mock.calls[0][4]).toBe(3600);
+    ).resolves.toEqual({ status: "limited", retryAfterSeconds: 180 });
+    expect(queryRawMock.mock.calls[0][2]).toBe(3600);
   });
 
-  it("fails closed when Redis is unavailable", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    connectMock.mockRejectedValue(new Error("connection failed"));
-
-    await expect(
-      checkAuthRateLimit("sign-in", "cook@example.com", authRequest()),
-    ).resolves.toEqual({
-      status: "unavailable",
-    });
-    expect(evalMock).not.toHaveBeenCalled();
-    expect(disconnectMock).toHaveBeenCalledOnce();
-    consoleError.mockRestore();
-  });
-
-  it("creates a new shared client after an operation fails", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    evalMock.mockRejectedValueOnce(new Error("Redis command failed"));
+  it("fails closed when the database is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    transactionMock.mockRejectedValue(new Error("database unavailable"));
 
     await expect(
       checkAuthRateLimit("sign-in", "cook@example.com", authRequest()),
     ).resolves.toEqual({ status: "unavailable" });
+    consoleError.mockRestore();
+  });
+
+  it("occasionally removes at most 100 expired buckets", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
     await expect(
       checkAuthRateLimit("sign-in", "cook@example.com", authRequest()),
     ).resolves.toEqual({ status: "allowed" });
-    expect(constructorMock).toHaveBeenCalledTimes(2);
-    expect(connectMock).toHaveBeenCalledTimes(2);
-    expect(disconnectMock).toHaveBeenCalledOnce();
-    consoleError.mockRestore();
-  });
 
-  it("fails closed when Redis client construction throws", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    constructorMock.mockImplementationOnce(() => {
-      throw new Error("Invalid Redis URL");
-    });
-
-    await expect(
-      checkAuthRateLimit("sign-in", "cook@example.com", authRequest()),
-    ).resolves.toEqual({
-      status: "unavailable",
-    });
-    expect(connectMock).not.toHaveBeenCalled();
-    consoleError.mockRestore();
-  });
-
-  it("disconnects and fails closed when connection stalls", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    let finishConnecting = () => {};
-    connectMock.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishConnecting = resolve;
-        }),
-    );
-    vi.useFakeTimers();
-
-    try {
-      const result = checkAuthRateLimit(
-        "sign-in",
-        "cook@example.com",
-        authRequest(),
-      );
-      await vi.advanceTimersByTimeAsync(2000);
-
-      await expect(result).resolves.toEqual({ status: "unavailable" });
-      expect(disconnectMock).toHaveBeenCalledOnce();
-      finishConnecting();
-      await Promise.resolve();
-      expect(evalMock).not.toHaveBeenCalled();
-      await expect(
-        checkAuthRateLimit("sign-in", "cook@example.com", authRequest()),
-      ).resolves.toEqual({ status: "allowed" });
-      expect(constructorMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-      consoleError.mockRestore();
-    }
+    expect(executeRawMock).toHaveBeenCalledOnce();
+    expect(executeRawMock.mock.calls[0][0].join(" ")).toContain("LIMIT 100");
   });
 });

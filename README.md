@@ -25,23 +25,20 @@ The result is always a **suggestion for you to review** before saving. Ingredien
 
 ## How it works
 
-Pantry is a Next.js and TypeScript app with a PostgreSQL database. Prisma handles persistence. Recipe and pantry photo imports run as background jobs: the API records a job in PostgreSQL, places it on a BullMQ queue in Redis, and returns immediately. A separate worker processes the job, writes its progress and result back to PostgreSQL, and the app displays the draft for review. This keeps slow external API calls out of the normal request path.
+Pantry is a Next.js and TypeScript app with a PostgreSQL database. Prisma handles persistence. Recipe and pantry photo imports run within the API request and return a draft for review when processing finishes. The browser keeps the import dialog open during that request. PostgreSQL also stores rate-limit counters and short-lived source image authorization records.
 
 ```mermaid
 flowchart LR
     U[Browser] --> W[Next.js UI and API]
     W --> S[Application services]
     S --> P[(PostgreSQL via Prisma)]
-    W --> Q[(Redis / BullMQ)]
-    Q --> X[AI worker]
-    X --> P
-    X --> G[Gemini]
-    X --> F[Firecrawl fallback]
+    S --> G[Gemini]
+    S --> F[Firecrawl fallback]
     W --> R[Recipe draft or pantry suggestions]
     R --> U
 ```
 
-The same database stores accounts, sessions, recipes, pantry items, meal plans, grocery lists, and import job state. The worker handles recipe imports and pantry image extraction; regular planning and list operations run through the app's API and services.
+The same database stores accounts, sessions, recipes, pantry items, meal plans, and grocery lists. It retains a successful recipe import record briefly when needed to authorize copying a source image.
 
 ## Request beta access
 
@@ -51,15 +48,15 @@ If something feels confusing or breaks, I would love to hear about it. Early fee
 
 ## Run it locally
 
-You will need Node.js 22+, pnpm, PostgreSQL, and Redis. The repository's [`docker-compose.yml`](docker-compose.yml) starts a local Redis instance.
+You will need Node.js 22+, pnpm, and PostgreSQL.
 
 1. Install dependencies with `pnpm install`.
-2. Copy [`apps/web/.env.example`](apps/web/.env.example) to `apps/web/.env`. Set `DATABASE_URL` and `DATABASE_URL_UNPOOLED` for PostgreSQL, `REDIS_URL` for Redis, and `GEMINI_API_KEY` for AI imports. Set `FIRECRAWL_API_KEY` if you want the URL import fallback.
-3. Start Redis with `docker compose up -d redis` and apply database migrations with `pnpm --filter @pantry/web exec prisma migrate dev`.
-4. Start the app with `pnpm --filter @pantry/web dev` and, in another terminal, start the worker with `pnpm --filter @pantry/web worker:ai`.
+2. Copy [`apps/web/.env.example`](apps/web/.env.example) to `apps/web/.env`. Set `DATABASE_URL` and `DATABASE_URL_UNPOOLED` for PostgreSQL and `GEMINI_API_KEY` for AI imports. Set `FIRECRAWL_API_KEY` if you want the URL import fallback.
+3. Apply database migrations with `pnpm --filter @pantry/web exec prisma migrate dev`.
+4. Start the app with `pnpm --filter @pantry/web dev`.
 5. Open <http://localhost:3000>.
 
-For deployment, run the web app and worker as separate processes connected to the same PostgreSQL database and Redis instance. Configure `APP_ORIGIN` and `AUTH_CLIENT_IP_HEADER` as described in the environment example.
+For deployment, run the web app with PostgreSQL and apply migrations before serving traffic. Recipe and pantry imports finish within their requests, so configure the hosting platform to allow the import routes' execution time. Configure `APP_ORIGIN` and `AUTH_CLIENT_IP_HEADER` as described in the environment example.
 
 ## Repository map
 
@@ -67,7 +64,6 @@ For deployment, run the web app and worker as separate processes connected to th
 | --- | --- |
 | [`apps/web/src/app`](apps/web/src/app) | Pages and API route handlers |
 | [`apps/web/src/services`](apps/web/src/services) | Recipe, pantry, planning, grocery, and import logic |
-| [`apps/web/src/workers`](apps/web/src/workers) | BullMQ worker for AI imports |
 | [`apps/web/src/lib`](apps/web/src/lib) | Shared infrastructure and deterministic grocery calculations |
 | [`apps/web/prisma`](apps/web/prisma) | PostgreSQL schema and migrations |
 

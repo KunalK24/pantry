@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 
-import IORedis from "ioredis";
+import { prisma } from "@/lib/prisma";
 
 type AuthAction = "sign-in" | "sign-up";
 
@@ -10,72 +10,12 @@ type RateLimitResult =
   | { status: "limited"; retryAfterSeconds: number }
   | { status: "unavailable" };
 
+type BucketCount = { count: number; expiresAt: Date };
+
 const AUTH_RATE_LIMITS = {
   "sign-in": { emailLimit: 10, sourceLimit: 60, windowSeconds: 15 * 60 },
   "sign-up": { emailLimit: 5, sourceLimit: 20, windowSeconds: 60 * 60 },
 } as const;
-
-// Both counters and their expiration are updated in one Redis operation.
-const RATE_LIMIT_SCRIPT = `
-local emailCount = redis.call("INCR", KEYS[1])
-if emailCount == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end
-local sourceCount = redis.call("INCR", KEYS[2])
-if sourceCount == 1 then redis.call("EXPIRE", KEYS[2], ARGV[1]) end
-return {emailCount, sourceCount, redis.call("TTL", KEYS[1]), redis.call("TTL", KEYS[2])}
-`;
-
-type LimiterConnection = {
-  client: IORedis;
-  isInvalidated: boolean;
-  redisUrl: string;
-  ready: Promise<void>;
-};
-
-let sharedConnection: LimiterConnection | undefined;
-
-function invalidateConnection(connection: LimiterConnection) {
-  if (connection.isInvalidated) {
-    return;
-  }
-  connection.isInvalidated = true;
-  if (sharedConnection === connection) {
-    sharedConnection = undefined;
-  }
-  connection.client.disconnect();
-}
-
-function getLimiterConnection(redisUrl: string): LimiterConnection {
-  if (sharedConnection?.redisUrl === redisUrl) {
-    return sharedConnection;
-  }
-
-  if (sharedConnection) {
-    invalidateConnection(sharedConnection);
-  }
-
-  const client = new IORedis(redisUrl, {
-    lazyConnect: true,
-    enableOfflineQueue: false,
-    connectTimeout: 1000,
-    commandTimeout: 1000,
-    maxRetriesPerRequest: 1,
-    retryStrategy: () => null,
-  });
-  const connection: LimiterConnection = {
-    client,
-    isInvalidated: false,
-    redisUrl,
-    ready: Promise.resolve().then(async () => {
-      await client.connect();
-    }),
-  };
-  client.on("error", (error) => {
-    console.error("Auth rate limit Redis error", error);
-    invalidateConnection(connection);
-  });
-  sharedConnection = connection;
-  return connection;
-}
 
 function getClientSource(request: Request): string | null {
   if (process.env.NODE_ENV !== "production") {
@@ -95,76 +35,90 @@ function getClientSource(request: Request): string | null {
   }
 }
 
+function hashBucketKey(action: AuthAction, dimension: "email" | "source", value: string) {
+  const hash = createHash("sha256").update(value).digest("hex");
+  return `${action}:${dimension}:${hash}`;
+}
+
 export async function checkAuthRateLimit(
   action: AuthAction,
   email: string,
   request: Request,
 ): Promise<RateLimitResult> {
-  const redisUrl = process.env.REDIS_URL;
   const source = getClientSource(request);
-  if (!redisUrl || !source) {
+  if (!source) {
     return { status: "unavailable" };
   }
 
   const { emailLimit, sourceLimit, windowSeconds } = AUTH_RATE_LIMITS[action];
-  const emailHash = createHash("sha256")
-    .update(email.trim().toLowerCase())
-    .digest("hex");
-  const sourceHash = createHash("sha256").update(source).digest("hex");
-  let connection: LimiterConnection | undefined;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const emailKey = hashBucketKey(action, "email", email.trim().toLowerCase());
+  const sourceKey = hashBucketKey(action, "source", source);
 
   try {
-    connection = getLimiterConnection(redisUrl);
-    const limiter = connection;
-    const counts = await Promise.race([
-      (async () => {
-        await limiter.ready;
-        if (sharedConnection !== limiter) {
-          throw new Error("Auth rate limit Redis connection invalidated");
-        }
-        return limiter.client.eval(
-          RATE_LIMIT_SCRIPT,
-          2,
-          `auth-limit:${action}:email:${emailHash}`,
-          `auth-limit:${action}:source:${sourceHash}`,
-          windowSeconds,
-        );
-      })(),
-      new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error("Auth rate limit Redis timeout")),
-          2000,
-        );
-      }),
-    ]);
+    const [emailBucket, sourceBucket] = await prisma.$transaction(
+      async (tx) => {
+        // One database upsert updates each counter atomically at window rollover.
+        const incrementBucket = async (key: string) => {
+          const buckets = await tx.$queryRaw<BucketCount[]>`
+            INSERT INTO "AuthRateLimit" ("key", "count", "expiresAt")
+            VALUES (${key}, 1, CURRENT_TIMESTAMP + (${windowSeconds} * INTERVAL '1 second'))
+            ON CONFLICT ("key") DO UPDATE SET
+              "count" = CASE
+                WHEN "AuthRateLimit"."expiresAt" <= CURRENT_TIMESTAMP THEN 1
+                ELSE "AuthRateLimit"."count" + 1
+              END,
+              "expiresAt" = CASE
+                WHEN "AuthRateLimit"."expiresAt" <= CURRENT_TIMESTAMP
+                  THEN CURRENT_TIMESTAMP + (${windowSeconds} * INTERVAL '1 second')
+                ELSE "AuthRateLimit"."expiresAt"
+              END
+            RETURNING "count", "expiresAt"
+          `;
+          return buckets[0];
+        };
 
-    if (!Array.isArray(counts) || counts.length !== 4) {
-      throw new Error("Unexpected auth rate-limit response");
+        return [await incrementBucket(emailKey), await incrementBucket(sourceKey)];
+      },
+      { timeout: 5000 },
+    );
+
+    if (!emailBucket || !sourceBucket) {
+      throw new Error("Auth rate limit bucket was not returned");
     }
 
-    const [emailCount, sourceCount, emailTtl, sourceTtl] = counts.map(Number);
-    if ([emailCount, sourceCount, emailTtl, sourceTtl].some(Number.isNaN)) {
-      throw new Error("Invalid auth rate-limit response");
+    if (Math.random() < 0.01) {
+      try {
+        // Small opportunistic batches prevent unused email buckets accumulating.
+        await prisma.$executeRaw`
+          DELETE FROM "AuthRateLimit"
+          WHERE "key" IN (
+            SELECT "key" FROM "AuthRateLimit"
+            WHERE "expiresAt" < CURRENT_TIMESTAMP
+            ORDER BY "expiresAt"
+            LIMIT 100
+          )
+        `;
+      } catch (error) {
+        console.error("Auth rate limit cleanup unavailable", error);
+      }
     }
 
-    if (emailCount > emailLimit || sourceCount > sourceLimit) {
-      const retryAfterSeconds = Math.max(
-        1,
-        ...(emailCount > emailLimit ? [emailTtl] : []),
-        ...(sourceCount > sourceLimit ? [sourceTtl] : []),
+    const isEmailLimited = emailBucket.count > emailLimit;
+    const isSourceLimited = sourceBucket.count > sourceLimit;
+    if (isEmailLimited || isSourceLimited) {
+      const retryAt = Math.max(
+        ...(isEmailLimited ? [emailBucket.expiresAt.getTime()] : []),
+        ...(isSourceLimited ? [sourceBucket.expiresAt.getTime()] : []),
       );
-      return { status: "limited", retryAfterSeconds };
+      return {
+        status: "limited",
+        retryAfterSeconds: Math.max(1, Math.ceil((retryAt - Date.now()) / 1000)),
+      };
     }
 
     return { status: "allowed" };
   } catch (error) {
     console.error("Auth rate limit unavailable", error);
-    if (connection) {
-      invalidateConnection(connection);
-    }
     return { status: "unavailable" };
-  } finally {
-    clearTimeout(timeoutId);
   }
 }

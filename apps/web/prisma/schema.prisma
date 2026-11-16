@@ -237,3 +237,11 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
 }
+
+model AuthRateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
