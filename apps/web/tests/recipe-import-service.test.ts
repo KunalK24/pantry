@@ -351,7 +351,7 @@ describe("recipe import service", () => {
   });
 
   it("accepts a near-limit valid image without recursive base64 matching", async () => {
-    const imageData = Buffer.alloc(5 * 1024 * 1024 - 1, 42).toString("base64");
+    const imageData = Buffer.alloc(3 * 1024 * 1024 - 1, 42).toString("base64");
     await expect(
       importRecipe({
         type: "image",

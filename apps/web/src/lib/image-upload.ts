@@ -1,5 +1,7 @@
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-export const MAX_IMAGE_REQUEST_BYTES = 7_100_000;
+// A 3 MiB image becomes 4 MiB after base64 encoding, leaving room for JSON
+// below Vercel's 4.5 MB request body limit.
+export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+export const MAX_IMAGE_REQUEST_BYTES = 4_350_000;
 
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 

@@ -14,6 +14,7 @@ import { RecipeNotFoundError } from "@/services/recipe-service";
 
 type Context = { params: Promise<{ id: string }> };
 const importBodySchema = z.object({ importJobId: z.cuid() });
+const MAX_SAVED_IMAGE_BYTES = 5 * 1024 * 1024;
 
 async function contextFor(request: Request, context: Context) {
   const auth = await requireAuth(request);
@@ -40,6 +41,9 @@ function errorResponse(error: unknown) {
 }
 
 async function readBoundedBody(request: Request, limit: number): Promise<Buffer> {
+  if (Number(request.headers.get("content-length")) > limit) {
+    throw new RecipeImageError("too_large");
+  }
   const reader = request.body?.getReader();
   if (!reader) {
     throw new RecipeImageError("invalid_image");
@@ -70,6 +74,10 @@ export async function GET(request: Request, context: Context) {
     const image = await getRecipeImage(scope.userId!, scope.recipeId!);
     if (!image) {
       return Response.json({ error: "Image not found" }, { status: 404 });
+    }
+    // Existing images may have been saved before new uploads were capped at 3 MiB.
+    if (image.data.length > MAX_SAVED_IMAGE_BYTES) {
+      throw new RecipeImageError("too_large");
     }
     return new Response(new Uint8Array(image.data), {
       headers: {
