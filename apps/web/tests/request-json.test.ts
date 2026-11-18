@@ -74,14 +74,17 @@ describe("request schema limits", () => {
   const recipe = {
     name: "Omelet",
     description: "Quick",
-    instructions: "Cook",
+    instructions: ["Cook"],
     ingredients: [ingredient],
   };
 
   it.each([
     ["name", { name: "x".repeat(201) }],
     ["description", { description: "x".repeat(2001) }],
-    ["instructions", { instructions: "x".repeat(20001) }],
+    ["instructions", { instructions: ["x".repeat(20001)] }],
+    ["instruction count", { instructions: Array.from({ length: 101 }, () => "Cook") }],
+    ["instruction total length", { instructions: ["x".repeat(10001), "x".repeat(10000)] }],
+    ["blank instruction step", { instructions: ["Cook", "   "] }],
     [
       "ingredient name",
       { ingredients: [{ ...ingredient, name: "x".repeat(201) }] },
@@ -119,10 +122,21 @@ describe("request schema limits", () => {
       recipeInputSchema.safeParse({
         name: "x".repeat(200),
         description: "x".repeat(2000),
-        instructions: "x".repeat(20000),
+        instructions: ["x".repeat(20000)],
         ingredients,
       }).success,
     ).toBe(true);
+  });
+
+  it("trims instruction steps while keeping their order", () => {
+    const result = recipeInputSchema.safeParse({
+      ...recipe,
+      instructions: ["  Chop onions  ", "  Cook them  "],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.instructions).toEqual(["Chop onions", "Cook them"]);
+    }
   });
 
   it("limits recipe time to PostgreSQL's integer range", () => {

@@ -60,7 +60,7 @@ describe("POST /api/recipes", () => {
     const input = {
       name: "Pad Kra Pao",
       description: "A spicy stir-fry",
-      instructions: "Stir-fry and serve over rice.",
+      instructions: ["Heat the pan.", "Stir-fry the pork and basil.", "Serve over rice."],
       ingredients: [
         { name: "Ground pork", quantity: "1/2", unit: "lb" },
         { name: "Thai basil", quantity: "to taste" },
@@ -97,7 +97,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [],
       }),
     });
@@ -113,7 +113,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Toast",
-        instructions: "   ",
+        instructions: ["   "],
         ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
       }),
     });
@@ -129,7 +129,7 @@ describe("POST /api/recipes", () => {
       "recipe name",
       {
         name: "   ",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
       },
     ],
@@ -137,7 +137,7 @@ describe("POST /api/recipes", () => {
       "ingredient name",
       {
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "   ", quantity: "2", unit: "slices" }],
       },
     ],
@@ -158,7 +158,7 @@ describe("POST /api/recipes", () => {
     async (quantity) => {
       const input = {
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "Bread", quantity }],
       };
       createRecipeMock.mockResolvedValue({ id: "recipe_1", ...input });
@@ -180,7 +180,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "Bread", quantity: 2, unit: "slices" }],
       }),
     });
@@ -196,7 +196,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "Bread", quantity: "   " }],
       }),
     });
@@ -212,7 +212,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Seasoned Tomatoes",
-        instructions: "Combine everything.",
+        instructions: ["Combine everything."],
         ingredients: [
           { name: "Salt", quantity: "1/2", unit: "tsp" },
           { name: " salt ", quantity: "to taste" },
@@ -233,7 +233,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Green Onion Pancakes",
-        instructions: "Mix and fry.",
+        instructions: ["Mix and fry."],
         ingredients: [
           { name: "Scallions", quantity: "2", unit: "bunches" },
           { name: "green onions", quantity: "1", unit: "bunch" },
@@ -253,7 +253,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Green Onion Pancakes",
-        instructions: "Mix and fry.",
+        instructions: ["Mix and fry."],
         ingredients: [
           { name: "Fresh scallions", quantity: "2", unit: "bunches" },
           { name: "green onion", quantity: "1", unit: "bunch" },
@@ -288,7 +288,7 @@ describe("POST /api/recipes", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Toast",
-        instructions: "Toast the bread.",
+        instructions: ["Toast the bread."],
         ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
       }),
     });

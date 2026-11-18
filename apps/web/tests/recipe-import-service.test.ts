@@ -33,7 +33,7 @@ import { RecipeUrlAcquisitionError } from "@/services/recipe-url-acquisition-ser
 
 const recipe = {
   name: "Toast",
-  instructions: "Toast bread.",
+  instructions: ["Toast bread."],
   ingredients: [{ name: "Bread", quantity: "2", unit: "slices" }],
 };
 const url = "https://example.com/recipe";

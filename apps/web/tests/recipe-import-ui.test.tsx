@@ -34,7 +34,7 @@ describe("recipe import UI", () => {
         initialValues={{
           name: "French Toast",
           description: "A quick breakfast",
-          instructions: "Whisk, soak, and cook.",
+          instructions: ["Whisk the eggs.", "Soak the bread.", "Cook until golden."],
           mealType: "breakfast",
           timeMinutes: 25,
           ingredients: [
@@ -47,7 +47,11 @@ describe("recipe import UI", () => {
 
     expect(markup).toContain('value="French Toast"');
     expect(markup).toContain("A quick breakfast");
-    expect(markup).toContain("Whisk, soak, and cook.");
+    expect(markup).toContain("Whisk the eggs.");
+    expect(markup).toContain("Soak the bread.");
+    expect(markup).toContain("Cook until golden.");
+    expect(markup).toContain("Step 1");
+    expect(markup).toContain("Step 3");
     expect(markup).toContain('<option value="breakfast" selected="">Breakfast</option>');
     expect(markup).toContain('name="timeMinutes"');
     expect(markup).toContain('value="25"');

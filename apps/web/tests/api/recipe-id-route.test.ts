@@ -41,7 +41,7 @@ const context = (id = recipeId) => ({ params: Promise.resolve({ id }) });
 const input = {
   name: "Updated Tomato Soup",
   description: "Now with basil",
-  instructions: "Simmer, blend, and serve.",
+  instructions: ["Simmer the tomatoes.", "Blend until smooth.", "Serve with basil."],
   ingredients: [
     { name: "Tomatoes", quantity: "2 cans" },
     { name: "Basil", quantity: "1/2", unit: "cup" },

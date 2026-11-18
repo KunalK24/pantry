@@ -8,7 +8,7 @@ type Recipe = {
   id: string;
   name: string;
   description: string | null;
-  instructions: string | null;
+  instructions: string[];
   imageUrl: string | null;
   mealType: "breakfast" | "lunch" | "dinner" | "snack" | null;
   timeMinutes: number | null;
@@ -30,7 +30,7 @@ function isRecipe(value: unknown): value is Recipe {
     "id" in value && typeof value.id === "string" &&
     "name" in value && typeof value.name === "string" &&
     "description" in value && isNullableString(value.description) &&
-    "instructions" in value && isNullableString(value.instructions) &&
+    "instructions" in value && Array.isArray(value.instructions) && value.instructions.every((step) => typeof step === "string") &&
     "imageUrl" in value && isNullableString(value.imageUrl) &&
     "mealType" in value && (value.mealType === null || ["breakfast", "lunch", "dinner", "snack"].includes(value.mealType as string)) &&
     "timeMinutes" in value && (value.timeMinutes === null || (typeof value.timeMinutes === "number" && Number.isSafeInteger(value.timeMinutes) && value.timeMinutes > 0)) &&
@@ -169,8 +169,12 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
             </section>
             <section aria-labelledby="recipe-instructions">
               <h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]" id="recipe-instructions">Instructions</h2>
-              {recipe.instructions?.trim() ? (
-                <p className="mt-4 whitespace-pre-wrap text-base leading-8 text-[#34463a]">{recipe.instructions}</p>
+              {recipe.instructions.length ? (
+                <ol className="mt-4 list-decimal space-y-4 pl-6 text-base leading-8 text-[#34463a] marker:font-bold marker:text-[#35644f]">
+                  {recipe.instructions.map((step, index) => (
+                    <li className="whitespace-pre-wrap pl-2" key={index}>{step}</li>
+                  ))}
+                </ol>
               ) : <p className="mt-4 text-sm text-[#6f7a71]">No instructions added.</p>}
             </section>
           </div>

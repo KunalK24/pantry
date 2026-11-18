@@ -48,7 +48,9 @@ export function mapScrapedRecipe(scraped: RecipeObject): RecipeInput {
     throw new RecipeParseError("incomplete");
   }
   const instructions = scraped.instructions.flatMap((group) =>
-    group.items.map((item) => item.value),
+    group.items.map((item) =>
+      item.value.trim().replace(/^(?:step\s+\d+[:.)]|\d+[.)]|[-*•●])\s+/i, ""),
+    ),
   );
   const mealType = scraped.category
     .map((category) => category.trim().toLowerCase())
@@ -56,7 +58,7 @@ export function mapScrapedRecipe(scraped: RecipeObject): RecipeInput {
   const result = recipeInputSchema.safeParse({
     name: scraped.title,
     description: scraped.description === MISSING_DESCRIPTION ? undefined : scraped.description,
-    instructions: instructions.join("\n"),
+    instructions,
     ingredients,
     mealType,
     timeMinutes: scraped.totalTime ?? undefined,

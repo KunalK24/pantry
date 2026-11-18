@@ -14,7 +14,7 @@ import { ImportDeadlineError } from "@/services/synchronous-import-service";
 const url = "http://localhost/api/recipe-imports";
 const draft = {
   name: "Toast",
-  instructions: "Toast bread.",
+  instructions: ["Toast bread."],
   ingredients: [{ name: "Bread", quantity: "2" }],
 };
 const request = (body: unknown) => new Request(url, { method: "POST", body: JSON.stringify(body) });

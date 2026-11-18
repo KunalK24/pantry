@@ -11,7 +11,10 @@ export const recipeInputSchema = z
       .max(2000)
       .transform((value) => value || undefined)
       .optional(),
-    instructions: z.string().trim().min(1).max(20000),
+    instructions: z.array(z.string().trim().min(1).max(20000)).min(1).max(100)
+      .refine((steps) => steps.reduce((length, step) => length + step.length, 0) <= 20000, {
+        message: "Instructions must be 20000 characters or fewer in total",
+      }),
     mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).nullable().optional(),
     timeMinutes: z.number().int().min(1).max(2_147_483_647).nullable().optional(),
     ingredients: z

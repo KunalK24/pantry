@@ -13,7 +13,7 @@ export type RecipeIngredientValue = {
 export type RecipeFormValues = {
   name: string;
   description?: string | null;
-  instructions: string;
+  instructions: string[];
   mealType?: "breakfast" | "lunch" | "dinner" | "snack" | null;
   timeMinutes?: number | null;
   ingredients: RecipeIngredientValue[];
@@ -44,12 +44,15 @@ type IngredientRow = {
   unit: string;
 };
 
+type InstructionRow = { id: number; text: string };
+
 type SubmissionStatus =
   | { type: "success"; message: string }
   | { type: "error"; message: string }
   | null;
 
 const MAX_INGREDIENTS = 100;
+const MAX_INSTRUCTIONS = 100;
 const MAX_TIME_MINUTES = 2_147_483_647;
 const supportedImageTypes = ["image/jpeg", "image/png", "image/webp"];
 type ImageChoice = "keep" | "omit" | "upload" | "suggested";
@@ -74,6 +77,12 @@ function initialIngredientRows(values?: RecipeFormValues) {
   }));
 }
 
+function initialInstructionRows(values?: RecipeFormValues): InstructionRow[] {
+  return values?.instructions.length
+    ? values.instructions.map((text, id) => ({ id, text }))
+    : [{ id: 0, text: "" }];
+}
+
 function responseErrorMessage(payload: unknown) {
   if (
     typeof payload === "object" &&
@@ -92,15 +101,15 @@ export default function RecipeForm(props: RecipeFormProps) {
   const initialValues = props.initialValues;
   const initialRows = initialIngredientRows(initialValues);
   const nextIngredientId = useRef(initialRows.length);
+  const initialSteps = initialInstructionRows(initialValues);
+  const nextInstructionId = useRef(initialSteps.length);
   const submittingRef = useRef(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(initialValues?.name ?? "");
   const [description, setDescription] = useState(
     initialValues?.description ?? "",
   );
-  const [instructions, setInstructions] = useState(
-    initialValues?.instructions ?? "",
-  );
+  const [instructions, setInstructions] = useState<InstructionRow[]>(initialSteps);
   const [mealType, setMealType] = useState(initialValues?.mealType ?? "");
   const [timeMinutes, setTimeMinutes] = useState(
     initialValues?.timeMinutes?.toString() ?? "",
@@ -222,7 +231,7 @@ export default function RecipeForm(props: RecipeFormProps) {
       if (mode === "create") {
         setName("");
         setDescription("");
-        setInstructions("");
+        setInstructions([{ id: nextInstructionId.current++, text: "" }]);
         setIngredients([emptyIngredient(nextIngredientId.current++)]);
         setImageFile(null);
         if (imageInputRef.current) {
@@ -281,6 +290,37 @@ export default function RecipeForm(props: RecipeFormProps) {
     );
   }
 
+  function addInstruction() {
+    if (instructions.length >= MAX_INSTRUCTIONS) {
+      return;
+    }
+    setStatus(null);
+    setInstructions((current) => [...current, { id: nextInstructionId.current++, text: "" }]);
+  }
+
+  function updateInstruction(id: number, text: string) {
+    setStatus(null);
+    setInstructions((current) => current.map((step) => step.id === id ? { ...step, text } : step));
+  }
+
+  function removeInstruction(id: number) {
+    setStatus(null);
+    setInstructions((current) => current.length === 1 ? current : current.filter((step) => step.id !== id));
+  }
+
+  function moveInstruction(index: number, direction: -1 | 1) {
+    setStatus(null);
+    setInstructions((current) => {
+      const destination = index + direction;
+      if (destination < 0 || destination >= current.length) {
+        return current;
+      }
+      const reordered = [...current];
+      [reordered[index], reordered[destination]] = [reordered[destination], reordered[index]];
+      return reordered;
+    });
+  }
+
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -297,7 +337,7 @@ export default function RecipeForm(props: RecipeFormProps) {
 
     const trimmedName = name.trim();
     const trimmedDescription = description.trim();
-    const trimmedInstructions = instructions.trim();
+    const trimmedInstructions = instructions.map((step) => step.text.trim());
     const parsedTimeMinutes = timeMinutes === "" ? null : Number(timeMinutes);
     const normalizedIngredients = ingredients.map((ingredient) => {
       const unit = ingredient.unit.trim();
@@ -311,7 +351,7 @@ export default function RecipeForm(props: RecipeFormProps) {
 
     if (
       !trimmedName ||
-      !trimmedInstructions ||
+      trimmedInstructions.some((step) => !step) ||
       normalizedIngredients.some(
         (ingredient) => !ingredient.name || !ingredient.quantity,
       )
@@ -331,6 +371,11 @@ export default function RecipeForm(props: RecipeFormProps) {
       return;
     }
 
+    if (trimmedInstructions.length > MAX_INSTRUCTIONS) {
+      setStatus({ type: "error", message: "A recipe can have at most 100 steps." });
+      return;
+    }
+
     if (parsedTimeMinutes !== null && (!Number.isSafeInteger(parsedTimeMinutes) || parsedTimeMinutes < 1 || parsedTimeMinutes > MAX_TIME_MINUTES)) {
       setStatus({ type: "error", message: `Total time must be a whole number of minutes between 1 and ${MAX_TIME_MINUTES.toLocaleString()}.` });
       return;
@@ -339,7 +384,7 @@ export default function RecipeForm(props: RecipeFormProps) {
     if (
       trimmedName.length > 200 ||
       trimmedDescription.length > 2000 ||
-      trimmedInstructions.length > 20000 ||
+      trimmedInstructions.reduce((total, step) => total + step.length, 0) > 20000 ||
       normalizedIngredients.some(
         (ingredient) =>
           ingredient.name.length > 200 ||
@@ -408,7 +453,7 @@ export default function RecipeForm(props: RecipeFormProps) {
       if (mode === "create") {
         setName("");
         setDescription("");
-        setInstructions("");
+        setInstructions([{ id: nextInstructionId.current++, text: "" }]);
         setIngredients([emptyIngredient(nextIngredientId.current++)]);
         setSavedRecipeId(null);
         setImageChoice("keep");
@@ -664,24 +709,36 @@ export default function RecipeForm(props: RecipeFormProps) {
           </div>
         </fieldset>
 
-        <div>
-          <label className={labelClasses} htmlFor="recipe-instructions">
-            Instructions
-          </label>
-          <textarea
-            className={inputClasses}
-            id="recipe-instructions"
-            maxLength={20000}
-            name="instructions"
-            onChange={(event) => {
-              setStatus(null);
-              setInstructions(event.target.value);
-            }}
-            required
-            rows={6}
-            value={instructions}
-          />
-        </div>
+        <fieldset className="space-y-4">
+          <legend className="[font-family:Georgia,serif] text-xl font-bold text-[#24342b]">Instructions</legend>
+          <p className="text-sm text-[#6f7a71]">Add each step in the order it should be followed.</p>
+          <ol className="space-y-4">
+            {instructions.map((step, index) => (
+              <li className="border-t border-[#e5e1d8] pt-4" key={step.id}>
+                <label className={labelClasses} htmlFor={`recipe-instruction-${step.id}`}>
+                  Step {index + 1}
+                </label>
+                <textarea
+                  className={inputClasses}
+                  id={`recipe-instruction-${step.id}`}
+                  maxLength={20000}
+                  name={`instructions.${index}`}
+                  onChange={(event) => updateInstruction(step.id, event.target.value)}
+                  required
+                  rows={3}
+                  value={step.text}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button aria-label={`Move step ${index + 1} up`} className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] disabled:opacity-50" disabled={index === 0} onClick={() => moveInstruction(index, -1)} type="button">Move up</button>
+                  <button aria-label={`Move step ${index + 1} down`} className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] disabled:opacity-50" disabled={index === instructions.length - 1} onClick={() => moveInstruction(index, 1)} type="button">Move down</button>
+                  <button aria-label={`Remove step ${index + 1}`} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-50" disabled={instructions.length === 1} onClick={() => removeInstruction(step.id)} type="button">Remove</button>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <button className="rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-sm font-bold text-[#35644f] disabled:opacity-50" disabled={instructions.length >= MAX_INSTRUCTIONS} onClick={addInstruction} type="button">Add step</button>
+          {instructions.length >= MAX_INSTRUCTIONS ? <p className="text-sm font-semibold text-[#6f7a71]" role="status">Maximum of 100 steps reached.</p> : null}
+        </fieldset>
 
         <button
           className="min-h-11 rounded-xl bg-[#35644f] px-5 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.16)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-60"
@@ -716,7 +773,7 @@ export default function RecipeForm(props: RecipeFormProps) {
               if (mode === "create") {
                 setName("");
                 setDescription("");
-                setInstructions("");
+                setInstructions([{ id: nextInstructionId.current++, text: "" }]);
                 setIngredients([emptyIngredient(nextIngredientId.current++)]);
                 setImageFile(null);
                 if (imageInputRef.current) {

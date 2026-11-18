@@ -50,7 +50,7 @@ const completeRecipe = {
   id: "cm12345678901234567890123",
   name: "Tomato Soup",
   description: "A quick soup",
-  instructions: "Simmer until warm.",
+  instructions: ["Simmer until warm."],
   mealType: "lunch",
   timeMinutes: 30,
   isFavorite: true,
@@ -125,7 +125,7 @@ describe("createRecipe", () => {
       id: "recipe_1",
       name: "Tomato Soup",
       description: "A quick soup",
-      instructions: "Simmer until warm.",
+      instructions: ["Simmer until warm."],
       mealType: "lunch",
       timeMinutes: 30,
       isFavorite: false,
@@ -181,7 +181,7 @@ describe("createRecipe", () => {
       createRecipe(userId, {
         name: "Tomato Soup",
         description: "A quick soup",
-        instructions: "Simmer until warm.",
+        instructions: ["Simmer until warm."],
         mealType: "lunch",
         timeMinutes: 30,
         ingredients: [
@@ -196,7 +196,7 @@ describe("createRecipe", () => {
       imageUrl: null,
       name: "Tomato Soup",
       description: "A quick soup",
-      instructions: "Simmer until warm.",
+      instructions: ["Simmer until warm."],
       mealType: "lunch",
       timeMinutes: 30,
       isFavorite: false,
@@ -215,7 +215,7 @@ describe("createRecipe", () => {
         userId,
         name: "Tomato Soup",
         description: "A quick soup",
-        instructions: "Simmer until warm.",
+        instructions: ["Simmer until warm."],
         mealType: "lunch",
         timeMinutes: 30,
         ingredients: {
@@ -398,7 +398,7 @@ describe("updateRecipe", () => {
     const input = {
       name: "Tomato Soup",
       description: "A quick soup",
-      instructions: "Simmer until warm.",
+      instructions: ["Simmer until warm."],
       mealType: "lunch",
       timeMinutes: 30,
       ingredients: [
@@ -474,7 +474,7 @@ describe("updateRecipe", () => {
     await expect(
       updateRecipe(userId, completeRecipe.id, {
         name: "Missing",
-        instructions: "None",
+        instructions: ["None"],
         ingredients: [{ name: "Salt", quantity: "to taste" }],
       }),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
@@ -496,7 +496,7 @@ describe("updateRecipe", () => {
     await expect(
       updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
-        instructions: "Simmer.",
+        instructions: ["Simmer."],
         ingredients: [{ name: "Salt", quantity: "to taste" }],
       }),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
@@ -520,7 +520,7 @@ describe("updateRecipe", () => {
     await expect(
       updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
-        instructions: "Simmer.",
+        instructions: ["Simmer."],
         ingredients: [{ name: "Salt", quantity: "to taste" }],
       }),
     ).rejects.toBe(prismaError);
@@ -534,7 +534,7 @@ describe("updateRecipe", () => {
     await expect(
       updateRecipe(userId, completeRecipe.id, {
         name: "Tomato Soup",
-        instructions: "Simmer.",
+        instructions: ["Simmer."],
         ingredients: [{ name: "Salt", quantity: "to taste" }],
       }),
     ).rejects.toThrow("transaction rolled back");

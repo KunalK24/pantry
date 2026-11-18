@@ -23,7 +23,7 @@ const recipeId = "cm22345678901234567890123";
 const jobId = "cm32345678901234567890123";
 const dishUrl = "https://example.com/dish.jpg";
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00]);
-const draft = { name: "Dish", instructions: "Cook it.", ingredients: [{ name: "Food", quantity: "1" }] };
+const draft = { name: "Dish", instructions: ["Cook it."], ingredients: [{ name: "Food", quantity: "1" }] };
 
 type MockIncoming = EventEmitter & { headers: Record<string, string>; statusCode: number; destroy: () => void };
 type MockRequest = EventEmitter & { end: () => void; destroy: (error: Error) => void };
@@ -98,6 +98,18 @@ describe("imported recipe image storage", () => {
     findJob.mockResolvedValue({ resultJson: { draft, imageCandidate: { kind: "source_upload" } } });
     await expect(saveImportedRecipeImage(userId, recipeId, jobId)).rejects.toMatchObject({ code: "invalid_candidate" });
     expect(requestImage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a recent import job stored with the previous string instructions", async () => {
+    findJob.mockResolvedValue({
+      resultJson: {
+        draft: { ...draft, instructions: "Cook it." },
+        imageCandidate: { kind: "source_url", url: dishUrl },
+      },
+    });
+    respond(200, { "content-type": "image/jpeg", "content-length": String(jpeg.length) });
+
+    await expect(saveImportedRecipeImage(userId, recipeId, jobId)).resolves.toBe(`/api/recipes/${recipeId}/image`);
   });
 
   it("pins each redirect target and stores the verified bytes", async () => {

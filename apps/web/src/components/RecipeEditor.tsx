@@ -6,7 +6,7 @@ import RecipeForm, { type RecipeFormValues } from "@/components/RecipeForm";
 
 type RecipeResponse = Omit<RecipeFormValues, "instructions" | "ingredients"> & {
   id: string;
-  instructions: string | null;
+  instructions: string[];
   ingredients: Array<{
     name: string;
     quantity: string | null;
@@ -39,8 +39,8 @@ function isRecipeResponse(payload: unknown): payload is RecipeResponse {
     "name" in payload &&
     typeof payload.name === "string" &&
     "instructions" in payload &&
-    (typeof payload.instructions === "string" ||
-      payload.instructions === null) &&
+    Array.isArray(payload.instructions) &&
+    payload.instructions.every((step) => typeof step === "string") &&
     "ingredients" in payload &&
     Array.isArray(payload.ingredients) &&
     payload.ingredients.every(isRecipeIngredient) &&
@@ -92,7 +92,7 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
         setRecipe({
           name: payload.name,
           description: payload.description ?? "",
-          instructions: payload.instructions ?? "",
+          instructions: payload.instructions,
           mealType: payload.mealType ?? null,
           timeMinutes: payload.timeMinutes ?? null,
           ingredients: payload.ingredients.map((ingredient) => ({

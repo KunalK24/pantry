@@ -14,7 +14,7 @@ import { extractPantrySynchronously, importRecipeSynchronously } from "@/service
 
 const draft = {
   name: "Toast",
-  instructions: "Toast bread.",
+  instructions: ["Toast bread."],
   ingredients: [{ name: "Bread", quantity: "2" }],
 };
 

@@ -111,7 +111,12 @@ async function fetchImage(raw: string): Promise<{ data: Buffer; mimeType: Recipe
 }
 
 const storedResultSchema = z.object({
-  draft: recipeInputSchema,
+  draft: z.preprocess((value) => {
+    if (typeof value === "object" && value !== null && "instructions" in value && typeof value.instructions === "string") {
+      return { ...value, instructions: [value.instructions] };
+    }
+    return value;
+  }, recipeInputSchema),
   imageCandidate: z.object({ kind: z.literal("source_url"), url: z.url() }),
 });
 

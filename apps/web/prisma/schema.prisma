@@ -16,7 +16,7 @@ model Recipe {
   id           String   @id @default(cuid())
   name         String
   description  String?
-  instructions String?
+  instructions String[] @default([])
   mealType     String?
   timeMinutes  Int?
   isFavorite   Boolean  @default(false)
@@ -65,15 +65,15 @@ model RecipeIngredient {
 }
 
 model PantryItem {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
   normalizedName String
   quantity       String?
   unit           String?
   location       String?
   expiresOn      DateTime? @db.Date
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   groceryItems GroceryItem[]
 

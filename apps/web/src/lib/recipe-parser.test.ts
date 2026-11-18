@@ -17,7 +17,7 @@ describe("TypeScript recipe scraper", () => {
   it("maps real library output to a Pantry draft", async () => {
     await expect(parseRecipeHtml(url, html)).resolves.toEqual({
       name: "Bread",
-      instructions: "Mix\nBake",
+      instructions: ["Mix", "Bake"],
       ingredients: [
         { name: "flour", quantity: "1 1/2", unit: "cups" },
         { name: "sugar", quantity: "2", unit: "tbsp" },
@@ -25,6 +25,17 @@ describe("TypeScript recipe scraper", () => {
       ],
       mealType: "breakfast",
       timeMinutes: 45,
+    });
+  });
+
+  it("removes existing step numbers and bullets without changing step order", async () => {
+    const numberedHtml = html.replace(
+      '"recipeInstructions":["Mix","Bake"]',
+      '"recipeInstructions":["1. Mix","Step 2: Knead","• Bake"]',
+    );
+
+    await expect(parseRecipeHtml(url, numberedHtml)).resolves.toMatchObject({
+      instructions: ["Mix", "Knead", "Bake"],
     });
   });
 
