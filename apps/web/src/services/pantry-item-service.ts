@@ -1,5 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
-import { normalizeIngredientName } from "@/lib/ingredient-normalization";
+import { normalizeIngredientName, titleCaseIngredientName } from "@/lib/ingredient-normalization";
 import { prisma } from "@/lib/prisma";
 import { type PantryItemInput } from "@/schemas/pantry-item";
 
@@ -30,7 +30,7 @@ export class PantryItemNotFoundError extends Error {
 
 function pantryItemData(input: PantryItemInput) {
   return {
-    name: input.name,
+    name: titleCaseIngredientName(input.name),
     normalizedName: normalizeIngredientName(input.name),
     quantity: input.quantity ?? null,
     unit: input.unit ?? null,

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, type SubmitEvent } from "react";
 
+import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
+
 export type PantryItemFormValues = {
   name: string;
   quantity: string;
@@ -60,7 +62,7 @@ export default function PantryItemForm(
 ) {
   const mode = props.mode ?? "create";
   const initialValues = mode === "edit" ? props.initialValues : undefined;
-  const [name, setName] = useState(initialValues?.name ?? "");
+  const [name, setName] = useState(initialValues ? titleCaseIngredientName(initialValues.name) : "");
   const [quantity, setQuantity] = useState(initialValues?.quantity ?? "");
   const [unit, setUnit] = useState(initialValues?.unit ?? "");
   const [location, setLocation] = useState(initialValues?.location ?? "");
@@ -205,6 +207,7 @@ export default function PantryItemForm(
             maxLength={200}
             name="name"
             onChange={(event) => updateField(setName, event.target.value)}
+            onBlur={(event) => setName(titleCaseIngredientName(event.target.value))}
             required
             type="text"
             value={name}

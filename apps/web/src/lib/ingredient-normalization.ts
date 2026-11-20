@@ -4,6 +4,12 @@ const ingredientAliases: ReadonlyMap<string, string> = new Map([
   ["green onions", "green onion"],
 ]);
 
+export function titleCaseIngredientName(name: string): string {
+  return name.toLowerCase().replace(/(^|[\s/-])(\p{L})/gu, (_, prefix: string, letter: string) =>
+    `${prefix}${letter.toUpperCase()}`,
+  );
+}
+
 const prepActions = new Set([
   "chopped",
   "crushed",

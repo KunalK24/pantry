@@ -226,7 +226,7 @@ describe("createPantryItem", () => {
     });
   });
 
-  it("persists the canonical name while preserving the display name", async () => {
+  it("stores a title case display name while preserving the canonical match", async () => {
     createPantryItemMock.mockResolvedValue({
       ...pantryItem,
       name: "Scallions",
@@ -391,7 +391,7 @@ describe("updatePantryItem", () => {
     );
   });
 
-  it("updates an alias to its canonical name without changing its display name", async () => {
+  it("updates an alias to its canonical name with a title case display name", async () => {
     updatePantryItemMock.mockResolvedValue({ ...pantryItem, name: "Scallion" });
 
     await updatePantryItem(userId, pantryItemId, { name: "Scallion" });

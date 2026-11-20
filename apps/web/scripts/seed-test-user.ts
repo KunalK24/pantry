@@ -4,7 +4,7 @@ import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { normalizeIngredientName } from "@/lib/ingredient-normalization";
+import { normalizeIngredientName, titleCaseIngredientName } from "@/lib/ingredient-normalization";
 import { addLocalDays, formatLocalDate, getLocalWeekStart } from "@/lib/week";
 import { signUpSchema } from "@/schemas/auth";
 import { weekStartToDate } from "@/schemas/weekly-plan";
@@ -55,7 +55,7 @@ async function run() {
       await transaction.pantryItem.createMany({
         data: pantryItems.map((item) => ({
           userId: TEST_USER_ID,
-          name: item.name,
+          name: titleCaseIngredientName(item.name),
           normalizedName: normalizeIngredientName(item.name),
           quantity: item.quantity,
           unit: item.unit,
@@ -79,7 +79,7 @@ async function run() {
               create: recipe.ingredients.map((ingredient) => ({
                 quantity: ingredient.quantity,
                 unit: ingredient.unit ?? null,
-                ingredient: { create: { name: ingredient.name } },
+                ingredient: { create: { name: titleCaseIngredientName(ingredient.name) } },
               })),
             },
           },

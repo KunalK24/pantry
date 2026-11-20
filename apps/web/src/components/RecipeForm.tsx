@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
+import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
 
 export type RecipeIngredientValue = {
   name: string;
@@ -71,7 +72,7 @@ function initialIngredientRows(values?: RecipeFormValues) {
 
   return values.ingredients.map((ingredient, id) => ({
     id,
-    name: ingredient.name,
+    name: titleCaseIngredientName(ingredient.name),
     quantity: ingredient.quantity ?? "",
     unit: ingredient.unit ?? "",
   }));
@@ -637,6 +638,13 @@ export default function RecipeForm(props: RecipeFormProps) {
                         ingredient.id,
                         "name",
                         event.target.value,
+                      )
+                    }
+                    onBlur={(event) =>
+                      updateIngredient(
+                        ingredient.id,
+                        "name",
+                        titleCaseIngredientName(event.target.value),
                       )
                     }
                     required

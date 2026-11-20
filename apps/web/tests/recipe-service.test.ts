@@ -243,7 +243,7 @@ describe("createRecipe", () => {
               unit: "minutes",
               ingredient: {
                 create: {
-                  name: "Simmer time",
+                  name: "Simmer Time",
                 },
               },
             },

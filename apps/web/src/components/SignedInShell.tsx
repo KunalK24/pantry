@@ -30,24 +30,24 @@ export default function SignedInShell({
 }) {
   return (
     <main className="min-h-dvh bg-[#fbfaf6] text-[#24342b]">
-      <div className="grid min-h-dvh lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid min-h-dvh lg:grid-cols-[13rem_minmax(0,1fr)]">
         <aside className="border-b border-[#e5e1d8] bg-[#f4f1e8] lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r">
-          <div className="flex items-center justify-between gap-3 px-5 py-3 lg:px-5 lg:py-7">
+          <div className="flex items-center justify-between gap-3 px-5 py-3 lg:px-4 lg:py-6">
             <Link
-              className="flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f] lg:gap-3"
+              className="flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
               href="/recipes"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#35644f] text-white lg:h-11 lg:w-11">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#35644f] text-white lg:h-10 lg:w-10">
                 <LeafMark />
               </span>
-              <span className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b] lg:text-[1.8rem]">
+              <span className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b]">
                 Pantry
               </span>
             </Link>
             <div className="lg:hidden"><SignOutButton /></div>
           </div>
 
-          <nav aria-label="Primary navigation" className="overflow-x-auto px-3 pb-2 lg:mt-9 lg:overflow-visible lg:px-5 lg:pb-0">
+          <nav aria-label="Primary navigation" className="overflow-x-auto px-3 pb-2 lg:mt-7 lg:overflow-visible lg:px-3 lg:pb-0">
             <p className="hidden px-4 text-xs font-bold uppercase tracking-[0.18em] text-[#939c92] lg:block">
               Your kitchen
             </p>
@@ -58,7 +58,7 @@ export default function SignedInShell({
                   <li key={section.key}>
                     <Link
                       aria-current={isActive ? "page" : undefined}
-                      className={`flex min-h-10 items-center rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] lg:min-h-12 lg:px-4 ${
+                      className={`flex min-h-10 items-center rounded-xl px-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] lg:min-h-11 ${
                         isActive
                           ? "bg-white text-[#285843] shadow-[0_8px_20px_rgba(42,48,38,0.06)]"
                           : "text-[#66746a] hover:bg-white/60 hover:text-[#285843]"
@@ -73,7 +73,7 @@ export default function SignedInShell({
             </ul>
           </nav>
 
-          <div className="mt-auto hidden border-t border-[#e5e1d8] px-5 py-5 lg:block">
+          <div className="mt-auto hidden border-t border-[#e5e1d8] px-4 py-5 lg:block">
             <p className="px-3 text-xs font-semibold text-[#78837b]">Signed in</p>
             <SignOutButton />
           </div>

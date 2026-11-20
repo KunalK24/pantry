@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
 import { RecipeInput } from "@/schemas/recipe";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -41,7 +42,7 @@ function ingredientCreates(input: RecipeInput) {
     unit: ingredient.unit ?? null,
     ingredient: {
       create: {
-        name: ingredient.name,
+        name: titleCaseIngredientName(ingredient.name),
       },
     },
   }));

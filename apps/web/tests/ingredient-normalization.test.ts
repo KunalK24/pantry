@@ -3,7 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeGroceryIngredientName,
   normalizeIngredientName,
+  titleCaseIngredientName,
 } from "@/lib/ingredient-normalization";
+
+describe("titleCaseIngredientName", () => {
+  it.each([
+    ["olive oil", "Olive Oil"],
+    ["OLIVE OIL", "Olive Oil"],
+    ["extra-virgin olive oil", "Extra-Virgin Olive Oil"],
+    ["jalapeño pepper", "Jalapeño Pepper"],
+  ])("capitalizes each word in %j", (name, expected) => {
+    expect(titleCaseIngredientName(name)).toBe(expected);
+  });
+});
 
 describe("normalizeIngredientName", () => {
   it("normalizes casing and whitespace", () => {
