@@ -20,6 +20,32 @@ type Recipe = {
   }>;
 };
 
+const ABBREVIATED_UNITS: Readonly<Record<string, string>> = {
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+  ounce: "oz",
+  ounces: "oz",
+  pound: "lb",
+  pounds: "lb",
+  gram: "g",
+  grams: "g",
+  kilogram: "kg",
+  kilograms: "kg",
+  milliliter: "ml",
+  milliliters: "ml",
+  liter: "L",
+  liters: "L",
+};
+
+function displayIngredientAmount(ingredient: Recipe["ingredients"][number]): string {
+  const unit = ingredient.unit?.trim() ?? "";
+  return [ingredient.quantity?.trim(), ABBREVIATED_UNITS[unit.toLowerCase()] ?? unit]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function isNullableString(value: unknown): value is string | null {
   return typeof value === "string" || value === null;
 }
@@ -158,12 +184,15 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
               <h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]" id="recipe-ingredients">Ingredients</h2>
               {recipe.ingredients.length ? (
                 <ul className="mt-4 divide-y divide-[#e5e1d8] border-y border-[#e5e1d8]">
-                  {recipe.ingredients.map((ingredient, index) => (
-                    <li className="flex gap-3 py-3 text-sm leading-6" key={`${ingredient.name}-${index}`}>
-                      <span className="min-w-12 font-semibold text-[#35644f]">{[ingredient.quantity, ingredient.unit].filter(Boolean).join(" ")}</span>
-                      <span>{ingredient.name}</span>
-                    </li>
-                  ))}
+                  {recipe.ingredients.map((ingredient, index) => {
+                    const amount = displayIngredientAmount(ingredient);
+                    return (
+                      <li className="py-3 text-sm leading-6" key={`${ingredient.name}-${index}`}>
+                        {amount ? <><span className="font-semibold text-[#35644f]">{amount}</span>{" "}</> : null}
+                        {ingredient.name}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : <p className="mt-4 text-sm text-[#6f7a71]">No ingredients added.</p>}
             </section>
