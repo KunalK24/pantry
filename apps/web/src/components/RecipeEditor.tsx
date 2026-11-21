@@ -47,7 +47,7 @@ function isRecipeResponse(payload: unknown): payload is RecipeResponse {
     "imageUrl" in payload &&
     (typeof payload.imageUrl === "string" || payload.imageUrl === null) &&
     "mealType" in payload &&
-    (payload.mealType === null || ["breakfast", "lunch", "dinner", "snack"].includes(payload.mealType as string)) &&
+    (payload.mealType === null || ["breakfast", "lunch", "dinner", "snack", "dessert"].includes(payload.mealType as string)) &&
     "timeMinutes" in payload &&
     (payload.timeMinutes === null || (typeof payload.timeMinutes === "number" && Number.isSafeInteger(payload.timeMinutes) && payload.timeMinutes > 0))
   );

@@ -28,6 +28,11 @@ describe("TypeScript recipe scraper", () => {
     });
   });
 
+  it("preserves dessert as a meal type", async () => {
+    await expect(parseRecipeHtml(url, html.replace('"recipeCategory":"Breakfast"', '"recipeCategory":"Dessert"')))
+      .resolves.toMatchObject({ mealType: "dessert" });
+  });
+
   it("removes existing step numbers and bullets without changing step order", async () => {
     const numberedHtml = html.replace(
       '"recipeInstructions":["Mix","Bake"]',

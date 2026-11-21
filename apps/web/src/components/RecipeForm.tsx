@@ -15,7 +15,7 @@ export type RecipeFormValues = {
   name: string;
   description?: string | null;
   instructions: string[];
-  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  mealType?: "breakfast" | "lunch" | "dinner" | "snack" | "dessert" | null;
   timeMinutes?: number | null;
   ingredients: RecipeIngredientValue[];
 };
@@ -551,6 +551,7 @@ export default function RecipeForm(props: RecipeFormProps) {
               <option value="lunch">Lunch</option>
               <option value="dinner">Dinner</option>
               <option value="snack">Snack</option>
+              <option value="dessert">Dessert</option>
             </select>
           </div>
           <div>

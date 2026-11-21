@@ -4,13 +4,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
+import FavoriteHeart from "@/components/FavoriteHeart";
+
 type Recipe = {
   id: string;
   name: string;
   description: string | null;
   instructions: string[];
   imageUrl: string | null;
-  mealType: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack" | "dessert" | null;
   timeMinutes: number | null;
   isFavorite: boolean;
   ingredients: Array<{
@@ -58,7 +60,7 @@ function isRecipe(value: unknown): value is Recipe {
     "description" in value && isNullableString(value.description) &&
     "instructions" in value && Array.isArray(value.instructions) && value.instructions.every((step) => typeof step === "string") &&
     "imageUrl" in value && isNullableString(value.imageUrl) &&
-    "mealType" in value && (value.mealType === null || ["breakfast", "lunch", "dinner", "snack"].includes(value.mealType as string)) &&
+    "mealType" in value && (value.mealType === null || ["breakfast", "lunch", "dinner", "snack", "dessert"].includes(value.mealType as string)) &&
     "timeMinutes" in value && (value.timeMinutes === null || (typeof value.timeMinutes === "number" && Number.isSafeInteger(value.timeMinutes) && value.timeMinutes > 0)) &&
     "isFavorite" in value && typeof value.isFavorite === "boolean" &&
     "ingredients" in value && Array.isArray(value.ingredients) &&
@@ -125,6 +127,7 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
     favoritePendingRef.current = true;
     setFavoritePending(true);
     setFavoriteError(null);
+    setRecipe((current) => current ? { ...current, isFavorite: !recipe.isFavorite } : null);
     try {
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PATCH",
@@ -137,6 +140,7 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
       }
       setRecipe(payload);
     } catch (error) {
+      setRecipe((current) => current ? { ...current, isFavorite: recipe.isFavorite } : null);
       setFavoriteError(error instanceof Error ? error.message : "Unable to update favorite. Please try again.");
     } finally {
       favoritePendingRef.current = false;
@@ -168,7 +172,7 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
               {recipe.description ? <p className="mt-4 max-w-2xl whitespace-pre-line text-lg leading-7 text-[#6f7a71]">{recipe.description}</p> : null}
             </div>
             <div className="flex items-center gap-3">
-              <button aria-label={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"} aria-pressed={recipe.isFavorite} className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-3xl leading-none text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a] disabled:opacity-50" disabled={favoritePending} onClick={() => void handleFavorite()} type="button">{recipe.isFavorite ? "♥" : "♡"}</button>
+              <button aria-label={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"} aria-pressed={recipe.isFavorite} className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a]" disabled={favoritePending} onClick={() => void handleFavorite()} type="button"><FavoriteHeart className="h-7 w-7" filled={recipe.isFavorite} /></button>
               <Link className="inline-flex min-h-12 items-center rounded-xl border border-[#d9d4c9] bg-white px-5 py-3 text-base font-bold text-[#35644f] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href={`/recipes/${recipe.id}/edit`}>Edit recipe</Link>
             </div>
           </header>

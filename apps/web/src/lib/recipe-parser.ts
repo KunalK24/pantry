@@ -54,7 +54,7 @@ export function mapScrapedRecipe(scraped: RecipeObject): RecipeInput {
   );
   const mealType = scraped.category
     .map((category) => category.trim().toLowerCase())
-    .find((category) => ["breakfast", "lunch", "dinner", "snack"].includes(category));
+    .find((category) => ["breakfast", "lunch", "dinner", "snack", "dessert"].includes(category));
   const result = recipeInputSchema.safeParse({
     name: scraped.title,
     description: scraped.description === MISSING_DESCRIPTION ? undefined : scraped.description,

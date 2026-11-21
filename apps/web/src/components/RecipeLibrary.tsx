@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import CreateRecipeDialog from "@/components/CreateRecipeDialog";
+import FavoriteHeart from "@/components/FavoriteHeart";
 import ImportRecipeDialog from "@/components/ImportRecipeDialog";
 import {
   calculateRecipeAvailability,
@@ -15,13 +16,13 @@ type RecipeSummary = RecipeForGroceryList & {
   description: string | null;
   updatedAt: string;
   imageUrl: string | null;
-  mealType: "breakfast" | "lunch" | "dinner" | "snack" | null;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack" | "dessert" | null;
   timeMinutes: number | null;
   isFavorite: boolean;
 };
 
-const mealTypes = ["breakfast", "lunch", "dinner", "snack"] as const;
-type MealFilter = "all" | (typeof mealTypes)[number];
+const mealTypes = ["breakfast", "lunch", "dinner", "snack", "dessert"] as const;
+type MealFilter = "all" | "favorites" | (typeof mealTypes)[number];
 
 function isMealType(value: unknown): value is RecipeSummary["mealType"] {
   return value === null || mealTypes.some((mealType) => mealType === value);
@@ -111,7 +112,10 @@ function isLibraryResponse(payload: unknown): payload is LibraryResponse {
 export function filterRecipes(recipes: RecipeSummary[], searchQuery: string, mealFilter: MealFilter) {
   const query = searchQuery.trim().toLowerCase();
   return recipes.filter((recipe) => {
-    if (mealFilter !== "all" && recipe.mealType !== mealFilter) {
+    if (mealFilter === "favorites" && !recipe.isFavorite) {
+      return false;
+    }
+    if (mealFilter !== "all" && mealFilter !== "favorites" && recipe.mealType !== mealFilter) {
       return false;
     }
     if (!query) {
@@ -139,8 +143,8 @@ export default function RecipeLibrary() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [mealFilter, setMealFilter] = useState<MealFilter>("all");
-  const [favoritePendingId, setFavoritePendingId] = useState<string | null>(null);
-  const favoritePendingRef = useRef(false);
+  const [favoritePendingIds, setFavoritePendingIds] = useState<Set<string>>(() => new Set());
+  const favoritePendingRef = useRef(new Set<string>());
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -272,13 +276,14 @@ export default function RecipeLibrary() {
   }
 
   async function handleFavoriteRecipe(recipe: RecipeSummary) {
-    if (favoritePendingRef.current) {
+    if (favoritePendingRef.current.has(recipe.id)) {
       return;
     }
 
-    favoritePendingRef.current = true;
-    setFavoritePendingId(recipe.id);
+    favoritePendingRef.current.add(recipe.id);
+    setFavoritePendingIds(new Set(favoritePendingRef.current));
     setFavoriteError(null);
+    setRecipes((current) => current?.map((item) => item.id === recipe.id ? { ...item, isFavorite: !recipe.isFavorite } : item) ?? null);
     try {
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PATCH",
@@ -291,10 +296,11 @@ export default function RecipeLibrary() {
       }
       setRecipes((current) => current?.map((item) => item.id === recipe.id ? payload : item) ?? null);
     } catch (error) {
+      setRecipes((current) => current?.map((item) => item.id === recipe.id ? { ...item, isFavorite: recipe.isFavorite } : item) ?? null);
       setFavoriteError(error instanceof Error ? error.message : "Unable to update favorite. Please try again.");
     } finally {
-      favoritePendingRef.current = false;
-      setFavoritePendingId(null);
+      favoritePendingRef.current.delete(recipe.id);
+      setFavoritePendingIds(new Set(favoritePendingRef.current));
     }
   }
 
@@ -383,7 +389,7 @@ export default function RecipeLibrary() {
           No recipes found.
         </h2>
         <p className="mt-3 text-sm text-[#6f7a71]">
-          Try another meal type or search by recipe name, description, or ingredient.
+          Try another filter or search by recipe name, description, or ingredient.
         </p>
         <button className="mt-4 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => { setSearchQuery(""); setMealFilter("all"); }} type="button">
           Clear filters
@@ -419,9 +425,9 @@ export default function RecipeLibrary() {
 
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                    {recipe.mealType ? <span className="font-bold uppercase tracking-[0.12em] text-[#c5745a]">{recipe.mealType}</span> : null}
-                    {recipe.timeMinutes !== null ? <span className="font-semibold text-[#78837b]">◷ {recipe.timeMinutes} min</span> : null}
-                    <span className="font-semibold text-[#78837b]">
+                    {recipe.mealType ? <span className="text-[0.825rem] font-bold uppercase tracking-[0.12em] text-[#c5745a]">{recipe.mealType}</span> : null}
+                    {recipe.timeMinutes !== null ? <span className="text-[0.825rem] font-semibold text-[#78837b]">◷ {recipe.timeMinutes} min</span> : null}
+                    <span className="text-[0.825rem] font-semibold text-[#78837b]">
                       {recipe.ingredients.length}{" "}
                       {recipe.ingredients.length === 1
                         ? "ingredient"
@@ -442,12 +448,12 @@ export default function RecipeLibrary() {
                     </p>
                   ) : null}
                   {availability ? (
-                    <p className="mt-3 text-xs font-bold text-[#35644f]">
+                    <p className="mt-3 text-[0.825rem] font-bold text-[#35644f]">
                       {availability.available}/{availability.total} ingredients
                       available
                     </p>
                   ) : !pantryError ? (
-                    <p className="mt-3 text-xs font-semibold text-[#8b958c]">
+                    <p className="mt-3 text-[0.825rem] font-semibold text-[#8b958c]">
                       Checking pantry availability...
                     </p>
                   ) : null}
@@ -457,23 +463,23 @@ export default function RecipeLibrary() {
                   <button
                     aria-label={`${recipe.isFavorite ? "Remove" : "Add"} ${recipe.name} ${recipe.isFavorite ? "from" : "to"} favorites`}
                     aria-pressed={recipe.isFavorite}
-                    className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-2xl leading-none text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a] disabled:opacity-50"
-                    disabled={favoritePendingId !== null}
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a]"
+                    disabled={favoritePendingIds.has(recipe.id)}
                     onClick={() => void handleFavoriteRecipe(recipe)}
                     title={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"}
                     type="button"
                   >
-                    {recipe.isFavorite ? "♥" : "♡"}
+                    <FavoriteHeart className="h-6 w-6" filled={recipe.isFavorite} />
                   </button>
                   <Link
-                    className="inline-flex min-h-11 items-center rounded-lg px-4 py-2.5 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    className="inline-flex min-h-11 items-center rounded-lg px-4 py-2.5 text-base font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                     href={`/recipes/${recipe.id}/edit`}
                   >
                     Edit
                   </Link>
                   <button
                     aria-label={`Delete ${recipe.name}`}
-                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="min-h-11 rounded-lg px-4 py-2.5 text-base font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={deletingId === recipe.id}
                     onClick={() => void handleDeleteRecipe(recipe)}
                     type="button"
@@ -493,16 +499,9 @@ export default function RecipeLibrary() {
     <div className="mx-auto w-full max-w-[64rem]">
       <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-            Your collection
-          </p>
           <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
             Recipe book
           </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-7 text-[#6f7a71]">
-            The good ones, kept close. Save recipes you love and turn them into
-            a plan.
-          </p>
         </div>
 
         {recipes !== null && recipes.length > 0 ? (
@@ -520,11 +519,11 @@ export default function RecipeLibrary() {
         ) : null}
       </header>
 
-      <div className="mt-9 grid gap-4 border-b border-[#e5e1d8] pb-6 md:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)] md:items-end">
+      <div className="mt-9 grid gap-4 pb-2 md:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)] md:items-end">
         <div className="space-y-3">
           <p className="text-sm font-semibold text-[#69736b]">{recipes?.length ?? 0} saved {recipes?.length === 1 ? "recipe" : "recipes"}</p>
-          <div aria-label="Filter recipes by meal type" className="flex flex-wrap gap-1" role="group">
-            {(["all", ...mealTypes] as const).map((filter) => (
+          <div aria-label="Filter recipes" className="flex flex-wrap gap-1" role="group">
+            {(["all", ...mealTypes, "favorites"] as const).map((filter) => (
               <button aria-pressed={mealFilter === filter} className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${mealFilter === filter ? "bg-[#e8f1e9] text-[#244a38]" : "text-[#69736b] hover:bg-[#f0eee8]"}`} key={filter} onClick={() => setMealFilter(filter)} type="button">{filter === "all" ? "All recipes" : filter}</button>
             ))}
           </div>
@@ -562,7 +561,7 @@ export default function RecipeLibrary() {
         ) : null}
       </div>
 
-      <div className="mt-7">
+      <div className="mt-3">
         {deleteError ? (
           <p
             className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"

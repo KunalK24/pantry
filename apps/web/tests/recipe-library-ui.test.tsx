@@ -24,11 +24,11 @@ function recipe(id: string, name: string, mealType: RecipeSummary["mealType"], i
 }
 
 describe("recipe library UI", () => {
-  it("renders all meal type filter choices as accessible buttons", () => {
+  it("renders all recipe filter choices as accessible buttons", () => {
     const markup = renderToStaticMarkup(<RecipeLibrary />);
 
-    expect(markup).toContain('aria-label="Filter recipes by meal type"');
-    for (const label of ["All recipes", "breakfast", "lunch", "dinner", "snack"]) {
+    expect(markup).toContain('aria-label="Filter recipes"');
+    for (const label of ["All recipes", "breakfast", "lunch", "dinner", "snack", "dessert", "favorites"]) {
       expect(markup).toContain(`>${label}</button>`);
     }
   });
@@ -44,5 +44,18 @@ describe("recipe library UI", () => {
     expect(filterRecipes(recipes, " tomato ", "lunch").map((item) => item.id)).toEqual(["2"]);
     expect(filterRecipes(recipes, "tomato", "all").map((item) => item.id)).toEqual(["2", "3", "4"]);
     expect(filterRecipes(recipes, "", "breakfast").map((item) => item.id)).toEqual(["1"]);
+  });
+
+  it("filters desserts and favorite recipes alongside search", () => {
+    const recipes = [
+      recipe("1", "Chocolate cake", "dessert", "Chocolate"),
+      { ...recipe("2", "Berry tart", "dessert", "Berries"), isFavorite: true },
+      { ...recipe("3", "Berry oats", "breakfast", "Berries"), isFavorite: true },
+    ];
+
+    expect(filterRecipes(recipes, "", "dessert").map((item) => item.id)).toEqual(["1", "2"]);
+    expect(filterRecipes(recipes, "", "favorites").map((item) => item.id)).toEqual(["2", "3"]);
+    expect(filterRecipes(recipes, "berry", "favorites").map((item) => item.id)).toEqual(["2", "3"]);
+    expect(filterRecipes(recipes, "chocolate", "favorites")).toEqual([]);
   });
 });
