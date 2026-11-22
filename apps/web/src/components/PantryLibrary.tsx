@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import ActionIcon from "@/components/ActionIcon";
 import CreatePantryItemDialog from "@/components/CreatePantryItemDialog";
 import EditPantryItemDialog from "@/components/EditPantryItemDialog";
 import { PANTRY_LOCATIONS } from "@/components/PantryItemForm";
@@ -91,26 +92,51 @@ export default function PantryLibrary({
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedExpiration, setSelectedExpiration] = useState<
+    "expired" | "expiringSoon" | null
+  >(null);
+  const today = new Date();
+  const todayKey = localDateKey(today);
+  const expiringSoonEndKey = localDateKey(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() + 3),
+  );
   const visibleItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
-    return items?.filter((item) =>
-      item.name.toLocaleLowerCase().includes(query) &&
-      (!selectedLocation || item.location === selectedLocation),
-    ) ?? [];
-  }, [items, searchQuery, selectedLocation]);
+    return items?.filter((item) => {
+      if (!item.name.toLocaleLowerCase().includes(query)) {
+        return false;
+      }
+      if (selectedLocation && item.location !== selectedLocation) {
+        return false;
+      }
+      if (selectedExpiration === "expired") {
+        return item.expiresOn !== null && item.expiresOn < todayKey;
+      }
+      if (selectedExpiration === "expiringSoon") {
+        return item.expiresOn !== null &&
+          item.expiresOn >= todayKey &&
+          item.expiresOn <= expiringSoonEndKey;
+      }
+      return true;
+    }) ?? [];
+  }, [items, searchQuery, selectedLocation, selectedExpiration, todayKey, expiringSoonEndKey]);
+  const locationCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items ?? []) {
+      if (item.location) {
+        counts.set(item.location, (counts.get(item.location) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [items]);
   const expirationCounts = useMemo(() => {
-    const today = new Date();
-    const start = localDateKey(today);
-    const end = localDateKey(
-      new Date(today.getFullYear(), today.getMonth(), today.getDate() + 3),
-    );
     return {
-      expired: items?.filter((item) => item.expiresOn && item.expiresOn < start).length ?? 0,
+      expired: items?.filter((item) => item.expiresOn && item.expiresOn < todayKey).length ?? 0,
       expiringSoon: items?.filter((item) =>
-        item.expiresOn && item.expiresOn >= start && item.expiresOn <= end,
+        item.expiresOn && item.expiresOn >= todayKey && item.expiresOn <= expiringSoonEndKey,
       ).length ?? 0,
     };
-  }, [items]);
+  }, [items, todayKey, expiringSoonEndKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -225,129 +251,167 @@ export default function PantryLibrary({
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="space-y-4 border-y border-dashed border-[#d8d3c8] py-8 text-center">
-        <h2 className="[font-family:Georgia,serif] text-xl font-bold text-[#24342b]">
-          Your pantry is ready.
-        </h2>
-        <p className="mx-auto max-w-md text-sm leading-6 text-[#6f7a71]">
-          Your pantry is empty. Add an ingredient you have on hand.
-        </p>
-        <CreatePantryItemDialog
-          onPantryItemCreated={() => {
-            retry();
-            onPantryItemCreated?.();
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <>
-      {expirationCounts.expired > 0 || expirationCounts.expiringSoon > 0 ? (
-        <div className="mb-6 grid gap-3 sm:grid-cols-2" role="status">
-          {expirationCounts.expired > 0 ? (
-            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
-              {expirationCounts.expired} {expirationCounts.expired === 1 ? "ingredient has" : "ingredients have"} expired.
-            </p>
-          ) : null}
-          {expirationCounts.expiringSoon > 0 ? (
-            <p className="rounded-xl border border-[#ead8bd] bg-[#fff7e9] px-4 py-3 text-sm font-semibold text-[#71502b]">
-              {expirationCounts.expiringSoon} {expirationCounts.expiringSoon === 1 ? "ingredient is" : "ingredients are"} expiring in the next 3 days.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by location">
-          {["", ...PANTRY_LOCATIONS].map((pantryLocation) => (
+      <div className="grid gap-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+        <aside aria-label="Pantry filters" className="rounded-[1.5rem] border border-[#e2e4da] bg-white p-4 shadow-[0_12px_32px_rgba(36,52,43,0.04)] lg:sticky lg:top-6">
+          <label className="text-xs font-bold uppercase tracking-[0.16em] text-[#69766c]" htmlFor="pantry-search">
+            Search pantry
+          </label>
+          <input
+            className="mt-3 h-11 w-full rounded-lg border border-[#d8d3c8] bg-white px-3 text-sm font-semibold text-[#24342b] outline-none placeholder:text-[#a0a69e] focus:border-[#35644f]"
+            id="pantry-search"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Find an ingredient"
+            type="search"
+            value={searchQuery}
+          />
+
+          <div className="mt-6 border-t border-[#e8e9e1] pt-5" role="group" aria-label="Filter by location">
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#69766c]">Locations</h2>
+            <div className="mt-3 space-y-1">
+              {["", ...PANTRY_LOCATIONS].map((pantryLocation) => (
+                <button
+                  aria-pressed={selectedLocation === pantryLocation}
+                  className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${selectedLocation === pantryLocation ? "bg-[#e8f0e8] font-bold text-[#294e3e]" : "text-[#526258] hover:bg-[#f5f6f1]"}`}
+                  key={pantryLocation}
+                  onClick={() => setSelectedLocation(pantryLocation)}
+                  type="button"
+                >
+                  <span className="min-w-0">{pantryLocation || "All items"}</span>
+                  <span className="shrink-0 text-xs text-[#7f8d81]">
+                    {pantryLocation ? locationCounts.get(pantryLocation) ?? 0 : items.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <section aria-labelledby="pantry-expiration-heading" className="mt-6 border-t border-[#e8e9e1] pt-5">
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#69766c]" id="pantry-expiration-heading">
+              Expiration
+            </h2>
             <button
-              aria-pressed={selectedLocation === pantryLocation}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${selectedLocation === pantryLocation ? "bg-[#e8f1e9] text-[#244d39]" : "text-[#68736b] hover:bg-[#f1f0e9]"}`}
-              key={pantryLocation}
-              onClick={() => setSelectedLocation(pantryLocation)}
+              aria-pressed={selectedExpiration === "expired"}
+              className={`mt-3 flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#9b4f40] transition-colors hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] ${selectedExpiration === "expired" ? "bg-red-50" : ""}`}
+              onClick={() => setSelectedExpiration((current) => current === "expired" ? null : "expired")}
               type="button"
             >
-              {pantryLocation || "All"}
+              <span>Expired</span>
+              <span>{expirationCounts.expired}</span>
             </button>
-          ))}
-        </div>
-        <label className="sr-only" htmlFor="pantry-search">Search your pantry</label>
-        <input
-          className="h-11 w-full max-w-sm border-0 border-b border-[#d8d3c8] bg-transparent px-1 text-sm font-semibold text-[#24342b] outline-none placeholder:text-[#a0a69e] focus:border-[#35644f]"
-          id="pantry-search"
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search your pantry"
-          type="search"
-          value={searchQuery}
-        />
-      </div>
-      {deleteError ? (
-        <p
-          className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
-          role="alert"
-        >
-          {deleteError}
-        </p>
-      ) : null}
-      {visibleItems.length === 0 ? (
-        <div className="border-y border-dashed border-[#d8d3c8] py-8 text-center">
-          <p className="text-sm text-[#6f7a71]">No pantry items match these filters.</p>
-          <button className="mt-3 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => { setSearchQuery(""); setSelectedLocation(""); }} type="button">Clear filters</button>
-        </div>
-      ) : (
-      <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
-        {visibleItems.map((item) => {
-          const amount = pantryAmount(item);
+            <button
+              aria-pressed={selectedExpiration === "expiringSoon"}
+              className={`mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#71502b] transition-colors hover:bg-[#fff7e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#71502b] ${selectedExpiration === "expiringSoon" ? "bg-[#fff7e9]" : ""}`}
+              onClick={() => setSelectedExpiration((current) => current === "expiringSoon" ? null : "expiringSoon")}
+              type="button"
+            >
+              <span>Expiring in 3 days</span>
+              <span>{expirationCounts.expiringSoon}</span>
+            </button>
+          </section>
+        </aside>
+        <div className="min-w-0">
+          {deleteError ? (
+            <p
+              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+              role="alert"
+            >
+              {deleteError}
+            </p>
+          ) : null}
+          {items.length === 0 ? (
+            <div className="space-y-4 border-y border-dashed border-[#d8d3c8] py-8 text-center">
+              <h2 className="[font-family:Georgia,serif] text-xl font-bold text-[#24342b]">
+                Your pantry is ready.
+              </h2>
+              <p className="mx-auto max-w-md text-sm leading-6 text-[#6f7a71]">
+                Your pantry is empty. Add an ingredient you have on hand.
+              </p>
+              <CreatePantryItemDialog
+                onPantryItemCreated={() => {
+                  retry();
+                  onPantryItemCreated?.();
+                }}
+              />
+            </div>
+          ) : visibleItems.length === 0 ? (
+            <div className="border-y border-dashed border-[#d8d3c8] py-8 text-center">
+              <p className="text-sm text-[#6f7a71]">No pantry items match these filters.</p>
+              <button className="mt-3 rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" onClick={() => { setSearchQuery(""); setSelectedLocation(""); setSelectedExpiration(null); }} type="button">Clear filters</button>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {visibleItems.map((item) => {
+                const amount = pantryAmount(item);
+                const isExpired = item.expiresOn !== null && item.expiresOn < todayKey;
+                const isExpiringSoon = item.expiresOn !== null &&
+                  item.expiresOn >= todayKey &&
+                  item.expiresOn <= expiringSoonEndKey;
 
-          return (
-            <li key={item.id}>
-              <div className="grid gap-4 py-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                <div className="min-w-0">
-                  <h2 className="[font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b] md:text-[1.8rem]">
-                    <button
-                      className="rounded-md text-left transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
-                      onClick={() => setEditingItem(item)}
-                      type="button"
-                    >
-                      {item.name}
-                    </button>
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[#7b857d]">
-                    {amount ? `Quantity: ${amount}` : "Quantity not specified"}
-                  </p>
-                  {item.location || item.expiresOn ? (
-                    <p className="mt-1 text-sm leading-6 text-[#7b857d]">
-                      {[item.location, item.expiresOn ? `Expires ${expirationLabel(item.expiresOn)}` : null].filter(Boolean).join(" · ")}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                  <button
-                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
-                    onClick={() => setEditingItem(item)}
-                    type="button"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    aria-label={`Delete ${item.name}`}
-                    className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={deletingId === item.id}
-                    onClick={() => void handleDeletePantryItem(item)}
-                    type="button"
-                  >
-                    {deletingId === item.id ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      )}
+                return (
+                  <li className="min-w-0 overflow-hidden rounded-2xl border border-[#e5e1d8] bg-white shadow-[0_4px_16px_rgba(36,52,43,0.03)]" key={item.id}>
+                    <div className="flex items-start justify-between gap-3 px-5 py-4">
+                      <h2 className="min-w-0 [font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b]">
+                        <button
+                          className="block max-w-full rounded-md text-left [overflow-wrap:anywhere] transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
+                          onClick={() => setEditingItem(item)}
+                          type="button"
+                        >
+                          {item.name}
+                        </button>
+                      </h2>
+                      <div className="flex shrink-0 gap-1" role="group" aria-label={`Actions for ${item.name}`}>
+                        <button
+                          aria-label={`Edit ${item.name}`}
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                          onClick={() => setEditingItem(item)}
+                          title="Edit"
+                          type="button"
+                        >
+                          <ActionIcon action="edit" className="h-5 w-5" />
+                        </button>
+                        <button
+                          aria-label={deletingId === item.id ? `Deleting ${item.name}` : `Delete ${item.name}`}
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={deletingId === item.id}
+                          onClick={() => void handleDeletePantryItem(item)}
+                          title="Delete"
+                          type="button"
+                        >
+                          {deletingId === item.id ? (
+                            <span aria-hidden="true" className="text-lg leading-none">…</span>
+                          ) : (
+                            <ActionIcon action="delete" className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#ebe9e1] bg-[#fbfaf6] px-5 py-4 sm:grid-cols-3">
+                      <div className="min-w-0">
+                        <dt className="text-xs font-bold uppercase tracking-[0.12em] text-[#7b857d]">Quantity</dt>
+                        <dd className="mt-1 break-words text-[0.9375rem] font-semibold text-[#35483b]">{amount || "Not set"}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-xs font-bold uppercase tracking-[0.12em] text-[#7b857d]">Location</dt>
+                        <dd className="mt-1 break-words text-[0.9375rem] font-semibold text-[#35483b]">{item.location || "Not set"}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className={`text-xs font-bold uppercase tracking-[0.12em] ${isExpired ? "text-[#9b4f40]" : isExpiringSoon ? "text-[#946326]" : "text-[#7b857d]"}`}>
+                          {isExpired ? "Expired" : isExpiringSoon ? "Expiring soon" : "Expires"}
+                        </dt>
+                        <dd className={`mt-1 break-words text-[0.9375rem] font-semibold ${isExpired ? "text-[#9b4f40]" : isExpiringSoon ? "text-[#946326]" : "text-[#35483b]"}`}>
+                          {item.expiresOn ? expirationLabel(item.expiresOn) : "Not set"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
       {editingItem ? (
         <EditPantryItemDialog
           itemId={editingItem.id}

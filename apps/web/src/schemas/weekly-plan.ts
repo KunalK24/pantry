@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MEAL_SLOTS } from "@/lib/meal-slots";
+
 const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 function parseCalendarDate(value: string) {
@@ -55,6 +57,7 @@ const plannedMealInputSchema = z.object({
   recipeId: z.cuid(),
   dayOffset: z.number().int().min(0).max(6),
   position: z.number().int().nonnegative(),
+  mealSlot: z.enum(MEAL_SLOTS).nullable().optional(),
 });
 
 export const weeklyPlanInputSchema = z

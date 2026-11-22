@@ -100,11 +100,12 @@ model WeeklyPlan {
 }
 
 model PlannedMeal {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   weeklyPlanId String
   recipeId     String
   dayOffset    Int
   position     Int
+  mealSlot     String?
 
   weeklyPlan WeeklyPlan @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
   recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)

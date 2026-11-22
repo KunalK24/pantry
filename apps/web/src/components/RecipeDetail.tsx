@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
+import ActionIcon from "@/components/ActionIcon";
 import FavoriteHeart from "@/components/FavoriteHeart";
 
 type Recipe = {
@@ -173,7 +174,7 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
             </div>
             <div className="flex items-center gap-3">
               <button aria-label={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"} aria-pressed={recipe.isFavorite} className="flex min-h-12 min-w-12 items-center justify-center rounded-lg text-[#c5745a] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5745a]" disabled={favoritePending} onClick={() => void handleFavorite()} type="button"><FavoriteHeart className="h-7 w-7" filled={recipe.isFavorite} /></button>
-              <Link className="inline-flex min-h-12 items-center rounded-xl border border-[#d9d4c9] bg-white px-5 py-3 text-base font-bold text-[#35644f] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href={`/recipes/${recipe.id}/edit`}>Edit recipe</Link>
+              <Link aria-label={`Edit ${recipe.name}`} className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-[#d9d4c9] bg-white text-[#35644f] transition-colors hover:bg-[#f4f1e8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]" href={`/recipes/${recipe.id}/edit`} title="Edit recipe"><ActionIcon action="edit" className="h-6 w-6" /></Link>
             </div>
           </header>
           {recipe.mealType || recipe.timeMinutes !== null ? <p className="mt-4 flex flex-wrap gap-3 text-sm font-semibold text-[#69736b]">{recipe.mealType ? <span className="capitalize text-[#c5745a]">{recipe.mealType}</span> : null}{recipe.timeMinutes !== null ? <span>◷ {recipe.timeMinutes} min</span> : null}</p> : null}

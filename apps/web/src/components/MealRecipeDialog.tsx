@@ -132,10 +132,10 @@ export default function MealRecipeDialog({
                 : "No recipes match your search."}
             </p>
           ) : (
-            <ul className="mt-4 divide-y divide-[#e5e1d8] border-y border-[#e5e1d8]">
+            <ul className="mt-4 space-y-2">
               {filteredRecipes.map((recipe) => (
                 <li
-                  className="flex items-start justify-between gap-4 py-4"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-[#e5e1d8] bg-white p-3"
                   key={recipe.id}
                 >
                   <div className="min-w-0">
@@ -149,7 +149,7 @@ export default function MealRecipeDialog({
                     ) : null}
                   </div>
                   <button
-                    className="shrink-0 rounded-xl border border-[#ded9cf] bg-[#fbfaf6] px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    className="min-h-10 shrink-0 rounded-xl bg-[#e8f0e8] px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#dcebdd] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                     onClick={() => onAdd(recipe.id)}
                     type="button"
                   >

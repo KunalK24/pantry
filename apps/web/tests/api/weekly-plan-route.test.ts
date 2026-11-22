@@ -99,8 +99,8 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
   it("validates and saves a complete weekly snapshot", async () => {
     const input = {
       meals: [
-        { recipeId, dayOffset: 0, position: 0 },
-        { recipeId, dayOffset: 0, position: 1 },
+        { recipeId, dayOffset: 0, position: 0, mealSlot: "breakfast" },
+        { recipeId, dayOffset: 0, position: 1, mealSlot: "snacks" },
       ],
     };
     saveWeeklyPlanMock.mockResolvedValue(plan);
@@ -116,9 +116,23 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
     expect(saveWeeklyPlanMock).toHaveBeenCalledWith(userId, weekStart, input);
   });
 
+  it("accepts existing clients that do not send a meal type", async () => {
+    const input = { meals: [{ recipeId, dayOffset: 0, position: 0 }] };
+    saveWeeklyPlanMock.mockResolvedValue(plan);
+
+    const response = await PUT(new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }), context());
+
+    expect(response.status).toBe(200);
+    expect(saveWeeklyPlanMock).toHaveBeenCalledWith(userId, weekStart, input);
+  });
+
   it.each([
     ["day out of range", [{ recipeId, dayOffset: 7, position: 0 }]],
     ["negative position", [{ recipeId, dayOffset: 0, position: -1 }]],
+    ["invalid meal type", [{ recipeId, dayOffset: 0, position: 0, mealSlot: "brunch" }]],
     [
       "duplicate position",
       [

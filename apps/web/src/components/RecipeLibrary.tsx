@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
+import ActionIcon from "@/components/ActionIcon";
 import CreateRecipeDialog from "@/components/CreateRecipeDialog";
 import FavoriteHeart from "@/components/FavoriteHeart";
 import ImportRecipeDialog from "@/components/ImportRecipeDialog";
@@ -398,7 +399,7 @@ export default function RecipeLibrary() {
     );
   } else {
     libraryContent = (
-      <ul className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
+      <ul className="space-y-3">
         {visibleRecipes?.map((recipe) => {
           const availability = pantryItems
             ? calculateRecipeAvailability(recipe, pantryItems)
@@ -406,7 +407,7 @@ export default function RecipeLibrary() {
 
           return (
             <li key={recipe.id}>
-              <article className="grid gap-4 py-6 md:grid-cols-[7.5rem_minmax(0,1fr)_auto] md:items-center">
+              <article className="grid gap-4 rounded-2xl border border-[#e5e1d8] bg-white px-5 py-5 shadow-[0_4px_16px_rgba(36,52,43,0.03)] md:grid-cols-[7.5rem_minmax(0,1fr)_auto] md:items-center">
                 {recipe.imageUrl ? (
                   <img
                     alt={`${recipe.name} cover`}
@@ -472,19 +473,26 @@ export default function RecipeLibrary() {
                     <FavoriteHeart className="h-6 w-6" filled={recipe.isFavorite} />
                   </button>
                   <Link
-                    className="inline-flex min-h-11 items-center rounded-lg px-4 py-2.5 text-base font-bold text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+                    aria-label={`Edit ${recipe.name}`}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#35644f] transition-colors hover:bg-[#e8f1e9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
                     href={`/recipes/${recipe.id}/edit`}
+                    title="Edit"
                   >
-                    Edit
+                    <ActionIcon action="edit" className="h-5 w-5" />
                   </Link>
                   <button
-                    aria-label={`Delete ${recipe.name}`}
-                    className="min-h-11 rounded-lg px-4 py-2.5 text-base font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label={deletingId === recipe.id ? `Deleting ${recipe.name}` : `Delete ${recipe.name}`}
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={deletingId === recipe.id}
                     onClick={() => void handleDeleteRecipe(recipe)}
+                    title="Delete"
                     type="button"
                   >
-                    {deletingId === recipe.id ? "Deleting..." : "Delete"}
+                    {deletingId === recipe.id ? (
+                      <span aria-hidden="true" className="text-lg leading-none">…</span>
+                    ) : (
+                      <ActionIcon action="delete" className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </article>

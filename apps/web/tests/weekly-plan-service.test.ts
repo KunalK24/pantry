@@ -52,6 +52,7 @@ const persistedPlan = {
       recipeId,
       dayOffset: 0,
       position: 0,
+      mealSlot: null,
     },
   ],
 };
@@ -67,6 +68,7 @@ const weeklyPlanSelect = {
       recipeId: true,
       dayOffset: true,
       position: true,
+      mealSlot: true,
     },
   },
 };
@@ -120,9 +122,9 @@ describe("saveWeeklyPlan", () => {
   it("atomically replaces meals and permits repeated recipes", async () => {
     const input = {
       meals: [
-        { recipeId, dayOffset: 0, position: 0 },
-        { recipeId, dayOffset: 2, position: 0 },
-        { recipeId: secondRecipeId, dayOffset: 2, position: 1 },
+        { recipeId, dayOffset: 0, position: 0, mealSlot: "breakfast" as const },
+        { recipeId, dayOffset: 2, position: 0, mealSlot: "lunch" as const },
+        { recipeId: secondRecipeId, dayOffset: 2, position: 1, mealSlot: "dinner" as const },
       ],
     };
     countRecipesMock.mockResolvedValue(2);

@@ -17,6 +17,7 @@ const weeklyPlanSelect = {
       recipeId: true,
       dayOffset: true,
       position: true,
+      mealSlot: true,
     },
   },
 } satisfies Prisma.WeeklyPlanSelect;

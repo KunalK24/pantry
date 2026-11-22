@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MealRecipeDialog, {
   type MealPlannerRecipe,
 } from "@/components/MealRecipeDialog";
+import RemoveIcon from "@/components/RemoveIcon";
+import { isMealSlot, MEAL_SLOTS, mealSlotLabel, type MealSlot } from "@/lib/meal-slots";
 import {
   formatLocalDate,
   getLocalWeekStart,
@@ -20,6 +22,7 @@ type DraftMeal = {
   key: string;
   recipeId: string;
   dayOffset: number;
+  mealSlot: MealSlot | null;
 };
 
 type WeeklyPlanMeal = {
@@ -27,6 +30,7 @@ type WeeklyPlanMeal = {
   recipeId: string;
   dayOffset: number;
   position: number;
+  mealSlot: MealSlot | null;
 };
 
 type WeeklyPlan = {
@@ -45,11 +49,6 @@ const dayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long" });
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
-});
-const rangeFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
 });
 
 function isNullableString(value: unknown): value is string | null {
@@ -112,7 +111,9 @@ function isWeeklyPlanMeal(value: unknown): value is WeeklyPlanMeal {
     "position" in value &&
     typeof value.position === "number" &&
     Number.isInteger(value.position) &&
-    value.position >= 0
+    value.position >= 0 &&
+    "mealSlot" in value &&
+    (value.mealSlot === null || isMealSlot(value.mealSlot))
   );
 }
 
@@ -148,6 +149,7 @@ function toDraftMeals(plan: WeeklyPlan | null): DraftMeal[] {
     key: meal.id,
     recipeId: meal.recipeId,
     dayOffset: meal.dayOffset,
+    mealSlot: meal.mealSlot,
   }));
 }
 
@@ -157,7 +159,12 @@ function toPlanInput(meals: DraftMeal[]) {
       .slice(0, index)
       .filter((candidate) => candidate.dayOffset === meal.dayOffset).length;
 
-    return [{ recipeId: meal.recipeId, dayOffset: meal.dayOffset, position }];
+    return [{
+      recipeId: meal.recipeId,
+      dayOffset: meal.dayOffset,
+      position,
+      mealSlot: meal.mealSlot,
+    }];
   });
 }
 
@@ -181,7 +188,10 @@ export default function MealPlanner() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [pickerDay, setPickerDay] = useState<number | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<{
+    dayOffset: number;
+    mealSlot: MealSlot;
+  } | null>(null);
   const recipesRef = useRef<MealPlannerRecipe[]>([]);
   const recipesReadyRef = useRef(false);
   const planReadyRef = useRef(false);
@@ -257,7 +267,7 @@ export default function MealPlanner() {
         setDraftMeals(availableMeals);
         setDirty(availableMeals.length !== loadedMeals.length);
         setSaveError(null);
-        setPickerDay(null);
+        setPickerTarget(null);
         setLoadedWeek(weekStart);
         setPlanLoadState("ready");
       })
@@ -331,13 +341,13 @@ export default function MealPlanner() {
     setDraftMeals([]);
     setDirty(false);
     setSaveError(null);
-    setPickerDay(null);
+    setPickerTarget(null);
     router.push(`/meal-planner?week=${nextWeek}`);
   }
 
   function addMeal(recipeId: string) {
     if (
-      pickerDay === null ||
+      pickerTarget === null ||
       saving ||
       draftMeals.length >= MAX_MEALS_PER_WEEK
     ) {
@@ -346,11 +356,33 @@ export default function MealPlanner() {
 
     setDraftMeals((current) => [
       ...current,
-      { key: crypto.randomUUID(), recipeId, dayOffset: pickerDay },
+      {
+        key: crypto.randomUUID(),
+        recipeId,
+        dayOffset: pickerTarget.dayOffset,
+        mealSlot: pickerTarget.mealSlot,
+      },
     ]);
     setDirty(true);
     setSaveError(null);
-    setPickerDay(null);
+    setPickerTarget(null);
+  }
+
+  function assignMealSlot(key: string, mealSlot: MealSlot) {
+    if (saving) {
+      return;
+    }
+
+    setDraftMeals((current) => current.map((meal) =>
+      meal.key === key ? { ...meal, mealSlot } : meal,
+    ));
+    setDirty(true);
+    setSaveError(null);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(
+        `[data-meal-remove-key="${key}"]`,
+      )?.focus();
+    });
   }
 
   function removeMeal(key: string) {
@@ -362,9 +394,14 @@ export default function MealPlanner() {
     if (!removedMeal) {
       return;
     }
-    const dayMeals = draftMeals.filter(
-      (meal) => meal.dayOffset === removedMeal.dayOffset,
-    );
+    const dayMeals = [
+      ...MEAL_SLOTS.flatMap((slot) => draftMeals.filter((meal) =>
+        meal.dayOffset === removedMeal.dayOffset && meal.mealSlot === slot,
+      )),
+      ...draftMeals.filter((meal) =>
+        meal.dayOffset === removedMeal.dayOffset && meal.mealSlot === null,
+      ),
+    ];
     const removedIndex = dayMeals.findIndex((meal) => meal.key === key);
 
     setDraftMeals((current) => current.filter((meal) => meal.key !== key));
@@ -378,7 +415,7 @@ export default function MealPlanner() {
         removeButtons[removedIndex] ??
         removeButtons[removedIndex - 1] ??
         document.querySelector<HTMLButtonElement>(
-          `[data-add-meal-day="${removedMeal.dayOffset}"]`,
+          `[data-add-meal-day="${removedMeal.dayOffset}"][data-add-meal-slot="${removedMeal.mealSlot ?? "breakfast"}"]`,
         );
       target?.focus();
     });
@@ -411,6 +448,7 @@ export default function MealPlanner() {
     draftMeals.length === 0;
   const currentWeekStart = formatLocalDate(getLocalWeekStart());
   const isCurrentWeek = weekStart === currentWeekStart;
+  const todayDateKey = formatLocalDate(new Date());
 
   return (
     <div className="space-y-7">
@@ -429,47 +467,60 @@ export default function MealPlanner() {
         </div>
       </header>
 
-      <div
+      <section
         aria-label="Choose planning week"
-        className="flex flex-wrap items-center justify-between gap-4 border-y border-[#e5e1d8] py-4"
-        role="group"
+        className="rounded-[1.5rem] border border-[#e2e4da] bg-white px-4 py-5 shadow-[0_12px_32px_rgba(36,52,43,0.04)] sm:px-6"
       >
-        <button
-          className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={saving}
-          onClick={() => navigateToWeek(shiftWeek(weekStart, -1))}
-          type="button"
-        >
-          Previous week
-        </button>
-        <div className="text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78837b]">
-            {isCurrentWeek ? "Current week" : "Selected week"}
-          </p>
-          <p className="mt-1 text-sm font-bold text-[#24342b]">
-            {rangeFormatter.format(weekDates[0])} -{" "}
-            {rangeFormatter.format(weekDates[6])}
-          </p>
-          {!isCurrentWeek ? (
-            <button
-              className="mt-1 rounded-md text-sm font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
-              disabled={saving}
-              onClick={() => navigateToWeek(currentWeekStart)}
-              type="button"
-            >
-              Go to current week
-            </button>
-          ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            aria-label="Previous week"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#ded9cf] text-xl text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={saving}
+            onClick={() => navigateToWeek(shiftWeek(weekStart, -1))}
+            title="Previous week"
+            type="button"
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <div className="min-w-0 text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#78837b]">
+              {isCurrentWeek ? "This week" : "Planning week"}
+            </p>
+            <p className="mt-1 [font-family:Georgia,serif] text-lg font-bold leading-tight text-[#24342b] sm:text-2xl">
+              {dateFormatter.format(weekDates[0])} – {dateFormatter.format(weekDates[6])}
+            </p>
+          </div>
+          <button
+            aria-label="Next week"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#ded9cf] text-xl text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={saving}
+            onClick={() => navigateToWeek(shiftWeek(weekStart, 1))}
+            title="Next week"
+            type="button"
+          >
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
-        <button
-          className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={saving}
-          onClick={() => navigateToWeek(shiftWeek(weekStart, 1))}
-          type="button"
-        >
-          Next week
-        </button>
-      </div>
+        {planReady || !isCurrentWeek ? (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t border-[#ebe9e1] pt-4 text-sm">
+            {planReady ? (
+              <span className="rounded-full bg-[#e8f0e8] px-3 py-1 font-bold text-[#294e3e]">
+                {draftMeals.length} {draftMeals.length === 1 ? "meal" : "meals"} planned
+              </span>
+            ) : null}
+            {!isCurrentWeek ? (
+              <button
+                className="rounded-md font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
+                disabled={saving}
+                onClick={() => navigateToWeek(currentWeekStart)}
+                type="button"
+              >
+                Go to this week
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {recipeLoadState === "loading" ? (
         <p className="text-sm font-semibold text-[#69736b]" role="status">
@@ -527,78 +578,124 @@ export default function MealPlanner() {
           </button>
         </div>
       ) : (
-        <ol className="divide-y divide-[#ebe7dd] border-y border-[#e5e1d8]">
+        <ol className="space-y-4">
           {weekDates.map((date, dayOffset) => {
             const dayMeals = draftMeals.filter(
               (meal) => meal.dayOffset === dayOffset,
             );
+            const dayName = dayFormatter.format(date);
+            const isToday = formatLocalDate(date) === todayDateKey;
 
             return (
               <li
-                className="grid gap-4 py-5 md:grid-cols-[8rem_minmax(0,1fr)_auto] md:items-center"
+                className={`min-w-0 rounded-[1.5rem] border bg-white p-4 shadow-[0_8px_24px_rgba(36,52,43,0.04)] sm:p-5 ${isToday ? "border-[#8bb69a] ring-1 ring-[#dcebdd]" : "border-[#e2e4da]"}`}
                 key={date.toISOString()}
               >
-                <div className="flex items-baseline gap-3 md:block">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78837b]">
-                    {dayFormatter.format(date)}
-                  </p>
-                  <p className="[font-family:Georgia,serif] text-[2rem] font-bold leading-none text-[#78837b] md:mt-2">
-                    {dateFormatter.format(date)}
-                  </p>
+                <div className="flex items-start justify-between gap-3 border-b border-[#ebe9e1] pb-4">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-[#78837b]">
+                      {dayName}
+                      {isToday ? <span className="rounded-full bg-[#e8f0e8] px-2 py-0.5 text-[0.625rem] text-[#35644f]">Today</span> : null}
+                    </p>
+                    <h2 className="mt-1 [font-family:Georgia,serif] text-[1.75rem] font-bold leading-tight text-[#24342b]">
+                      {dateFormatter.format(date)}
+                    </h2>
+                    <p className="mt-1 text-xs font-semibold text-[#78837b]">
+                      {dayMeals.length} {dayMeals.length === 1 ? "meal" : "meals"} planned
+                    </p>
+                  </div>
                 </div>
 
-                {dayMeals.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-[#d8d3c8] px-4 py-4 text-center">
-                    <button
-                      className="inline-flex min-h-10 items-center rounded-xl px-4 text-sm font-bold text-[#939c92] transition-colors hover:bg-[#edf3ed] hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-                      data-add-meal-day={dayOffset}
-                      disabled={addMealDisabled}
-                      onClick={() => setPickerDay(dayOffset)}
-                      type="button"
-                    >
-                      + Add a meal
-                    </button>
-                  </div>
-                ) : (
-                  <ol className="divide-y divide-[#ebe7dd]">
-                    {dayMeals.map((meal) => (
-                      <li
-                        className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                        key={meal.key}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#c5745a]">
-                            Meal
-                          </p>
-                          <p className="[font-family:Georgia,serif] text-[1.6rem] font-bold leading-tight text-[#24342b]">
-                            {recipeById.get(meal.recipeId)?.name ??
-                              "Recipe details unavailable"}
-                          </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {MEAL_SLOTS.map((slot) => {
+                    const slotMeals = dayMeals.filter((meal) => meal.mealSlot === slot);
+                    const slotLabel = mealSlotLabel(slot);
+
+                    return (
+                      <section aria-label={`${slotLabel} on ${dayName}`} className="min-w-0 rounded-xl border border-[#e7e7df] bg-[#fbfaf6] p-3" key={slot}>
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#69766c]">{slotLabel}</h3>
+                          <button
+                            aria-label={`Add ${slotLabel.toLowerCase()} to ${dayName}`}
+                            className="min-h-9 rounded-lg bg-[#e8f0e8] px-3 text-xs font-bold text-[#35644f] transition-colors hover:bg-[#dcebdd] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+                            data-add-meal-day={dayOffset}
+                            data-add-meal-slot={slot}
+                            disabled={addMealDisabled}
+                            onClick={() => setPickerTarget({ dayOffset, mealSlot: slot })}
+                            type="button"
+                          >
+                            + Add
+                          </button>
                         </div>
-                        <button
-                          className="shrink-0 rounded-lg px-3 py-2 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
-                          data-meal-remove-day={dayOffset}
-                          disabled={mutationsDisabled}
-                          onClick={() => removeMeal(meal.key)}
-                          type="button"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                {dayMeals.length === 0 ? null : (
-                  <button
-                    className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-                    data-add-meal-day={dayOffset}
-                    disabled={addMealDisabled}
-                    onClick={() => setPickerDay(dayOffset)}
-                    type="button"
-                  >
-                    Add meal
-                  </button>
-                )}
+                        {slotMeals.length === 0 ? (
+                          <p className="mt-2 text-sm text-[#9aa49c]">No meal planned</p>
+                        ) : (
+                          <ol className="mt-3 space-y-2">
+                            {slotMeals.map((meal) => (
+                              <li className="flex min-w-0 items-center gap-2 rounded-lg bg-white px-3 py-2" key={meal.key}>
+                                <p className="min-w-0 flex-1 break-words [font-family:Georgia,serif] text-base font-bold leading-snug text-[#24342b]">
+                                  {recipeById.get(meal.recipeId)?.name ?? "Recipe details unavailable"}
+                                </p>
+                                <button
+                                  aria-label={`Remove ${recipeById.get(meal.recipeId)?.name ?? "meal"} from ${slotLabel.toLowerCase()} on ${dayName}`}
+                                  className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
+                                  data-meal-remove-day={dayOffset}
+                                  data-meal-remove-key={meal.key}
+                                  disabled={mutationsDisabled}
+                                  onClick={() => removeMeal(meal.key)}
+                                  title="Remove meal"
+                                  type="button"
+                                >
+                                  <RemoveIcon className="h-4 w-4" />
+                                </button>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+                {dayMeals.some((meal) => meal.mealSlot === null) ? (
+                  <section className="mt-3 rounded-xl border border-[#ead8bd] bg-[#fff7e9] p-3">
+                    <h3 className="text-sm font-bold text-[#71502b]">Unassigned meals from an earlier plan</h3>
+                    <p className="mt-1 text-xs text-[#71502b]">Choose a meal type to place each recipe.</p>
+                    <ul className="mt-3 space-y-2">
+                      {dayMeals.filter((meal) => meal.mealSlot === null).map((meal) => (
+                        <li className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2" key={meal.key}>
+                          <span className="min-w-0 flex-1 break-words text-sm font-bold text-[#24342b]">
+                            {recipeById.get(meal.recipeId)?.name ?? "Recipe details unavailable"}
+                          </span>
+                          <select
+                            aria-label={`Meal type for ${recipeById.get(meal.recipeId)?.name ?? "meal"} on ${dayName}`}
+                            className="min-h-9 rounded-lg border border-[#ded9cf] bg-white px-2 text-sm text-[#24342b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
+                            defaultValue=""
+                            disabled={mutationsDisabled}
+                            onChange={(event) => {
+                              if (isMealSlot(event.target.value)) {
+                                assignMealSlot(meal.key, event.target.value);
+                              }
+                            }}
+                          >
+                            <option disabled value="">Choose type</option>
+                            {MEAL_SLOTS.map((slot) => <option key={slot} value={slot}>{mealSlotLabel(slot)}</option>)}
+                          </select>
+                          <button
+                            aria-label={`Remove ${recipeById.get(meal.recipeId)?.name ?? "meal"} from ${dayName}`}
+                            className="flex min-h-9 min-w-9 items-center justify-center rounded-lg text-[#9b4f40] hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
+                            data-meal-remove-day={dayOffset}
+                            disabled={mutationsDisabled}
+                            onClick={() => removeMeal(meal.key)}
+                            title="Remove meal"
+                            type="button"
+                          >
+                            <RemoveIcon className="h-4 w-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
               </li>
             );
           })}
@@ -610,12 +707,12 @@ export default function MealPlanner() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e1d8] pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-[#e2e4da] bg-white p-4 shadow-[0_8px_24px_rgba(36,52,43,0.04)] sm:p-5">
         <div aria-live="polite" className="min-h-5 text-sm">
           {dirty ? (
-            <span className="font-bold text-[#9b5f34]">Unsaved changes</span>
+            <span className="font-bold text-[#9b5f34]">Unsaved changes to this week</span>
           ) : planReady ? (
-            <span className="font-semibold text-[#78837b]">Plan saved</span>
+            <span className="font-semibold text-[#35644f]">Plan saved</span>
           ) : null}
         </div>
         <div className="flex flex-wrap gap-3">
@@ -654,11 +751,13 @@ export default function MealPlanner() {
 
       <MealRecipeDialog
         dayLabel={
-          pickerDay === null ? "" : dayFormatter.format(weekDates[pickerDay])
+          pickerTarget === null
+            ? ""
+            : `${pickerTarget.mealSlot} on ${dayFormatter.format(weekDates[pickerTarget.dayOffset])}`
         }
         onAdd={addMeal}
-        onClose={() => setPickerDay(null)}
-        open={pickerDay !== null}
+        onClose={() => setPickerTarget(null)}
+        open={pickerTarget !== null}
         recipes={recipes}
       />
     </div>

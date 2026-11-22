@@ -3,10 +3,12 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import ActionIcon from "@/components/ActionIcon";
 import PantryPickerDialog, {
   type PantryPickerLoadState,
   type PantryPickerOption,
 } from "@/components/PantryPickerDialog";
+import RemoveIcon from "@/components/RemoveIcon";
 import RecipeRecommendationsDialog from "@/components/RecipeRecommendationsDialog";
 import RecipePickerDialog, {
   type RecipePickerLoadState,
@@ -1396,13 +1398,14 @@ export default function GroceryList() {
                         </span>
                         <button
                           aria-label={`Remove every ${recipe.name} preparation from grocery list`}
-                          className="shrink-0 text-xs font-bold text-[#69766c] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-md text-[#69766c] hover:bg-[#f8ebe5] hover:text-[#9b4f40] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50"
                           data-recipe-source-remove
                           disabled={mutating || !sourcesReady}
                           onClick={() => removeRecipe(recipe.id)}
+                          title="Remove recipe"
                           type="button"
                         >
-                          Remove
+                          <RemoveIcon className="h-4 w-4" />
                         </button>
                       </div>
                     </li>
@@ -1584,8 +1587,8 @@ export default function GroceryList() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {!isRenamingList ? <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#35644f] hover:bg-[#edf3ed] disabled:opacity-50" disabled={listActionBusy || mutating || listLoadState !== "ready"} onClick={() => { setListName(loadedList?.name ?? ""); setIsRenamingList(true); setIsCreatingList(false); }} type="button">Rename</button> : null}
-              <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#9b4f40] hover:bg-[#f8ebe5] disabled:opacity-50" disabled={listActionBusy || mutating || listLoadState !== "ready"} onClick={() => void deleteList()} type="button">Delete list</button>
+              {!isRenamingList ? <button aria-label="Rename list" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#35644f] hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50" disabled={listActionBusy || mutating || listLoadState !== "ready"} onClick={() => { setListName(loadedList?.name ?? ""); setIsRenamingList(true); setIsCreatingList(false); }} title="Rename list" type="button"><ActionIcon action="edit" className="h-5 w-5" /></button> : null}
+              <button aria-label="Delete list" className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-[#9b4f40] hover:bg-[#f8ebe5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:opacity-50" disabled={listActionBusy || mutating || listLoadState !== "ready"} onClick={() => void deleteList()} title="Delete list" type="button"><ActionIcon action="delete" className="h-5 w-5" /></button>
             </div>
           </div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -1750,13 +1753,14 @@ export default function GroceryList() {
                     </div>
                     <button
                       aria-label={`Remove ${line.name} from grocery list`}
-                      className="h-10 rounded-xl px-3 text-sm font-bold text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[#9b4f40] transition-colors hover:bg-[#f6e8e2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b4f40] disabled:cursor-not-allowed disabled:opacity-50"
                       data-grocery-line-remove
                       disabled={mutating}
                       onClick={() => dismissLine(line)}
+                      title="Remove item"
                       type="button"
                     >
-                      Remove
+                      <RemoveIcon className="h-5 w-5" />
                     </button>
                   </li>
                 );
