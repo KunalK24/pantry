@@ -19,16 +19,9 @@ export default function PantryPage() {
       <div className="mx-auto w-full max-w-[64rem]">
         <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-              At home
-            </p>
-            <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
-              Your pantry
+            <h1 className="[font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
+              Pantry
             </h1>
-            <p className="mt-4 max-w-2xl text-lg leading-7 text-[#6f7a71]">
-              A simple view of what is on hand, so good food gets used and less
-              gets forgotten.
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-3 lg:justify-end">

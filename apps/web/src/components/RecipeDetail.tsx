@@ -168,8 +168,7 @@ export default function RecipeDetail({ recipeId }: { recipeId: string }) {
         <article>
           <header className="mt-8 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">Recipe book</p>
-              <h1 className="mt-3 [font-family:Georgia,serif] text-[2.5rem] font-bold leading-tight text-[#24342b] sm:text-[3.5rem]">{recipe.name}</h1>
+              <h1 className="[font-family:Georgia,serif] text-[2.5rem] font-bold leading-tight text-[#24342b] sm:text-[3.5rem]">{recipe.name}</h1>
               {recipe.description ? <p className="mt-4 max-w-2xl whitespace-pre-line text-lg leading-7 text-[#6f7a71]">{recipe.description}</p> : null}
             </div>
             <div className="flex items-center gap-3">

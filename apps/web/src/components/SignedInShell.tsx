@@ -12,12 +12,24 @@ const sections: { href: string; label: string; key: Section }[] = [
   { href: "/meal-planner", label: "Meal planner", key: "meal-planner" },
 ];
 
-function LeafMark() {
+function CookingPotMark() {
   return (
-    <span aria-hidden="true" className="relative inline-flex h-5 w-5 items-center justify-center">
-      <span className="h-5 w-3 rotate-45 rounded-[100%_0] border-2 border-current" />
-      <span className="absolute h-4 w-px -rotate-45 bg-current" />
-    </span>
+    <svg
+      aria-hidden="true"
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d="M4 10h16" />
+      <path d="M6 10v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8" />
+      <path d="M5 10V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
+      <path d="M10 4h4" />
+      <path d="M12 4v3" />
+    </svg>
   );
 }
 
@@ -29,29 +41,23 @@ export default function SignedInShell({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-dvh bg-[#fbfaf6] text-[#24342b]">
-      <div className="grid min-h-dvh lg:grid-cols-[13rem_minmax(0,1fr)]">
-        <aside className="border-b border-[#e5e1d8] bg-[#f4f1e8] lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r">
-          <div className="flex items-center justify-between gap-3 px-5 py-3 lg:px-4 lg:py-6">
-            <Link
-              className="flex w-fit items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"
-              href="/recipes"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#35644f] text-white lg:h-10 lg:w-10">
-                <LeafMark />
-              </span>
-              <span className="[font-family:Georgia,serif] text-[1.5rem] font-bold text-[#24342b]">
-                Pantry
-              </span>
-            </Link>
-            <div className="lg:hidden"><SignOutButton /></div>
-          </div>
+    <div className="min-h-dvh bg-[#fbfaf6] text-[#24342b]">
+      <header className="sticky top-0 z-30 border-b border-[#e5e1d8] bg-[#f4f1e8]">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 sm:px-8 lg:flex-nowrap lg:px-10 xl:px-12">
+          <Link
+            className="flex w-full items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f] lg:w-auto lg:shrink-0"
+            href="/recipes"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#35644f] text-white">
+              <CookingPotMark />
+            </span>
+            <span className="[font-family:Georgia,serif] text-[2rem] font-bold text-[#24342b]">
+              Pantry
+            </span>
+          </Link>
 
-          <nav aria-label="Primary navigation" className="overflow-x-auto px-3 pb-2 lg:mt-7 lg:overflow-visible lg:px-3 lg:pb-0">
-            <p className="hidden px-4 text-xs font-bold uppercase tracking-[0.18em] text-[#939c92] lg:block">
-              Your kitchen
-            </p>
-            <ul className="flex min-w-max gap-1 lg:mt-4 lg:grid lg:min-w-0 lg:gap-2">
+          <nav aria-label="Primary navigation" className="min-w-0 flex-1 overflow-x-auto">
+            <ul className="flex min-w-max gap-1 lg:justify-end lg:gap-2">
               {sections.map((section) => {
                 const isActive = section.key === activeSection;
                 return (
@@ -73,16 +79,15 @@ export default function SignedInShell({
             </ul>
           </nav>
 
-          <div className="mt-auto hidden border-t border-[#e5e1d8] px-4 py-5 lg:block">
-            <p className="px-3 text-xs font-semibold text-[#78837b]">Signed in</p>
+          <div className="shrink-0">
             <SignOutButton />
           </div>
-        </aside>
+        </div>
+      </header>
 
-        <section className="min-w-0 px-5 py-7 sm:px-8 lg:px-10 lg:py-16 xl:px-12">
-          {children}
-        </section>
-      </div>
-    </main>
+      <main className="min-w-0 px-5 py-7 sm:px-8 lg:px-10 lg:py-10 xl:px-12">
+        {children}
+      </main>
+    </div>
   );
 }

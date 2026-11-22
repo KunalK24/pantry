@@ -507,7 +507,7 @@ export default function RecipeLibrary() {
     <div className="mx-auto w-full max-w-[64rem]">
       <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div>
-          <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
+          <h1 className="[font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
             Recipe book
           </h1>
         </div>
@@ -528,13 +528,10 @@ export default function RecipeLibrary() {
       </header>
 
       <div className="mt-9 grid gap-4 pb-2 md:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)] md:items-end">
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-[#69736b]">{recipes?.length ?? 0} saved {recipes?.length === 1 ? "recipe" : "recipes"}</p>
-          <div aria-label="Filter recipes" className="flex flex-wrap gap-1" role="group">
-            {(["all", ...mealTypes, "favorites"] as const).map((filter) => (
-              <button aria-pressed={mealFilter === filter} className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${mealFilter === filter ? "bg-[#e8f1e9] text-[#244a38]" : "text-[#69736b] hover:bg-[#f0eee8]"}`} key={filter} onClick={() => setMealFilter(filter)} type="button">{filter === "all" ? "All recipes" : filter}</button>
-            ))}
-          </div>
+        <div aria-label="Filter recipes" className="flex flex-wrap gap-1" role="group">
+          {(["all", ...mealTypes, "favorites"] as const).map((filter) => (
+            <button aria-pressed={mealFilter === filter} className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] ${mealFilter === filter ? "bg-[#e8f1e9] text-[#244a38]" : "text-[#69736b] hover:bg-[#f0eee8]"}`} key={filter} onClick={() => setMealFilter(filter)} type="button">{filter === "all" ? "All recipes" : filter}</button>
+          ))}
         </div>
         <div>
           <label className="sr-only" htmlFor="recipe-search">

@@ -1360,9 +1360,32 @@ export default function GroceryList() {
         : matchingRecommendations.length > 0 && recommendations.length === 0
           ? "All matching recipes are already on your grocery list."
           : "No recipes match your pantry or current grocery list.";
+  const isCreatingImportedList =
+    requestedImportWeek !== null &&
+    isStrictMonday(requestedImportWeek) &&
+    selectedListId === null &&
+    lists.length === 0 &&
+    listLoadState === "ready" &&
+    listActionError === null;
+  const isPageLoading =
+    listLoadState === "loading" ||
+    isCreatingImportedList ||
+    (selectedListId !== null &&
+      !initialized &&
+      (recipeLoadState === "loading" ||
+        pantryLoadState === "loading" ||
+        (listLoadState === "ready" &&
+          recipeLoadState === "ready" &&
+          pantryLoadState === "ready")));
 
   return (
-    <div className="grid gap-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
+    <>
+    {isPageLoading ? (
+      <p className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]" role="status">
+        Loading grocery list...
+      </p>
+    ) : null}
+    <div className={isPageLoading ? "hidden" : "grid gap-7 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start"}>
       <aside aria-label="Your grocery lists" className="rounded-[1.5rem] border border-[#e2e4da] bg-white p-4 shadow-[0_12px_32px_rgba(36,52,43,0.04)] lg:sticky lg:top-6">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#69766c]">Your lists</h2>
@@ -1422,14 +1445,7 @@ export default function GroceryList() {
       </aside>
       <div className="min-w-0 space-y-7">
       {!selectedListId && listLoadState === "ready" ? <section className="rounded-[1.5rem] border border-dashed border-[#cbd5cb] bg-white p-8 text-center"><h2 className="[font-family:Georgia,serif] text-2xl font-bold text-[#24342b]">Your shopping starts with a list</h2><p className="mt-2 text-sm text-[#69766c]">Name a list for a trip, a meal plan, or the week ahead.</p><button className="mt-5 rounded-xl bg-[#35644f] px-5 py-2.5 text-sm font-bold text-white" onClick={() => setIsCreatingList(true)} type="button">Create your first list</button></section> : null}
-      {listLoadState === "loading" ? (
-        <p
-          className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
-          role="status"
-        >
-          Loading your grocery list...
-        </p>
-      ) : listLoadState === "error" ? (
+      {listLoadState === "error" ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
           <p className="text-sm font-semibold text-red-800">
             Unable to load your grocery list. Nothing has been changed.
@@ -1475,19 +1491,9 @@ export default function GroceryList() {
         </p>
       ) : null}
 
-      {pantryLoadState === "loading" ? (
-        <p className="text-sm font-semibold text-[#69736b]" role="status">
-          Loading pantry data...
-        </p>
-      ) : null}
       {pantryLoadState === "error" ? (
         <p className="text-sm font-semibold text-red-800" role="alert">
           Unable to load pantry data. Open Add item, then try Add from pantry again.
-        </p>
-      ) : null}
-      {recipeLoadState === "loading" ? (
-        <p className="text-sm font-semibold text-[#69736b]" role="status">
-          Loading recipes...
         </p>
       ) : null}
       {recipeLoadState === "error" ? (
@@ -1805,5 +1811,6 @@ export default function GroceryList() {
       ) : null}
       </div>
     </div>
+    </>
   );
 }

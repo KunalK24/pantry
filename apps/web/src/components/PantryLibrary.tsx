@@ -351,7 +351,7 @@ export default function PantryLibrary({
 
                 return (
                   <li className="min-w-0 overflow-hidden rounded-2xl border border-[#e5e1d8] bg-white shadow-[0_4px_16px_rgba(36,52,43,0.03)]" key={item.id}>
-                    <div className="flex items-start justify-between gap-3 px-5 py-4">
+                    <div className="flex items-center justify-between gap-3 px-5 py-2">
                       <h2 className="min-w-0 [font-family:Georgia,serif] text-[1.5rem] font-bold leading-tight text-[#24342b]">
                         <button
                           className="block max-w-full rounded-md text-left [overflow-wrap:anywhere] transition-colors hover:text-[#35644f] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#35644f]"

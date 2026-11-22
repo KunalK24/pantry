@@ -450,23 +450,19 @@ export default function MealPlanner() {
   const isCurrentWeek = weekStart === currentWeekStart;
   const todayDateKey = formatLocalDate(new Date());
 
+  if (recipeLoadState === "loading" || visiblePlanLoadState === "loading") {
+    return (
+      <p
+        className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
+        role="status"
+      >
+        Loading meal planner...
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-7">
-      <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-            Weekly plans
-          </p>
-          <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
-            Meal planner
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-7 text-[#6f7a71]">
-            Plan recipes for the week and add their ingredients to your grocery
-            list.
-          </p>
-        </div>
-      </header>
-
       <section
         aria-label="Choose planning week"
         className="rounded-[1.5rem] border border-[#e2e4da] bg-white px-4 py-5 shadow-[0_12px_32px_rgba(36,52,43,0.04)] sm:px-6"
@@ -501,13 +497,14 @@ export default function MealPlanner() {
             <span aria-hidden="true">→</span>
           </button>
         </div>
-        {planReady || !isCurrentWeek ? (
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t border-[#ebe9e1] pt-4 text-sm">
-            {planReady ? (
-              <span className="rounded-full bg-[#e8f0e8] px-3 py-1 font-bold text-[#294e3e]">
-                {draftMeals.length} {draftMeals.length === 1 ? "meal" : "meals"} planned
-              </span>
-            ) : null}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebe9e1] pt-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span
+              aria-live="polite"
+              className={`font-semibold ${dirty ? "text-[#9b5f34]" : "text-[#35644f]"}`}
+            >
+              {dirty ? "Unsaved changes to this week" : planReady ? "Plan saved" : ""}
+            </span>
             {!isCurrentWeek ? (
               <button
                 className="rounded-md font-bold text-[#35644f] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50"
@@ -519,14 +516,42 @@ export default function MealPlanner() {
               </button>
             ) : null}
           </div>
-        ) : null}
+          <div className="flex flex-wrap gap-3">
+            <button
+              className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!dirty || !planReady || saving}
+              onClick={() => void savePlan()}
+              type="button"
+            >
+              {saving ? "Saving..." : "Save plan"}
+            </button>
+            <button
+              className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={groceryDisabled}
+              onClick={() => void addWeekToGroceryList()}
+              type="button"
+            >
+              Add week to grocery list
+            </button>
+          </div>
+        </div>
       </section>
 
-      {recipeLoadState === "loading" ? (
-        <p className="text-sm font-semibold text-[#69736b]" role="status">
-          Loading recipes...
-        </p>
-      ) : recipeLoadState === "error" ? (
+      {saveError && planReady ? (
+        <div className="flex flex-wrap items-center gap-3" role="alert">
+          <p className="text-sm font-semibold text-red-800">{saveError}</p>
+          <button
+            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 disabled:opacity-50"
+            disabled={saving}
+            onClick={() => void savePlan()}
+            type="button"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {recipeLoadState === "error" ? (
         <div className="flex flex-wrap items-center gap-3" role="alert">
           <p className="text-sm font-semibold text-red-800">
             Unable to load recipes. Your plan has been preserved.
@@ -552,14 +577,7 @@ export default function MealPlanner() {
         </p>
       ) : null}
 
-      {visiblePlanLoadState === "loading" ? (
-        <p
-          className="border-y border-[#e5e1d8] py-6 text-sm font-semibold text-[#69736b]"
-          role="status"
-        >
-          Loading weekly plan...
-        </p>
-      ) : visiblePlanLoadState === "error" ? (
+      {visiblePlanLoadState === "error" ? (
         <div className="space-y-3" role="alert">
           <p className="text-sm font-semibold text-red-800">
             Unable to load this weekly plan.
@@ -600,9 +618,6 @@ export default function MealPlanner() {
                     <h2 className="mt-1 [font-family:Georgia,serif] text-[1.75rem] font-bold leading-tight text-[#24342b]">
                       {dateFormatter.format(date)}
                     </h2>
-                    <p className="mt-1 text-xs font-semibold text-[#78837b]">
-                      {dayMeals.length} {dayMeals.length === 1 ? "meal" : "meals"} planned
-                    </p>
                   </div>
                 </div>
 
@@ -705,48 +720,6 @@ export default function MealPlanner() {
         <p className="text-sm font-semibold text-[#6f7a71]" role="status">
           Maximum of 70 meals reached for this week.
         </p>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-[#e2e4da] bg-white p-4 shadow-[0_8px_24px_rgba(36,52,43,0.04)] sm:p-5">
-        <div aria-live="polite" className="min-h-5 text-sm">
-          {dirty ? (
-            <span className="font-bold text-[#9b5f34]">Unsaved changes to this week</span>
-          ) : planReady ? (
-            <span className="font-semibold text-[#35644f]">Plan saved</span>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            className="min-h-10 rounded-xl border border-[#ded9cf] bg-white px-4 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!dirty || !planReady || saving}
-            onClick={() => void savePlan()}
-            type="button"
-          >
-            {saving ? "Saving..." : "Save plan"}
-          </button>
-          <button
-            className="min-h-10 rounded-xl bg-[#35644f] px-4 text-sm font-bold text-white shadow-[0_14px_28px_rgba(53,100,79,0.12)] transition-colors hover:bg-[#2d5644] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={groceryDisabled}
-            onClick={() => void addWeekToGroceryList()}
-            type="button"
-          >
-            Add week to grocery list
-          </button>
-        </div>
-      </div>
-
-      {saveError && planReady ? (
-        <div className="flex flex-wrap items-center gap-3" role="alert">
-          <p className="text-sm font-semibold text-red-800">{saveError}</p>
-          <button
-            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-800 transition-colors hover:bg-red-50 disabled:opacity-50"
-            disabled={saving}
-            onClick={() => void savePlan()}
-            type="button"
-          >
-            Try again
-          </button>
-        </div>
       ) : null}
 
       <MealRecipeDialog

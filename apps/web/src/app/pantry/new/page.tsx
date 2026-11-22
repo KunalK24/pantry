@@ -14,9 +14,6 @@ export default function NewPantryItemPage() {
           >
             Back to pantry
           </Link>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c5745a]">
-            At home
-          </p>
           <h1 className="mt-3 [font-family:Georgia,serif] text-[3rem] font-bold leading-none tracking-normal text-[#24342b] sm:text-[3.6rem]">
             Add ingredient
           </h1>
