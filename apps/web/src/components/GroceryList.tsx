@@ -19,6 +19,7 @@ import {
   calculateRecipeRecommendations,
   type GroceryLineCalculation,
 } from "@/lib/grocery-list";
+import { normalizeGroceryIngredientName } from "@/lib/ingredient-normalization";
 import { parseLocalDate } from "@/lib/week";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 
@@ -297,6 +298,45 @@ function reconcileLineStates(
       ];
     }),
   );
+}
+
+export function remapSavedLineStates(
+  lines: GroceryLineCalculation[],
+  savedItems: PersistedGroceryItem[],
+  savedStates: Record<string, LineState>,
+) {
+  const liveKeys = new Set(lines.map((line) => line.id));
+  const signature = (name: string, unit: string) =>
+    JSON.stringify([
+      normalizeGroceryIngredientName(name, unit).normalizedName,
+      unit.trim().replace(/\s+/gu, " ").toLocaleLowerCase(),
+    ]);
+  const oldBySignature = new Map<string, PersistedGroceryItem[]>();
+  const newBySignature = new Map<string, GroceryLineCalculation[]>();
+
+  for (const item of savedItems) {
+    if (liveKeys.has(item.lineKey) || item.lineKey.startsWith("custom:")) {
+      continue;
+    }
+    const key = signature(item.name, item.baseUnit);
+    oldBySignature.set(key, [...(oldBySignature.get(key) ?? []), item]);
+  }
+  for (const line of lines) {
+    if (savedStates[line.id] || line.calculation === "manual") {
+      continue;
+    }
+    const key = signature(line.name, line.unit);
+    newBySignature.set(key, [...(newBySignature.get(key) ?? []), line]);
+  }
+
+  const remapped = { ...savedStates };
+  for (const [key, newLines] of newBySignature) {
+    const oldItems = oldBySignature.get(key) ?? [];
+    if (newLines.length === 1 && oldItems.length === 1) {
+      remapped[newLines[0].id] = lineStateFromPersisted(oldItems[0]);
+    }
+  }
+  return remapped;
 }
 
 function countRecipeOccurrences(occurrences: RecipeOccurrence[]) {
@@ -596,7 +636,10 @@ export default function GroceryList() {
         pantryItems,
       );
       const persistedManualItems = (loadedList?.items ?? []).filter((item) => item.lineKey.startsWith("custom:"));
-      const initialStates = reconcileLineStates([...initialLines, ...manualLinesFromItems(persistedManualItems)], persistedStates);
+      const initialStates = reconcileLineStates(
+        [...initialLines, ...manualLinesFromItems(persistedManualItems)],
+        remapSavedLineStates(initialLines, loadedList?.items ?? [], persistedStates),
+      );
       const persistedItemsByKey = new Map(
         (loadedList?.items ?? []).map((item) => [item.lineKey, item]),
       );
@@ -1692,6 +1735,9 @@ export default function GroceryList() {
                       >
                         {line.name}
                       </p>
+                      {line.coverage === "tentative" ? (
+                        <p className="mt-1 text-xs font-bold text-[#9b5f34]">Package size needs confirmation</p>
+                      ) : null}
                       {source ? (
                         <p className="mt-1 text-xs font-medium text-[#8b958c]">
                           {source}

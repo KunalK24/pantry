@@ -18,6 +18,10 @@ type PantryItemResponse = {
   name: string;
   quantity: string | null;
   unit: string | null;
+  brand?: string | null;
+  modifiers?: string[];
+  packageQuantity?: string | null;
+  packageUnit?: string | null;
   location: string | null;
   expiresOn: string | null;
   createdAt: string;
@@ -36,6 +40,10 @@ function isPantryItemResponse(payload: unknown): payload is PantryItemResponse {
     (typeof payload.quantity === "string" || payload.quantity === null) &&
     "unit" in payload &&
     (typeof payload.unit === "string" || payload.unit === null) &&
+    (!("brand" in payload) || typeof payload.brand === "string" || payload.brand === null) &&
+    (!("modifiers" in payload) || (Array.isArray(payload.modifiers) && payload.modifiers.every((modifier) => typeof modifier === "string"))) &&
+    (!("packageQuantity" in payload) || typeof payload.packageQuantity === "string" || payload.packageQuantity === null) &&
+    (!("packageUnit" in payload) || typeof payload.packageUnit === "string" || payload.packageUnit === null) &&
     "location" in payload &&
     (typeof payload.location === "string" || payload.location === null) &&
     "expiresOn" in payload &&
@@ -131,6 +139,10 @@ export default function EditPantryItemDialog({
           name: payload.name,
           quantity: payload.quantity ?? "",
           unit: payload.unit ?? "",
+          brand: payload.brand ?? null,
+          modifiers: payload.modifiers ?? [],
+          packageQuantity: payload.packageQuantity ?? null,
+          packageUnit: payload.packageUnit ?? null,
           location: payload.location ?? "",
           expiresOn: payload.expiresOn ?? "",
         });

@@ -95,6 +95,7 @@ Do not identify food shown only in packaging pictures, recipes, shopping lists, 
 Use labels or visible contents to identify an item. If its identity is unclear, use a supported general name; omit it if you cannot establish that it is food or drink.
 Return each distinct item once. Combine identical items only when their visible count is clear, and avoid counting the same item twice across images.
 Include quantity and unit only when supported by visible evidence. Never invent hidden items, amounts, weights, or package contents.
+Preserve visible brand and product wording in the item name. Include brand and packageQuantity/packageUnit when clearly shown on a label; never infer a standard package size.
 Return an empty items array when no eligible items can be identified.`;
 
 const pantryItemsJSONSchema = {
@@ -110,6 +111,10 @@ const pantryItemsJSONSchema = {
           name: { type: "string" },
           quantity: { type: "string" },
           unit: { type: "string" },
+          brand: { type: "string" },
+          modifiers: { type: "array", items: { type: "string" } },
+          packageQuantity: { type: "string" },
+          packageUnit: { type: "string" },
         },
         required: ["name"],
       },

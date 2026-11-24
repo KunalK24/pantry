@@ -5,8 +5,13 @@ import { useEffect, useRef, useState } from "react";
 export type PantryPickerOption = {
   id: string;
   name: string;
+  normalizedName?: string;
   quantity: string | null;
   unit: string | null;
+  brand?: string | null;
+  modifiers?: string[];
+  packageQuantity?: string | null;
+  packageUnit?: string | null;
   updatedAt: string;
 };
 
@@ -32,10 +37,15 @@ function isPantryItem(value: unknown): value is PantryPickerOption {
     typeof value.id === "string" &&
     "name" in value &&
     typeof value.name === "string" &&
+    (!("normalizedName" in value) || typeof value.normalizedName === "string") &&
     "quantity" in value &&
     (typeof value.quantity === "string" || value.quantity === null) &&
     "unit" in value &&
     (typeof value.unit === "string" || value.unit === null) &&
+    (!("brand" in value) || typeof value.brand === "string" || value.brand === null) &&
+    (!("modifiers" in value) || (Array.isArray(value.modifiers) && value.modifiers.every((modifier) => typeof modifier === "string"))) &&
+    (!("packageQuantity" in value) || typeof value.packageQuantity === "string" || value.packageQuantity === null) &&
+    (!("packageUnit" in value) || typeof value.packageUnit === "string" || value.packageUnit === null) &&
     "updatedAt" in value &&
     typeof value.updatedAt === "string"
   );
@@ -54,7 +64,11 @@ function isPantryLibraryResponse(
 }
 
 function availableAmount(item: PantryPickerOption) {
-  return [item.quantity, item.unit].filter(Boolean).join(" ");
+  const amount = [item.quantity, item.unit].filter(Boolean).join(" ");
+  const packageSize = item.packageQuantity && item.packageUnit
+    ? `${item.packageQuantity} ${item.packageUnit} each`
+    : "";
+  return [amount, packageSize].filter(Boolean).join(" · ");
 }
 
 export default function PantryPickerDialog({

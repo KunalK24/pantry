@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { normalizeIngredientName } from "@/lib/ingredient-normalization";
+import { hasValidPackageCorrection, ingredientDetailsFields } from "@/schemas/ingredient-details";
 
 export const recipeInputSchema = z
   .object({
@@ -28,26 +28,21 @@ export const recipeInputSchema = z
             .max(100)
             .transform((value) => value || undefined)
             .optional(),
+          ...ingredientDetailsFields,
         }),
       )
       .min(1)
       .max(100),
   })
   .superRefine((recipe, context) => {
-    const ingredientNames = new Set<string>();
-
     recipe.ingredients.forEach((ingredient, index) => {
-      const normalizedName = normalizeIngredientName(ingredient.name);
-
-      if (ingredientNames.has(normalizedName)) {
+      if (!hasValidPackageCorrection(ingredient)) {
         context.addIssue({
           code: "custom",
-          message: "Ingredient names must be unique within a recipe",
-          path: ["ingredients", index, "name"],
+          message: "Package amount and unit must be supplied together",
+          path: ["ingredients", index, "packageQuantity"],
         });
       }
-
-      ingredientNames.add(normalizedName);
     });
   });
 

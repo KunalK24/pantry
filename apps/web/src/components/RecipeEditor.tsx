@@ -11,6 +11,10 @@ type RecipeResponse = Omit<RecipeFormValues, "instructions" | "ingredients"> & {
     name: string;
     quantity: string | null;
     unit: string | null;
+    brand?: string | null;
+    modifiers?: string[];
+    packageQuantity?: string | null;
+    packageUnit?: string | null;
   }>;
   createdAt: string;
   updatedAt: string;
@@ -26,7 +30,11 @@ function isRecipeIngredient(value: unknown) {
     "quantity" in value &&
     (typeof value.quantity === "string" || value.quantity === null) &&
     "unit" in value &&
-    (typeof value.unit === "string" || value.unit === null)
+    (typeof value.unit === "string" || value.unit === null) &&
+    (!("brand" in value) || typeof value.brand === "string" || value.brand === null) &&
+    (!("modifiers" in value) || (Array.isArray(value.modifiers) && value.modifiers.every((modifier) => typeof modifier === "string"))) &&
+    (!("packageQuantity" in value) || typeof value.packageQuantity === "string" || value.packageQuantity === null) &&
+    (!("packageUnit" in value) || typeof value.packageUnit === "string" || value.packageUnit === null)
   );
 }
 
@@ -99,6 +107,10 @@ export default function RecipeEditor({ recipeId }: { recipeId: string }) {
             name: ingredient.name,
             quantity: ingredient.quantity ?? "",
             unit: ingredient.unit ?? "",
+            brand: ingredient.brand ?? null,
+            modifiers: ingredient.modifiers ?? [],
+            packageQuantity: ingredient.packageQuantity ?? null,
+            packageUnit: ingredient.packageUnit ?? null,
           })),
         });
         setImageUrl(payload.imageUrl);

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
+import { parseIngredientDetails } from "@/lib/ingredient-normalization";
 import { RecipeInput } from "@/schemas/recipe";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -30,22 +30,35 @@ function flattenRecipe(recipe: CompleteRecipe) {
     imageUrl: recipe.image ? `/api/recipes/${recipe.id}/image` : null,
     ingredients: recipe.ingredients.map((recipeIngredient) => ({
       name: recipeIngredient.ingredient.name,
+      normalizedName: recipeIngredient.ingredient.normalizedName,
       quantity: recipeIngredient.quantity,
       unit: recipeIngredient.unit,
+      brand: recipeIngredient.brand,
+      modifiers: recipeIngredient.modifiers,
+      packageQuantity: recipeIngredient.packageQuantity,
+      packageUnit: recipeIngredient.packageUnit,
     })),
   };
 }
 
 function ingredientCreates(input: RecipeInput) {
-  return input.ingredients.map((ingredient) => ({
-    quantity: ingredient.quantity,
-    unit: ingredient.unit ?? null,
-    ingredient: {
-      create: {
-        name: titleCaseIngredientName(ingredient.name),
+  return input.ingredients.map((ingredient) => {
+    const parsed = parseIngredientDetails(ingredient.name, ingredient);
+    return {
+      quantity: parsed.quantity,
+      unit: parsed.unit,
+      brand: parsed.brand,
+      modifiers: parsed.modifiers,
+      packageQuantity: parsed.packageQuantity,
+      packageUnit: parsed.packageUnit,
+      ingredient: {
+        create: {
+          name: ingredient.name,
+          normalizedName: parsed.normalizedName,
+        },
       },
-    },
-  }));
+    };
+  });
 }
 
 export class RecipeNotFoundError extends Error {
@@ -101,9 +114,14 @@ export async function listRecipes(userId: string) {
         select: {
           quantity: true,
           unit: true,
+          brand: true,
+          modifiers: true,
+          packageQuantity: true,
+          packageUnit: true,
           ingredient: {
             select: {
               name: true,
+              normalizedName: true,
             },
           },
         },
@@ -116,8 +134,13 @@ export async function listRecipes(userId: string) {
     imageUrl: image ? `/api/recipes/${recipe.id}/image` : null,
     ingredients: ingredients.map((recipeIngredient) => ({
       name: recipeIngredient.ingredient.name,
+      normalizedName: recipeIngredient.ingredient.normalizedName,
       quantity: recipeIngredient.quantity,
       unit: recipeIngredient.unit,
+      brand: recipeIngredient.brand,
+      modifiers: recipeIngredient.modifiers,
+      packageQuantity: recipeIngredient.packageQuantity,
+      packageUnit: recipeIngredient.packageUnit,
     })),
   }));
 }

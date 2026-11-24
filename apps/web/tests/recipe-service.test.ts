@@ -62,9 +62,14 @@ const completeRecipe = {
       ingredientId: "ingredient_new_1",
       quantity: "2 cans",
       unit: null,
+      brand: null,
+      modifiers: [],
+      packageQuantity: null,
+      packageUnit: null,
       ingredient: {
         id: "ingredient_new_1",
         name: "Tomatoes",
+        normalizedName: "tomatoes",
       },
     },
     {
@@ -72,9 +77,14 @@ const completeRecipe = {
       ingredientId: "ingredient_new_2",
       quantity: "to taste",
       unit: null,
+      brand: null,
+      modifiers: [],
+      packageQuantity: null,
+      packageUnit: null,
       ingredient: {
         id: "ingredient_new_2",
         name: "Salt",
+        normalizedName: "salt",
       },
     },
   ],
@@ -92,8 +102,8 @@ const flattenedRecipe = {
   createdAt: completeRecipe.createdAt,
   updatedAt: completeRecipe.updatedAt,
   ingredients: [
-    { name: "Tomatoes", quantity: "2 cans", unit: null },
-    { name: "Salt", quantity: "to taste", unit: null },
+    { name: "Tomatoes", normalizedName: "tomatoes", quantity: "2 cans", unit: null, brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
+    { name: "Salt", normalizedName: "salt", quantity: "to taste", unit: null, brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
   ],
 };
 
@@ -137,9 +147,14 @@ describe("createRecipe", () => {
           ingredientId: "ingredient_1",
           quantity: "2",
           unit: "cans",
+          brand: null,
+          modifiers: [],
+          packageQuantity: null,
+          packageUnit: null,
           ingredient: {
             id: "ingredient_1",
             name: "Tomatoes",
+            normalizedName: "tomatoes",
           },
         },
         {
@@ -147,9 +162,14 @@ describe("createRecipe", () => {
           ingredientId: "ingredient_2",
           quantity: "1/2",
           unit: "cup",
+          brand: null,
+          modifiers: [],
+          packageQuantity: null,
+          packageUnit: null,
           ingredient: {
             id: "ingredient_2",
             name: "Stock",
+            normalizedName: "stock",
           },
         },
         {
@@ -157,9 +177,14 @@ describe("createRecipe", () => {
           ingredientId: "ingredient_3",
           quantity: "1-2",
           unit: "minutes",
+          brand: null,
+          modifiers: [],
+          packageQuantity: null,
+          packageUnit: null,
           ingredient: {
             id: "ingredient_3",
             name: "Simmer time",
+            normalizedName: "simmer time",
           },
         },
         {
@@ -167,9 +192,14 @@ describe("createRecipe", () => {
           ingredientId: "ingredient_4",
           quantity: "to taste",
           unit: null,
+          brand: null,
+          modifiers: [],
+          packageQuantity: null,
+          packageUnit: null,
           ingredient: {
             id: "ingredient_4",
             name: "Salt",
+            normalizedName: "salt",
           },
         },
       ],
@@ -203,10 +233,10 @@ describe("createRecipe", () => {
       createdAt,
       updatedAt,
       ingredients: [
-        { name: "Tomatoes", quantity: "2", unit: "cans" },
-        { name: "Stock", quantity: "1/2", unit: "cup" },
-        { name: "Simmer time", quantity: "1-2", unit: "minutes" },
-        { name: "Salt", quantity: "to taste", unit: null },
+        { name: "Tomatoes", normalizedName: "tomatoes", quantity: "2", unit: "cans", brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
+        { name: "Stock", normalizedName: "stock", quantity: "1/2", unit: "cup", brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
+        { name: "Simmer time", normalizedName: "simmer time", quantity: "1-2", unit: "minutes", brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
+        { name: "Salt", normalizedName: "salt", quantity: "to taste", unit: null, brand: null, modifiers: [], packageQuantity: null, packageUnit: null },
       ],
     });
 
@@ -223,36 +253,56 @@ describe("createRecipe", () => {
             {
               quantity: "2",
               unit: "cans",
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
               ingredient: {
                 create: {
                   name: "Tomatoes",
+                  normalizedName: "tomatoes",
                 },
               },
             },
             {
               quantity: "1/2",
               unit: "cup",
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
               ingredient: {
                 create: {
                   name: "Stock",
+                  normalizedName: "stock",
                 },
               },
             },
             {
               quantity: "1-2",
               unit: "minutes",
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
               ingredient: {
                 create: {
-                  name: "Simmer Time",
+                  name: "Simmer time",
+                  normalizedName: "simmer time",
                 },
               },
             },
             {
               quantity: "to taste",
               unit: null,
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
               ingredient: {
                 create: {
                   name: "Salt",
+                  normalizedName: "salt",
                 },
               },
             },
@@ -287,7 +337,11 @@ describe("listRecipes", () => {
           {
             quantity: "2",
             unit: "large",
-            ingredient: { name: "Eggs" },
+            brand: null,
+            modifiers: [],
+            packageQuantity: null,
+            packageUnit: null,
+            ingredient: { name: "Eggs", normalizedName: "eggs" },
           },
         ],
       },
@@ -304,7 +358,11 @@ describe("listRecipes", () => {
           {
             quantity: "to taste",
             unit: null,
-            ingredient: { name: "Salt" },
+            brand: null,
+            modifiers: [],
+            packageQuantity: null,
+            packageUnit: null,
+            ingredient: { name: "Salt", normalizedName: "salt" },
           },
         ],
       },
@@ -321,7 +379,7 @@ describe("listRecipes", () => {
         timeMinutes: 10,
         isFavorite: true,
         updatedAt: new Date("2026-09-25T12:00:00.000Z"),
-        ingredients: [{ name: "Eggs", quantity: "2", unit: "large" }],
+        ingredients: [{ name: "Eggs", normalizedName: "eggs", quantity: "2", unit: "large", brand: null, modifiers: [], packageQuantity: null, packageUnit: null }],
       },
       {
         id: "recipe_1",
@@ -332,7 +390,7 @@ describe("listRecipes", () => {
         timeMinutes: null,
         isFavorite: false,
         updatedAt: new Date("2026-09-24T12:00:00.000Z"),
-        ingredients: [{ name: "Salt", quantity: "to taste", unit: null }],
+        ingredients: [{ name: "Salt", normalizedName: "salt", quantity: "to taste", unit: null, brand: null, modifiers: [], packageQuantity: null, packageUnit: null }],
       },
     ]);
     expect(findManyRecipesMock).toHaveBeenCalledOnce();
@@ -354,8 +412,12 @@ describe("listRecipes", () => {
           select: {
             quantity: true,
             unit: true,
+            brand: true,
+            modifiers: true,
+            packageQuantity: true,
+            packageUnit: true,
             ingredient: {
-              select: { name: true },
+              select: { name: true, normalizedName: true },
             },
           },
         },
@@ -441,14 +503,22 @@ describe("updateRecipe", () => {
           deleteMany: {},
           create: [
             {
-              quantity: "2 cans",
-              unit: null,
-              ingredient: { create: { name: "Tomatoes" } },
+              quantity: "2",
+              unit: "can",
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
+              ingredient: { create: { name: "Tomatoes", normalizedName: "tomatoes" } },
             },
             {
               quantity: "to taste",
               unit: null,
-              ingredient: { create: { name: "Salt" } },
+              brand: null,
+              modifiers: [],
+              packageQuantity: null,
+              packageUnit: null,
+              ingredient: { create: { name: "Salt", normalizedName: "salt" } },
             },
           ],
         },

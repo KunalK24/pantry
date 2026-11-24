@@ -207,7 +207,8 @@ describe("POST /api/recipes", () => {
     expect(createRecipeMock).not.toHaveBeenCalled();
   });
 
-  it("rejects duplicate ingredient names after trimming without regard to case", async () => {
+  it("accepts repeated names when the recipe uses separate ingredient lines", async () => {
+    createRecipeMock.mockResolvedValue({ id: "recipe_1" });
     const request = new Request("http://localhost:3000/api/recipes", {
       method: "POST",
       body: JSON.stringify({
@@ -221,14 +222,17 @@ describe("POST /api/recipes", () => {
     });
 
     const response = await POST(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(400);
-    expect(data.error).toBe("Invalid Recipe");
-    expect(createRecipeMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(createRecipeMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      ingredients: [
+        { name: "Salt", quantity: "1/2", unit: "tsp" },
+        { name: "salt", quantity: "to taste" },
+      ],
+    }));
   });
 
-  it("rejects alias-equivalent duplicate ingredient names", async () => {
+  it("accepts alias-equivalent lines for later quantity aggregation", async () => {
+    createRecipeMock.mockResolvedValue({ id: "recipe_1" });
     const request = new Request("http://localhost:3000/api/recipes", {
       method: "POST",
       body: JSON.stringify({
@@ -243,8 +247,8 @@ describe("POST /api/recipes", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(400);
-    expect(createRecipeMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    expect(createRecipeMock).toHaveBeenCalledOnce();
   });
 
   it("does not treat descriptive ingredient phrases as aliases", async () => {

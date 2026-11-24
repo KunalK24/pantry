@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from "react";
 import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
-import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
 
 export type RecipeIngredientValue = {
   name: string;
   quantity: string;
   unit?: string | null;
+  brand?: string | null;
+  modifiers?: string[];
+  packageQuantity?: string | null;
+  packageUnit?: string | null;
 };
 
 export type RecipeFormValues = {
@@ -40,9 +43,16 @@ type RecipeFormProps = (
 
 type IngredientRow = {
   id: number;
+  originalName: string;
+  originalStructuredFields: Array<"brand" | "modifiers" | "package">;
+  editedStructuredFields: Array<"brand" | "modifiers" | "packageQuantity" | "packageUnit">;
   name: string;
   quantity: string;
   unit: string;
+  brand: string;
+  modifiers: string;
+  packageQuantity: string;
+  packageUnit: string;
 };
 
 type InstructionRow = { id: number; text: string };
@@ -60,9 +70,16 @@ type ImageChoice = "keep" | "omit" | "upload" | "suggested";
 
 const emptyIngredient = (id: number): IngredientRow => ({
   id,
+  originalName: "",
+  originalStructuredFields: [],
+  editedStructuredFields: [],
   name: "",
   quantity: "",
   unit: "",
+  brand: "",
+  modifiers: "",
+  packageQuantity: "",
+  packageUnit: "",
 });
 
 function initialIngredientRows(values?: RecipeFormValues) {
@@ -72,9 +89,20 @@ function initialIngredientRows(values?: RecipeFormValues) {
 
   return values.ingredients.map((ingredient, id) => ({
     id,
-    name: titleCaseIngredientName(ingredient.name),
+    originalName: ingredient.name,
+    originalStructuredFields: [
+      ...(ingredient.brand !== undefined ? ["brand" as const] : []),
+      ...(ingredient.modifiers !== undefined ? ["modifiers" as const] : []),
+      ...(ingredient.packageQuantity !== undefined || ingredient.packageUnit !== undefined ? ["package" as const] : []),
+    ],
+    editedStructuredFields: [],
+    name: ingredient.name,
     quantity: ingredient.quantity ?? "",
     unit: ingredient.unit ?? "",
+    brand: ingredient.brand ?? "",
+    modifiers: ingredient.modifiers?.join(", ") ?? "",
+    packageQuantity: ingredient.packageQuantity ?? "",
+    packageUnit: ingredient.packageUnit ?? "",
   }));
 }
 
@@ -271,13 +299,22 @@ export default function RecipeForm(props: RecipeFormProps) {
 
   function updateIngredient(
     id: number,
-    field: "name" | "quantity" | "unit",
+    field: "name" | "quantity" | "unit" | "brand" | "modifiers" | "packageQuantity" | "packageUnit",
     value: string,
   ) {
     setStatus(null);
     setIngredients((current) =>
       current.map((ingredient) =>
-        ingredient.id === id ? { ...ingredient, [field]: value } : ingredient,
+        ingredient.id === id
+          ? {
+              ...ingredient,
+              [field]: value,
+              editedStructuredFields:
+                field === "brand" || field === "modifiers" || field === "packageQuantity" || field === "packageUnit"
+                  ? [...new Set([...ingredient.editedStructuredFields, field])]
+                  : ingredient.editedStructuredFields,
+            }
+          : ingredient,
       ),
     );
   }
@@ -342,11 +379,22 @@ export default function RecipeForm(props: RecipeFormProps) {
     const parsedTimeMinutes = timeMinutes === "" ? null : Number(timeMinutes);
     const normalizedIngredients = ingredients.map((ingredient) => {
       const unit = ingredient.unit.trim();
+      const brand = ingredient.brand.trim();
+      const modifiers = ingredient.modifiers.split(",").map((value) => value.trim()).filter(Boolean);
+      const packageQuantity = ingredient.packageQuantity.trim();
+      const packageUnit = ingredient.packageUnit.trim();
+      const nameChanged = ingredient.name.trim() !== ingredient.originalName.trim();
+      const shouldSendBrand = (!nameChanged && ingredient.originalStructuredFields.includes("brand")) || ingredient.editedStructuredFields.includes("brand");
+      const shouldSendModifiers = (!nameChanged && ingredient.originalStructuredFields.includes("modifiers")) || ingredient.editedStructuredFields.includes("modifiers");
+      const shouldSendPackage = (!nameChanged && ingredient.originalStructuredFields.includes("package")) || ingredient.editedStructuredFields.includes("packageQuantity") || ingredient.editedStructuredFields.includes("packageUnit");
 
       return {
         name: ingredient.name.trim(),
         quantity: ingredient.quantity.trim(),
         ...(unit ? { unit } : {}),
+        ...(shouldSendBrand ? { brand: brand || null } : {}),
+        ...(shouldSendModifiers ? { modifiers } : {}),
+        ...(shouldSendPackage ? { packageQuantity: packageQuantity || null, packageUnit: packageUnit || null } : {}),
       };
     });
 
@@ -361,6 +409,16 @@ export default function RecipeForm(props: RecipeFormProps) {
         type: "error",
         message: "Complete all required fields before saving the recipe.",
       });
+      return;
+    }
+
+    if (ingredients.some((ingredient) => {
+      const packageQuantity = ingredient.packageQuantity.trim();
+      const packageUnit = ingredient.packageUnit.trim();
+      return Boolean(packageQuantity) !== Boolean(packageUnit) ||
+        (packageQuantity !== "" && (!Number.isFinite(Number(packageQuantity)) || Number(packageQuantity) <= 0));
+    })) {
+      setStatus({ type: "error", message: "Enter a positive package size and its unit together." });
       return;
     }
 
@@ -390,7 +448,11 @@ export default function RecipeForm(props: RecipeFormProps) {
         (ingredient) =>
           ingredient.name.length > 200 ||
           ingredient.quantity.length > 100 ||
-          (ingredient.unit?.length ?? 0) > 100,
+          (ingredient.unit?.length ?? 0) > 100 ||
+          (ingredient.brand?.length ?? 0) > 100 ||
+          (ingredient.packageQuantity?.length ?? 0) > 20 ||
+          (ingredient.modifiers?.length ?? 0) > 10 ||
+          ingredient.modifiers?.some((modifier) => modifier.length > 100),
       )
     ) {
       setStatus({
@@ -641,13 +703,6 @@ export default function RecipeForm(props: RecipeFormProps) {
                         event.target.value,
                       )
                     }
-                    onBlur={(event) =>
-                      updateIngredient(
-                        ingredient.id,
-                        "name",
-                        titleCaseIngredientName(event.target.value),
-                      )
-                    }
                     required
                     type="text"
                     value={ingredient.name}
@@ -713,6 +768,70 @@ export default function RecipeForm(props: RecipeFormProps) {
                 >
                   Remove
                 </button>
+                <details className="sm:col-span-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-[#35644f]">Matching details (optional)</summary>
+                  <p className="mt-2 text-xs text-[#6f7a71]">These details help compare ingredients. The name above stays as you entered it.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={labelClasses} htmlFor={`ingredient-brand-${ingredient.id}`}>Brand</label>
+                      <input
+                        className={inputClasses}
+                        id={`ingredient-brand-${ingredient.id}`}
+                        maxLength={100}
+                        name={`ingredients.${index}.brand`}
+                        onChange={(event) => updateIngredient(ingredient.id, "brand", event.target.value)}
+                        type="text"
+                        value={ingredient.brand}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClasses} htmlFor={`ingredient-modifiers-${ingredient.id}`}>Preparation</label>
+                      <input
+                        className={inputClasses}
+                        id={`ingredient-modifiers-${ingredient.id}`}
+                        maxLength={200}
+                        name={`ingredients.${index}.modifiers`}
+                        onChange={(event) => updateIngredient(ingredient.id, "modifiers", event.target.value)}
+                        placeholder="finely chopped, drained"
+                        type="text"
+                        value={ingredient.modifiers}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClasses} htmlFor={`ingredient-package-quantity-${ingredient.id}`}>Size per package</label>
+                      <input
+                        className={inputClasses}
+                        id={`ingredient-package-quantity-${ingredient.id}`}
+                        inputMode="decimal"
+                        maxLength={20}
+                        name={`ingredients.${index}.packageQuantity`}
+                        onChange={(event) => updateIngredient(ingredient.id, "packageQuantity", event.target.value)}
+                        placeholder="15"
+                        type="text"
+                        value={ingredient.packageQuantity}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClasses} htmlFor={`ingredient-package-unit-${ingredient.id}`}>Package size unit</label>
+                      <select
+                        className={inputClasses}
+                        id={`ingredient-package-unit-${ingredient.id}`}
+                        name={`ingredients.${index}.packageUnit`}
+                        onChange={(event) => updateIngredient(ingredient.id, "packageUnit", event.target.value)}
+                        value={ingredient.packageUnit}
+                      >
+                        <option value="">No size unit</option>
+                        <option value="oz">oz</option>
+                        <option value="g">g</option>
+                        <option value="lb">lb</option>
+                        <option value="kg">kg</option>
+                        <option value="fl oz">fl oz</option>
+                        <option value="ml">ml</option>
+                        <option value="l">l</option>
+                      </select>
+                    </div>
+                  </div>
+                </details>
               </div>
             ))}
           </div>

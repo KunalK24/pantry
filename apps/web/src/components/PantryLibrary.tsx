@@ -12,6 +12,9 @@ type PantryItemSummary = {
   name: string;
   quantity: string | null;
   unit: string | null;
+  brand?: string | null;
+  packageQuantity?: string | null;
+  packageUnit?: string | null;
   location: string | null;
   expiresOn: string | null;
   updatedAt: string;
@@ -31,6 +34,9 @@ function isPantryItemSummary(value: unknown): value is PantryItemSummary {
     (typeof value.quantity === "string" || value.quantity === null) &&
     "unit" in value &&
     (typeof value.unit === "string" || value.unit === null) &&
+    (!("brand" in value) || typeof value.brand === "string" || value.brand === null) &&
+    (!("packageQuantity" in value) || typeof value.packageQuantity === "string" || value.packageQuantity === null) &&
+    (!("packageUnit" in value) || typeof value.packageUnit === "string" || value.packageUnit === null) &&
     "location" in value &&
     (typeof value.location === "string" || value.location === null) &&
     "expiresOn" in value &&
@@ -53,7 +59,11 @@ function isPantryLibraryResponse(
 }
 
 function pantryAmount(item: PantryItemSummary) {
-  return [item.quantity, item.unit].filter(Boolean).join(" ");
+  const amount = [item.quantity, item.unit].filter(Boolean).join(" ");
+  const packageSize = item.packageQuantity && item.packageUnit
+    ? `${item.packageQuantity} ${item.packageUnit} each`
+    : "";
+  return [amount, packageSize].filter(Boolean).join(" · ");
 }
 
 function localDateKey(date: Date) {
@@ -103,7 +113,8 @@ export default function PantryLibrary({
   const visibleItems = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return items?.filter((item) => {
-      if (!item.name.toLocaleLowerCase().includes(query)) {
+      if (!item.name.toLocaleLowerCase().includes(query) &&
+        !item.brand?.toLocaleLowerCase().includes(query)) {
         return false;
       }
       if (selectedLocation && item.location !== selectedLocation) {

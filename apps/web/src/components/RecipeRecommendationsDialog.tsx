@@ -146,6 +146,11 @@ export default function RecipeRecommendationsDialog({
                               {recommendation.pantryCoveredNames.join(", ")}
                             </p>
                           ) : null}
+                          {recommendation.tentativePantryNames?.length ? (
+                            <p className="mt-1 text-xs font-semibold text-[#9b5f34]">
+                              Package size unverified for {recommendation.tentativePantryNames.join(", ")}.
+                            </p>
+                          ) : null}
                           {groceryCount ? (
                             <p className="mt-1 text-xs text-[#6f7a71]">
                               <span className="font-bold text-[#334238]">

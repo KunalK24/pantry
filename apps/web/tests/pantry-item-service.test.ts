@@ -33,7 +33,6 @@ import {
   deletePantryItem,
   getPantryItemById,
   listPantryItems,
-  PantryItemConflictError,
   PantryItemNotFoundError,
   updatePantryItem,
 } from "@/services/pantry-item-service";
@@ -41,8 +40,13 @@ import {
 const pantryItemSelect = {
   id: true,
   name: true,
+  normalizedName: true,
   quantity: true,
   unit: true,
+  brand: true,
+  modifiers: true,
+  packageQuantity: true,
+  packageUnit: true,
   location: true,
   expiresOn: true,
   createdAt: true,
@@ -54,8 +58,13 @@ const userId = "cm22345678901234567890123";
 const pantryItem = {
   id: pantryItemId,
   name: "Olive Oil",
+  normalizedName: "olive oil",
   quantity: "1/2",
   unit: "bottle",
+  brand: null,
+  modifiers: [],
+  packageQuantity: null,
+  packageUnit: null,
   location: null,
   expiresOn: null,
   createdAt: new Date("2026-09-28T12:00:00.000Z"),
@@ -186,6 +195,10 @@ describe("createPantryItem", () => {
         name: "Olive Oil",
         quantity: "1/2",
         unit: "bottle",
+        brand: null,
+        modifiers: [],
+        packageQuantity: null,
+        packageUnit: null,
       }),
     ).resolves.toEqual(pantryItem);
 
@@ -196,6 +209,10 @@ describe("createPantryItem", () => {
         normalizedName: "olive oil",
         quantity: "1/2",
         unit: "bottle",
+        brand: null,
+        modifiers: [],
+        packageQuantity: null,
+        packageUnit: null,
         location: null,
         expiresOn: null,
       },
@@ -219,6 +236,10 @@ describe("createPantryItem", () => {
         normalizedName: "salt",
         quantity: null,
         unit: null,
+        brand: null,
+        modifiers: [],
+        packageQuantity: null,
+        packageUnit: null,
         location: null,
         expiresOn: null,
       },
@@ -226,14 +247,14 @@ describe("createPantryItem", () => {
     });
   });
 
-  it("stores a title case display name while preserving the canonical match", async () => {
+  it("preserves the entered display name while storing the canonical match", async () => {
     createPantryItemMock.mockResolvedValue({
       ...pantryItem,
-      name: "Scallions",
+      name: "scallions",
     });
 
     await createPantryItem(userId, {
-      name: "Scallions",
+      name: "scallions",
       quantity: "2",
       unit: "bunches",
     });
@@ -242,10 +263,14 @@ describe("createPantryItem", () => {
       expect.objectContaining({
         data: {
           userId,
-          name: "Scallions",
+          name: "scallions",
           normalizedName: "green onion",
           quantity: "2",
           unit: "bunches",
+          brand: null,
+          modifiers: [],
+          packageQuantity: null,
+          packageUnit: null,
           location: null,
           expiresOn: null,
         },
@@ -253,12 +278,13 @@ describe("createPantryItem", () => {
     );
   });
 
-  it("translates duplicate-name races to a conflict error", async () => {
-    createPantryItemMock.mockRejectedValue(knownPrismaError("P2002"));
+  it("does not reinterpret an unrelated uniqueness failure as a name conflict", async () => {
+    const error = knownPrismaError("P2002");
+    createPantryItemMock.mockRejectedValue(error);
 
     await expect(
       createPantryItem(userId, { name: "Olive Oil" }),
-    ).rejects.toBeInstanceOf(PantryItemConflictError);
+    ).rejects.toBe(error);
   });
 
   it("propagates unrelated create failures unchanged", async () => {
@@ -281,7 +307,7 @@ describe("createPantryItem", () => {
 });
 
 describe("getPantryItemById", () => {
-  it("returns a pantry item without its normalized name", async () => {
+  it("returns a pantry item with its parsed fields", async () => {
     findPantryItemByIdMock.mockResolvedValue(pantryItem);
 
     await expect(getPantryItemById(userId, pantryItemId)).resolves.toEqual(
@@ -354,6 +380,10 @@ describe("updatePantryItem", () => {
         name: "Extra Virgin Olive Oil",
         quantity: "one large",
         unit: "bottle",
+        brand: null,
+        modifiers: [],
+        packageQuantity: null,
+        packageUnit: null,
       }),
     ).resolves.toEqual(updatedItem);
 
@@ -367,6 +397,10 @@ describe("updatePantryItem", () => {
         normalizedName: "extra virgin olive oil",
         quantity: "one large",
         unit: "bottle",
+        brand: null,
+        modifiers: [],
+        packageQuantity: null,
+        packageUnit: null,
       },
       select: pantryItemSelect,
     });
@@ -391,7 +425,7 @@ describe("updatePantryItem", () => {
     );
   });
 
-  it("updates an alias to its canonical name with a title case display name", async () => {
+  it("updates an alias to its canonical name while preserving display text", async () => {
     updatePantryItemMock.mockResolvedValue({ ...pantryItem, name: "Scallion" });
 
     await updatePantryItem(userId, pantryItemId, { name: "Scallion" });
@@ -414,12 +448,13 @@ describe("updatePantryItem", () => {
     ).rejects.toBeInstanceOf(PantryItemNotFoundError);
   });
 
-  it("translates a duplicate rename to a conflict error", async () => {
-    updatePantryItemMock.mockRejectedValue(knownPrismaError("P2002"));
+  it("does not reinterpret an unrelated uniqueness failure on update", async () => {
+    const error = knownPrismaError("P2002");
+    updatePantryItemMock.mockRejectedValue(error);
 
     await expect(
       updatePantryItem(userId, pantryItemId, { name: "Avocado Oil" }),
-    ).rejects.toBeInstanceOf(PantryItemConflictError);
+    ).rejects.toBe(error);
   });
 
   it("propagates unrelated update failures unchanged", async () => {
@@ -439,7 +474,7 @@ describe("deletePantryItem", () => {
     const deletedItem = await deletePantryItem(userId, pantryItemId);
 
     expect(deletedItem).toEqual(pantryItem);
-    expect(deletedItem).not.toHaveProperty("normalizedName");
+    expect(deletedItem).toHaveProperty("normalizedName", "olive oil");
     expect(deletePantryItemMock).toHaveBeenCalledOnce();
     expect(deletePantryItemMock).toHaveBeenCalledWith({
       where: {

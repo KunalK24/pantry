@@ -1,13 +1,18 @@
 import { Prisma } from "@/generated/prisma/client";
-import { normalizeIngredientName, titleCaseIngredientName } from "@/lib/ingredient-normalization";
+import { parseIngredientDetails } from "@/lib/ingredient-normalization";
 import { prisma } from "@/lib/prisma";
 import { type PantryItemInput } from "@/schemas/pantry-item";
 
 const pantryItemPublicSelect = {
   id: true,
   name: true,
+  normalizedName: true,
   quantity: true,
   unit: true,
+  brand: true,
+  modifiers: true,
+  packageQuantity: true,
+  packageUnit: true,
   location: true,
   expiresOn: true,
   createdAt: true,
@@ -29,11 +34,16 @@ export class PantryItemNotFoundError extends Error {
 }
 
 function pantryItemData(input: PantryItemInput) {
+  const parsed = parseIngredientDetails(input.name, input);
   return {
-    name: titleCaseIngredientName(input.name),
-    normalizedName: normalizeIngredientName(input.name),
-    quantity: input.quantity ?? null,
-    unit: input.unit ?? null,
+    name: input.name,
+    normalizedName: parsed.normalizedName,
+    quantity: parsed.quantity,
+    unit: parsed.unit,
+    brand: parsed.brand,
+    modifiers: parsed.modifiers,
+    packageQuantity: parsed.packageQuantity,
+    packageUnit: parsed.packageUnit,
     ...(input.location !== undefined ? { location: input.location } : {}),
     ...(input.expiresOn !== undefined
       ? { expiresOn: input.expiresOn ? new Date(`${input.expiresOn}T00:00:00.000Z`) : null }
@@ -44,8 +54,13 @@ function pantryItemData(input: PantryItemInput) {
 type PantryItemRecord = {
   id: string;
   name: string;
+  normalizedName: string;
   quantity: string | null;
   unit: string | null;
+  brand: string | null;
+  modifiers: string[];
+  packageQuantity: string | null;
+  packageUnit: string | null;
   location: string | null;
   expiresOn: Date | null;
   createdAt: Date;
@@ -80,25 +95,17 @@ export async function listPantryItems(userId: string) {
 }
 
 export async function createPantryItem(userId: string, input: PantryItemInput) {
-  try {
-    const item = await prisma.pantryItem.create({
-      data: {
-        userId,
-        ...pantryItemData(input),
-        location: input.location ?? null,
-        expiresOn: input.expiresOn ? new Date(`${input.expiresOn}T00:00:00.000Z`) : null,
-      },
-      select: pantryItemPublicSelect,
-    });
+  const item = await prisma.pantryItem.create({
+    data: {
+      userId,
+      ...pantryItemData(input),
+      location: input.location ?? null,
+      expiresOn: input.expiresOn ? new Date(`${input.expiresOn}T00:00:00.000Z`) : null,
+    },
+    select: pantryItemPublicSelect,
+  });
 
-    return serializePantryItem(item);
-  } catch (error) {
-    if (isKnownPrismaError(error, "P2002")) {
-      throw new PantryItemConflictError(input.name);
-    }
-
-    throw error;
-  }
+  return serializePantryItem(item);
 }
 
 export async function getPantryItemById(userId: string, id: string) {
@@ -136,10 +143,6 @@ export async function updatePantryItem(
   } catch (error) {
     if (isKnownPrismaError(error, "P2025")) {
       throw new PantryItemNotFoundError(id);
-    }
-
-    if (isKnownPrismaError(error, "P2002")) {
-      throw new PantryItemConflictError(input.name);
     }
 
     throw error;

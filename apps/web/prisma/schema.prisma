@@ -45,8 +45,9 @@ model RecipeImage {
 }
 
 model Ingredient {
-  id   String @id @default(cuid())
-  name String
+  id             String @id @default(cuid())
+  name           String
+  normalizedName String
 
   recipes RecipeIngredient[]
 }
@@ -55,8 +56,12 @@ model RecipeIngredient {
   recipeId     String
   ingredientId String
 
-  quantity String?
-  unit     String?
+  quantity        String?
+  unit            String?
+  brand           String?
+  modifiers       String[] @default([])
+  packageQuantity String?
+  packageUnit     String?
 
   recipe     Recipe     @relation(fields: [recipeId], references: [id])
   ingredient Ingredient @relation(fields: [ingredientId], references: [id])
@@ -65,22 +70,26 @@ model RecipeIngredient {
 }
 
 model PantryItem {
-  id             String    @id @default(cuid())
-  name           String
-  normalizedName String
-  quantity       String?
-  unit           String?
-  location       String?
-  expiresOn      DateTime? @db.Date
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  normalizedName  String
+  quantity        String?
+  unit            String?
+  brand           String?
+  modifiers       String[]  @default([])
+  packageQuantity String?
+  packageUnit     String?
+  location        String?
+  expiresOn       DateTime? @db.Date
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   groceryItems GroceryItem[]
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, normalizedName])
+  @@index([userId, normalizedName])
   @@index([userId])
 }
 

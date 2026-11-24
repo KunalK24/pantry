@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, type SubmitEvent } from "react";
 
-import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
-
 export type PantryItemFormValues = {
   name: string;
   quantity: string;
   unit: string;
+  brand?: string | null;
+  modifiers?: string[];
+  packageQuantity?: string | null;
+  packageUnit?: string | null;
   location: string;
   expiresOn: string;
 };
@@ -62,9 +64,14 @@ export default function PantryItemForm(
 ) {
   const mode = props.mode ?? "create";
   const initialValues = mode === "edit" ? props.initialValues : undefined;
-  const [name, setName] = useState(initialValues ? titleCaseIngredientName(initialValues.name) : "");
+  const [name, setName] = useState(initialValues?.name ?? "");
   const [quantity, setQuantity] = useState(initialValues?.quantity ?? "");
   const [unit, setUnit] = useState(initialValues?.unit ?? "");
+  const [brand, setBrand] = useState(initialValues?.brand ?? "");
+  const [modifiers, setModifiers] = useState(initialValues?.modifiers?.join(", ") ?? "");
+  const [packageQuantity, setPackageQuantity] = useState(initialValues?.packageQuantity ?? "");
+  const [packageUnit, setPackageUnit] = useState(initialValues?.packageUnit ?? "");
+  const [editedStructuredFields, setEditedStructuredFields] = useState<string[]>([]);
   const [location, setLocation] = useState(initialValues?.location ?? "");
   const [expiresOn, setExpiresOn] = useState(initialValues?.expiresOn ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,6 +83,11 @@ export default function PantryItemForm(
     setter(value);
   }
 
+  function updateStructuredField(field: string, setter: (value: string) => void, value: string) {
+    updateField(setter, value);
+    setEditedStructuredFields((current) => current.includes(field) ? current : [...current, field]);
+  }
+
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
@@ -83,6 +95,14 @@ export default function PantryItemForm(
     const trimmedName = name.trim();
     const trimmedQuantity = quantity.trim();
     const trimmedUnit = unit.trim();
+    const trimmedBrand = brand.trim();
+    const parsedModifiers = modifiers.split(",").map((value) => value.trim()).filter(Boolean);
+    const trimmedPackageQuantity = packageQuantity.trim();
+    const trimmedPackageUnit = packageUnit.trim();
+    const nameChanged = trimmedName !== (initialValues?.name ?? "").trim();
+    const shouldSendBrand = !nameChanged || editedStructuredFields.includes("brand");
+    const shouldSendModifiers = !nameChanged || editedStructuredFields.includes("modifiers");
+    const shouldSendPackage = !nameChanged || editedStructuredFields.includes("packageQuantity") || editedStructuredFields.includes("packageUnit");
 
     if (!trimmedName) {
       setStatus({
@@ -92,10 +112,20 @@ export default function PantryItemForm(
       return;
     }
 
+    if (Boolean(trimmedPackageQuantity) !== Boolean(trimmedPackageUnit) ||
+      (trimmedPackageQuantity !== "" && (!Number.isFinite(Number(trimmedPackageQuantity)) || Number(trimmedPackageQuantity) <= 0))) {
+      setStatus({ type: "error", message: "Enter a positive package size and its unit together." });
+      return;
+    }
+
     if (
       trimmedName.length > 200 ||
       trimmedQuantity.length > 100 ||
-      trimmedUnit.length > 100
+      trimmedUnit.length > 100 ||
+      trimmedBrand.length > 100 ||
+      trimmedPackageQuantity.length > 20 ||
+      parsedModifiers.length > 10 ||
+      parsedModifiers.some((modifier) => modifier.length > 100)
     ) {
       setStatus({
         type: "error",
@@ -112,6 +142,9 @@ export default function PantryItemForm(
       name: trimmedName,
       ...(trimmedQuantity ? { quantity: trimmedQuantity } : {}),
       ...(trimmedUnit ? { unit: trimmedUnit } : {}),
+      ...(shouldSendBrand ? { brand: trimmedBrand || null } : {}),
+      ...(shouldSendModifiers ? { modifiers: parsedModifiers } : {}),
+      ...(shouldSendPackage ? { packageQuantity: trimmedPackageQuantity || null, packageUnit: trimmedPackageUnit || null } : {}),
       location: location || null,
       expiresOn: expiresOn || null,
     };
@@ -141,6 +174,11 @@ export default function PantryItemForm(
         setName("");
         setQuantity("");
         setUnit("");
+        setBrand("");
+        setModifiers("");
+        setPackageQuantity("");
+        setPackageUnit("");
+        setEditedStructuredFields([]);
         setLocation("");
         setExpiresOn("");
         setStatus({
@@ -207,7 +245,6 @@ export default function PantryItemForm(
             maxLength={200}
             name="name"
             onChange={(event) => updateField(setName, event.target.value)}
-            onBlur={(event) => setName(titleCaseIngredientName(event.target.value))}
             required
             type="text"
             value={name}
@@ -247,6 +284,71 @@ export default function PantryItemForm(
             />
           </div>
         </div>
+
+        <details>
+          <summary className="cursor-pointer text-sm font-semibold text-[#35644f]">Matching details (optional)</summary>
+          <p className="mt-2 text-xs text-[#6f7a71]">These details help compare pantry stock with recipes. The name above stays as you entered it.</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClasses} htmlFor="pantry-item-brand">Brand</label>
+              <input
+                className={inputClasses}
+                id="pantry-item-brand"
+                maxLength={100}
+                name="brand"
+                onChange={(event) => updateStructuredField("brand", setBrand, event.target.value)}
+                type="text"
+                value={brand}
+              />
+            </div>
+            <div>
+              <label className={labelClasses} htmlFor="pantry-item-modifiers">Preparation</label>
+              <input
+                className={inputClasses}
+                id="pantry-item-modifiers"
+                maxLength={200}
+                name="modifiers"
+                onChange={(event) => updateStructuredField("modifiers", setModifiers, event.target.value)}
+                placeholder="diced, drained"
+                type="text"
+                value={modifiers}
+              />
+            </div>
+            <div>
+              <label className={labelClasses} htmlFor="pantry-item-package-quantity">Size per package</label>
+              <input
+                className={inputClasses}
+                id="pantry-item-package-quantity"
+                inputMode="decimal"
+                maxLength={20}
+                name="packageQuantity"
+                onChange={(event) => updateStructuredField("packageQuantity", setPackageQuantity, event.target.value)}
+                placeholder="15"
+                type="text"
+                value={packageQuantity}
+              />
+            </div>
+            <div>
+              <label className={labelClasses} htmlFor="pantry-item-package-unit">Package size unit</label>
+              <select
+                className={inputClasses}
+                id="pantry-item-package-unit"
+                name="packageUnit"
+                onChange={(event) => updateStructuredField("packageUnit", setPackageUnit, event.target.value)}
+                value={packageUnit}
+              >
+                <option value="">No size unit</option>
+                <option value="oz">oz</option>
+                <option value="g">g</option>
+                <option value="lb">lb</option>
+                <option value="kg">kg</option>
+                <option value="fl oz">fl oz</option>
+                <option value="ml">ml</option>
+                <option value="l">l</option>
+              </select>
+            </div>
+          </div>
+        </details>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

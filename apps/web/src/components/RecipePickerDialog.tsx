@@ -39,10 +39,15 @@ function isIngredient(value: unknown) {
     value !== null &&
     "name" in value &&
     typeof value.name === "string" &&
+    (!("normalizedName" in value) || typeof value.normalizedName === "string") &&
     "quantity" in value &&
     isNullableString(value.quantity) &&
     "unit" in value &&
-    isNullableString(value.unit)
+    isNullableString(value.unit) &&
+    (!("brand" in value) || isNullableString(value.brand)) &&
+    (!("modifiers" in value) || (Array.isArray(value.modifiers) && value.modifiers.every((modifier) => typeof modifier === "string"))) &&
+    (!("packageQuantity" in value) || isNullableString(value.packageQuantity)) &&
+    (!("packageUnit" in value) || isNullableString(value.packageUnit))
   );
 }
 
@@ -288,14 +293,18 @@ export default function RecipePickerDialog({
                             </span>
                           ) : null}
                           {pantryStatus === "ready" ? (
-                            <span className="mt-1 block text-xs font-bold text-[#35644f]">
-                              {availabilityByRecipeId.get(recipe.id)
-                                ?.available ?? 0}
-                              /
-                              {availabilityByRecipeId.get(recipe.id)?.total ??
-                                0}{" "}
-                              ingredients available
-                            </span>
+                            <>
+                              <span className="mt-1 block text-xs font-bold text-[#35644f]">
+                                {availabilityByRecipeId.get(recipe.id)?.available ?? 0}
+                                /{availabilityByRecipeId.get(recipe.id)?.total ?? 0}{" "}
+                                ingredients available
+                              </span>
+                              {availabilityByRecipeId.get(recipe.id)?.tentativeNames?.length ? (
+                                <span className="mt-1 block text-xs font-semibold text-[#9b5f34]">
+                                  {availabilityByRecipeId.get(recipe.id)?.tentativeNames?.length} package size unverified
+                                </span>
+                              ) : null}
+                            </>
                           ) : (
                             <span className="mt-1 block text-xs font-semibold text-[#8b958c]">
                               {pantryStatus === "loading"

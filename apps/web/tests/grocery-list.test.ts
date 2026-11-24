@@ -259,14 +259,14 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
     ]);
   });
 
-  it("does not treat singular and plural units as aliases", () => {
+  it("matches singular and plural package units", () => {
     const [line] = calculateGroceryLines(
       [recipe("recipe-a", [{ name: "Beans", quantity: "2", unit: "cans" }])],
       [pantryItem("pantry-beans", "Beans", "1", "can")],
       new Set(),
     );
 
-    expect(line.quantity).toBe("2");
+    expect(line.quantity).toBe("1");
   });
 
   it("matches predetermined ingredient aliases", () => {
@@ -382,7 +382,7 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
     });
   });
 
-  it("requires exact units even when ingredient names are aliases", () => {
+  it("matches singular package units across ingredient aliases", () => {
     const [line] = calculateGroceryLines(
       [
         recipe("recipe-a", [
@@ -395,7 +395,7 @@ describe("calculateGroceryLines matching and fallback behavior", () => {
 
     expect(line).toMatchObject({
       name: "Scallion",
-      quantity: "2",
+      quantity: "1",
       unit: "bunches",
     });
   });
@@ -973,5 +973,184 @@ describe("calculateRecipeRecommendations", () => {
         new Set(),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("structured ingredient coverage", () => {
+  const recipeWithCan = recipe("beans", [
+    {
+      name: "Aldi's Black Beans, rinsed",
+      normalizedName: "black beans",
+      quantity: "1",
+      unit: "can",
+      packageQuantity: "15",
+      packageUnit: "oz",
+    },
+  ]);
+
+  it("counts unknown-size cans tentatively while preserving the recipe name", () => {
+    const pantry = [{
+      id: "kroger-beans",
+      name: "Kroger's Black Beans",
+      normalizedName: "black beans",
+      quantity: "2",
+      unit: "cans",
+    }];
+
+    expect(calculateRecipeAvailability(recipeWithCan, pantry)).toEqual({
+      available: 1,
+      total: 1,
+      availableNames: ["Aldi's Black Beans, rinsed"],
+      tentativeNames: ["Aldi's Black Beans, rinsed"],
+    });
+    expect(calculateGroceryLines([recipeWithCan], pantry, new Set())).toMatchObject([
+      {
+        name: "Aldi's Black Beans, rinsed",
+        quantity: "1",
+        unit: "can",
+        calculation: "unresolved",
+        coverage: "tentative",
+        warning: expect.stringContaining("size is unknown"),
+      },
+    ]);
+  });
+
+  it("shows only the cans still unverified after known-size stock is applied", () => {
+    const twoCanRecipe = recipe("two-cans", [
+      {
+        name: "Black Beans",
+        normalizedName: "black beans",
+        quantity: "2",
+        unit: "cans",
+        packageQuantity: "15",
+        packageUnit: "oz",
+      },
+    ]);
+    const pantry = [
+      {
+        id: "known-can",
+        name: "Black Beans",
+        normalizedName: "black beans",
+        quantity: "1",
+        unit: "can",
+        packageQuantity: "15",
+        packageUnit: "oz",
+      },
+      {
+        id: "unknown-can",
+        name: "Black Beans",
+        normalizedName: "black beans",
+        quantity: "1",
+        unit: "can",
+      },
+    ];
+
+    expect(calculateRecipeAvailability(twoCanRecipe, pantry)).toMatchObject({
+      available: 1,
+      tentativeNames: ["Black Beans"],
+    });
+    expect(calculateGroceryLines([twoCanRecipe], pantry, new Set())).toMatchObject([
+      { quantity: "1", unit: "can", coverage: "tentative" },
+    ]);
+  });
+
+  it("compares known package size to a loose weight in grams", () => {
+    const pantry = [{
+      id: "bulk-beans",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "425.242846875",
+      unit: "g",
+    }];
+
+    expect(calculateRecipeAvailability(recipeWithCan, pantry)).toEqual({
+      available: 1,
+      total: 1,
+      availableNames: ["Aldi's Black Beans, rinsed"],
+    });
+    expect(calculateGroceryLines([recipeWithCan], pantry, new Set())).toEqual([]);
+  });
+
+  it("does not infer mass from an unknown can size", () => {
+    const weightRecipe = recipe("weight", [
+      { name: "Black Beans", normalizedName: "black beans", quantity: "15", unit: "oz" },
+    ]);
+    const pantry = [{
+      id: "unknown-beans",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "2",
+      unit: "cans",
+    }];
+
+    expect(calculateRecipeAvailability(weightRecipe, pantry).available).toBe(0);
+    expect(calculateGroceryLines([weightRecipe], pantry, new Set())).toMatchObject([
+      { quantity: "15", unit: "oz", calculation: "computed" },
+    ]);
+  });
+
+  it("keeps fluid volume separate from weight", () => {
+    const pantry = [{
+      id: "fluid-beans",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "1",
+      unit: "can",
+      packageQuantity: "15",
+      packageUnit: "fl oz",
+    }];
+
+    expect(calculateRecipeAvailability(recipeWithCan, pantry).available).toBe(0);
+  });
+
+  it("compares grams across differently sized packages", () => {
+    const weightRecipe = recipe("beans-by-weight", [
+      { name: "Black Beans", normalizedName: "black beans", quantity: "500", unit: "g" },
+    ]);
+    const pantry = [{
+      id: "bags",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "2",
+      unit: "bags",
+      packageQuantity: "400",
+      packageUnit: "g",
+    }];
+
+    expect(calculateRecipeAvailability(weightRecipe, pantry).available).toBe(1);
+    expect(calculateGroceryLines([weightRecipe], pantry, new Set())).toEqual([]);
+  });
+
+  it("does not use unknown bags as tentative coverage for a can", () => {
+    const pantry = [{
+      id: "unknown-bags",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "2",
+      unit: "bags",
+    }];
+
+    expect(calculateRecipeAvailability(recipeWithCan, pantry).available).toBe(0);
+  });
+
+  it("does not count a known can twice for separate count and mass requirements", () => {
+    const mixedRecipe = recipe("mixed", [
+      { name: "Black Beans", normalizedName: "black beans", quantity: "1", unit: "can" },
+      { name: "Black Beans", normalizedName: "black beans", quantity: "15", unit: "oz" },
+    ]);
+    const pantry = [{
+      id: "known-can",
+      name: "Black Beans",
+      normalizedName: "black beans",
+      quantity: "1",
+      unit: "can",
+      packageQuantity: "15",
+      packageUnit: "oz",
+    }];
+
+    expect(calculateRecipeAvailability(mixedRecipe, pantry).available).toBe(0);
+    expect(calculateGroceryLines([mixedRecipe], pantry, new Set())).toMatchObject([
+      { quantity: "1", unit: "can", calculation: "computed" },
+    ]);
   });
 });

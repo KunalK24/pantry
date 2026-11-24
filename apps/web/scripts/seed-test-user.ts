@@ -4,7 +4,7 @@ import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
-import { normalizeIngredientName, titleCaseIngredientName } from "@/lib/ingredient-normalization";
+import { parseIngredientDetails } from "@/lib/ingredient-normalization";
 import { addLocalDays, formatLocalDate, getLocalWeekStart } from "@/lib/week";
 import { signUpSchema } from "@/schemas/auth";
 import { weekStartToDate } from "@/schemas/weekly-plan";
@@ -55,8 +55,8 @@ async function run() {
       await transaction.pantryItem.createMany({
         data: pantryItems.map((item) => ({
           userId: TEST_USER_ID,
-          name: titleCaseIngredientName(item.name),
-          normalizedName: normalizeIngredientName(item.name),
+          name: item.name,
+          normalizedName: parseIngredientDetails(item.name).normalizedName,
           quantity: item.quantity,
           unit: item.unit,
           location: item.location,
@@ -76,11 +76,23 @@ async function run() {
             timeMinutes: recipe.timeMinutes,
             isFavorite: recipe.isFavorite ?? false,
             ingredients: {
-              create: recipe.ingredients.map((ingredient) => ({
-                quantity: ingredient.quantity,
-                unit: ingredient.unit ?? null,
-                ingredient: { create: { name: titleCaseIngredientName(ingredient.name) } },
-              })),
+              create: recipe.ingredients.map((ingredient) => {
+                const parsed = parseIngredientDetails(ingredient.name, ingredient);
+                return {
+                  quantity: parsed.quantity,
+                  unit: parsed.unit,
+                  brand: parsed.brand,
+                  modifiers: parsed.modifiers,
+                  packageQuantity: parsed.packageQuantity,
+                  packageUnit: parsed.packageUnit,
+                  ingredient: {
+                    create: {
+                      name: ingredient.name,
+                      normalizedName: parsed.normalizedName,
+                    },
+                  },
+                };
+              }),
             },
           },
           select: { id: true },

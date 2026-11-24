@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { hasValidPackageCorrection, ingredientDetailsFields } from "@/schemas/ingredient-details";
+
 function collapseWhitespace(value: string) {
   return value.trim().replace(/\s+/gu, " ");
 }
@@ -41,6 +43,10 @@ export const pantryItemInputSchema = z.object({
     .optional(),
   location: pantryItemLocationSchema.nullable().optional(),
   expiresOn: expirationDateSchema.nullable().optional(),
+  ...ingredientDetailsFields,
+}).refine(hasValidPackageCorrection, {
+  message: "Package amount and unit must be supplied together",
+  path: ["packageQuantity"],
 });
 
 export const pantryExtractionSchema = z.object({

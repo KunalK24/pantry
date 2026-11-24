@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ChangeEvent, type SubmitEvent } from 
 import { z } from "zod";
 
 import { MAX_IMAGE_BYTES } from "@/lib/image-upload";
-import { titleCaseIngredientName } from "@/lib/ingredient-normalization";
 import { pantryExtractionSchema, pantryItemInputSchema } from "@/schemas/pantry-item";
 
 type DraftRow = {
@@ -147,7 +146,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
       }
       setRows(parsed.data.draft.items.map((item, index) => ({
             id: index,
-            name: titleCaseIngredientName(item.name),
+            name: item.name,
             quantity: item.quantity ?? "",
             unit: item.unit ?? "",
             selected: true,
@@ -297,7 +296,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
                         <button className="text-sm font-bold text-red-700 underline disabled:opacity-60" disabled={isSaving} onClick={() => setRows((current) => current?.filter((item) => item.id !== row.id) ?? null)} type="button">Remove</button>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
-                        <label className="text-sm font-bold" htmlFor={`pantry-import-name-${row.id}`}>Name<input className="mt-1 w-full rounded-lg border border-[#d8d3c8] p-2 font-normal" disabled={isSaving} id={`pantry-import-name-${row.id}`} maxLength={200} onBlur={(event) => updateRow(row.id, { name: titleCaseIngredientName(event.target.value) })} onChange={(event) => updateRow(row.id, { name: event.target.value })} value={row.name} /></label>
+                        <label className="text-sm font-bold" htmlFor={`pantry-import-name-${row.id}`}>Name<input className="mt-1 w-full rounded-lg border border-[#d8d3c8] p-2 font-normal" disabled={isSaving} id={`pantry-import-name-${row.id}`} maxLength={200} onChange={(event) => updateRow(row.id, { name: event.target.value })} value={row.name} /></label>
                         <label className="text-sm font-bold" htmlFor={`pantry-import-quantity-${row.id}`}>Quantity<input className="mt-1 w-full rounded-lg border border-[#d8d3c8] p-2 font-normal" disabled={isSaving} id={`pantry-import-quantity-${row.id}`} maxLength={100} onChange={(event) => updateRow(row.id, { quantity: event.target.value })} value={row.quantity} /></label>
                         <label className="text-sm font-bold" htmlFor={`pantry-import-unit-${row.id}`}>Unit<input className="mt-1 w-full rounded-lg border border-[#d8d3c8] p-2 font-normal" disabled={isSaving} id={`pantry-import-unit-${row.id}`} maxLength={100} onChange={(event) => updateRow(row.id, { unit: event.target.value })} value={row.unit} /></label>
                       </div>
