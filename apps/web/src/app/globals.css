@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.first-use-guide-highlight {
+  position: relative;
+  z-index: 41;
+  outline: 4px solid #e59a4c !important;
+  outline-offset: 5px;
+  box-shadow: 0 0 0 7px #fff, 0 0 0 14px rgb(229 154 76 / 50%) !important;
+}

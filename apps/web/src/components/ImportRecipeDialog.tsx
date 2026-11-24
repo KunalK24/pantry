@@ -442,6 +442,7 @@ export default function ImportRecipeDialog({
           triggerClassName ??
           "rounded-xl border border-[#ded9cf] bg-white px-4 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
         }
+        data-first-use-target="recipes"
         onClick={openDialog}
         ref={triggerRef}
         type="button"

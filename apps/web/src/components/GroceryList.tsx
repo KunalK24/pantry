@@ -1389,7 +1389,7 @@ export default function GroceryList() {
       <aside aria-label="Your grocery lists" className="rounded-[1.5rem] border border-[#e2e4da] bg-white p-4 shadow-[0_12px_32px_rgba(36,52,43,0.04)] lg:sticky lg:top-6">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#69766c]">Your lists</h2>
-          <button className="rounded-lg bg-[#e9f1e9] px-2.5 py-1.5 text-xs font-bold text-[#35644f] hover:bg-[#dbe9dc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50" disabled={listActionBusy || mutating} onClick={() => { setListName(""); setIsCreatingList(true); setIsRenamingList(false); }} type="button">+ New list</button>
+          <button className="rounded-lg bg-[#e9f1e9] px-2.5 py-1.5 text-xs font-bold text-[#35644f] hover:bg-[#dbe9dc] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:opacity-50" data-first-use-target="grocery-list" disabled={listActionBusy || mutating} onClick={() => { setListName(""); setIsCreatingList(true); setIsRenamingList(false); }} type="button">+ New list</button>
         </div>
         {isCreatingList ? (
           <form className="mt-4 space-y-2" onSubmit={(event) => void createList(event)}>

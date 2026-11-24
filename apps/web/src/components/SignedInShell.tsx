@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
+import FirstUseGuide from "@/components/FirstUseGuide";
 import SignOutButton from "@/components/SignOutButton";
 
 type Section = "recipes" | "pantry" | "grocery-list" | "meal-planner";
@@ -79,13 +80,22 @@ export default function SignedInShell({
             </ul>
           </nav>
 
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              className="rounded-lg px-3 py-2 text-sm font-bold text-[#35644f] transition-colors hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+              href="/recipes?guide=1"
+            >
+              How to use Pantry
+            </Link>
             <SignOutButton />
           </div>
         </div>
       </header>
 
       <main className="min-w-0 px-5 py-7 sm:px-8 lg:px-10 lg:py-10 xl:px-12">
+        <Suspense fallback={null}>
+          <FirstUseGuide section={`/${activeSection}`} />
+        </Suspense>
         {children}
       </main>
     </div>

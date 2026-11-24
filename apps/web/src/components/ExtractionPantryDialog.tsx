@@ -256,6 +256,7 @@ export default function ExtractionPantryDialog({ onPantryItemsCreated }: { onPan
     <>
       <button
         className="inline-flex min-h-11 items-center rounded-xl border border-[#35644f] bg-white px-5 text-[0.9rem] font-bold text-[#35644f] hover:bg-[#edf3ed] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f]"
+        data-first-use-target="pantry"
         onClick={openDialog}
         ref={triggerRef}
         type="button"

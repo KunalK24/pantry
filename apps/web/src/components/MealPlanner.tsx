@@ -172,6 +172,7 @@ export default function MealPlanner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedWeek = searchParams.get("week");
+  const guideQuery = searchParams.get("guide") === "1" ? "&guide=1" : "";
   const weekStart = useMemo(
     () => resolveWeekStart(requestedWeek),
     [requestedWeek],
@@ -198,9 +199,9 @@ export default function MealPlanner() {
 
   useEffect(() => {
     if (requestedWeek !== weekStart) {
-      router.replace(`/meal-planner?week=${weekStart}`);
+      router.replace(`/meal-planner?week=${weekStart}${guideQuery}`);
     }
-  }, [requestedWeek, router, weekStart]);
+  }, [guideQuery, requestedWeek, router, weekStart]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -342,7 +343,7 @@ export default function MealPlanner() {
     setDirty(false);
     setSaveError(null);
     setPickerTarget(null);
-    router.push(`/meal-planner?week=${nextWeek}`);
+    router.push(`/meal-planner?week=${nextWeek}${guideQuery}`);
   }
 
   function addMeal(recipeId: string) {
@@ -426,7 +427,7 @@ export default function MealPlanner() {
       return;
     }
 
-    router.push(`/grocery-list?importWeek=${weekStart}`);
+    router.push(`/grocery-list?importWeek=${weekStart}${guideQuery}`);
   }
 
   const planReady = planLoadState === "ready" && loadedWeek === weekStart;
@@ -635,6 +636,7 @@ export default function MealPlanner() {
                             className="min-h-9 rounded-lg bg-[#e8f0e8] px-3 text-xs font-bold text-[#35644f] transition-colors hover:bg-[#dcebdd] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#35644f] disabled:cursor-not-allowed disabled:opacity-50"
                             data-add-meal-day={dayOffset}
                             data-add-meal-slot={slot}
+                            data-first-use-target="meal-planner"
                             disabled={addMealDisabled}
                             onClick={() => setPickerTarget({ dayOffset, mealSlot: slot })}
                             type="button"

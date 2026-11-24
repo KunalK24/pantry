@@ -105,6 +105,63 @@ describe("auth cookie helpers", () => {
     expect(checkRequestOrigin(request)).toBeNull();
   });
 
+  it("accepts only this Vercel project's exact deployment origins", () => {
+    vi.stubEnv("APP_ORIGIN", "https://pantry.example.com");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("VERCEL_URL", "pantry-abc.vercel.app");
+    vi.stubEnv("VERCEL_BRANCH_URL", "pantry-git-main.vercel.app");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "pantry.vercel.app");
+
+    for (const origin of [
+      "https://pantry.example.com",
+      "https://pantry-abc.vercel.app",
+      "https://pantry-git-main.vercel.app",
+      "https://pantry.vercel.app",
+    ]) {
+      const request = new Request("http://internal:3000/api/auth/sign-in", {
+        method: "POST",
+        headers: { origin },
+      });
+      expect(checkRequestOrigin(request)).toBeNull();
+    }
+
+    const unrelated = new Request("http://internal:3000/api/auth/sign-in", {
+      method: "POST",
+      headers: { origin: "https://other-project.vercel.app" },
+    });
+    expect(checkRequestOrigin(unrelated)?.status).toBe(403);
+  });
+
+  it("ignores deployment hostnames outside Vercel or with URL paths", () => {
+    vi.stubEnv("APP_ORIGIN", "https://pantry.example.com");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("VERCEL_URL", "pantry-abc.vercel.app");
+    const request = new Request("http://internal:3000/api/auth/sign-in", {
+      method: "POST",
+      headers: { origin: "https://pantry-abc.vercel.app" },
+    });
+
+    expect(checkRequestOrigin(request)?.status).toBe(403);
+
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_URL", "pantry-abc.vercel.app/path");
+    expect(checkRequestOrigin(request)?.status).toBe(403);
+  });
+
+  it("does not trust the production URL on preview deployments", () => {
+    vi.stubEnv("APP_ORIGIN", "https://pantry.example.com");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "pantry.vercel.app");
+    const request = new Request("http://internal:3000/api/auth/sign-in", {
+      method: "POST",
+      headers: { origin: "https://pantry.vercel.app" },
+    });
+
+    expect(checkRequestOrigin(request)?.status).toBe(403);
+  });
+
   it("requires an exact, valid APP_ORIGIN in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("APP_ORIGIN", "");

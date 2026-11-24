@@ -118,7 +118,32 @@ export function checkRequestOrigin(request: Request): Response | null {
     expectedOrigin = new URL(request.url).origin;
   }
 
-  if (origin !== expectedOrigin) {
+  const allowedOrigins = new Set([expectedOrigin]);
+
+  if (process.env.VERCEL === "1") {
+    for (const hostname of [
+      process.env.VERCEL_URL,
+      process.env.VERCEL_BRANCH_URL,
+      process.env.VERCEL_ENV === "production"
+        ? process.env.VERCEL_PROJECT_PRODUCTION_URL
+        : undefined,
+    ]) {
+      if (!hostname) {
+        continue;
+      }
+
+      try {
+        const deploymentOrigin = `https://${hostname}`;
+        if (new URL(deploymentOrigin).origin === deploymentOrigin) {
+          allowedOrigins.add(deploymentOrigin);
+        }
+      } catch {
+        // Ignore malformed deployment hostnames.
+      }
+    }
+  }
+
+  if (!origin || !allowedOrigins.has(origin)) {
     return Response.json({ error: "Forbidden origin" }, { status: 403 });
   }
 

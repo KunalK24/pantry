@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type SubmitEvent } from "react";
 
+import { postAuthDestination } from "@/lib/first-use-guide";
+
 type AuthStatus = {
   type: "error";
   message: string;
@@ -80,7 +82,9 @@ export default function SignInForm() {
         return;
       }
 
-      router.push("/recipes");
+      const payload: unknown = await response.json().catch(() => null);
+      const forceGuide = new URLSearchParams(window.location.search).get("guide") === "1";
+      router.push(postAuthDestination(payload, forceGuide));
       router.refresh();
     } catch {
       setStatus({
