@@ -16,19 +16,6 @@ export function proxy(request: NextRequest) {
   return handlePageAuth(request, pathname, token);
 }
 
-async function getUserForToken(token: string | null) {
-  if (!token) {
-    return null;
-  }
-
-  try {
-    return await getSessionUser(token);
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
 function redirectWithClearedSession(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone();
   url.pathname = pathname;
@@ -45,7 +32,13 @@ async function handlePageAuth(
   pathname: string,
   token: string | null,
 ) {
-  const user = await getUserForToken(token);
+  let user = null;
+  try {
+    user = token ? await getSessionUser(token) : null;
+  } catch (error) {
+    console.error(error);
+    return new NextResponse("Service Unavailable", { status: 503 });
+  }
 
   if (!user && !isPublicPath(pathname)) {
     if (token) {

@@ -5,5 +5,3 @@ export const groceryListNameSchema = z.object({
 });
 
 export const groceryListIdSchema = z.cuid();
-
-export type GroceryListNameInput = z.infer<typeof groceryListNameSchema>;

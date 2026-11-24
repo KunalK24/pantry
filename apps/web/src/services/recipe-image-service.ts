@@ -69,6 +69,9 @@ async function fetchImage(raw: string): Promise<{ data: Buffer; mimeType: Recipe
       signal.addEventListener("abort", onAbort, { once: true });
       pinAddress(url).then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
     });
+    if (signal.aborted) {
+      throw new RecipeImageError("source_unavailable");
+    }
     const transport = url.protocol === "https:" ? https : http;
     const response = await new Promise<{ status: number; location?: string; type: string; data: Buffer }>((resolve, reject) => {
       const request = transport.request(url, {

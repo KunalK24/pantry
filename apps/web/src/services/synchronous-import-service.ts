@@ -19,6 +19,9 @@ async function withinDeadline<T>(
   run: (signal: AbortSignal) => Promise<T>,
   requestSignal?: AbortSignal,
 ): Promise<T> {
+  if (requestSignal?.aborted) {
+    throw new ImportDeadlineError();
+  }
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let rejectAborted: (error: ImportDeadlineError) => void = () => {};
@@ -35,12 +38,6 @@ async function withinDeadline<T>(
   }
   requestSignal?.addEventListener("abort", abortImport, { once: true });
   try {
-    if (requestSignal?.aborted) {
-      abortImport();
-    }
-    if (controller.signal.aborted) {
-      throw new ImportDeadlineError();
-    }
     const result = await Promise.race([run(controller.signal), aborted]);
     if (controller.signal.aborted) {
       throw new ImportDeadlineError();

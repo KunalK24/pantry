@@ -66,4 +66,16 @@ describe("synchronous imports", () => {
     await expect(importPromise).rejects.toThrow("Import timed out");
     expect(create).not.toHaveBeenCalled();
   });
+
+  it("does not start provider work for an already canceled request", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(importRecipeSynchronously(
+      { type: "text", text: "Toast" },
+      "user-1",
+      controller.signal,
+    )).rejects.toThrow("Import timed out");
+    expect(importRecipe).not.toHaveBeenCalled();
+  });
 });

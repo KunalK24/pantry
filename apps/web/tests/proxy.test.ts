@@ -56,6 +56,23 @@ describe("proxy page auth redirects", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
+  it("preserves the session cookie when its lookup fails", async () => {
+    getSessionUserMock.mockRejectedValue(new Error("Database unavailable"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const response = await proxy(
+        request("/recipes", "pantry_session=valid-token"),
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(response.headers.get("location")).toBeNull();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("redirects signed-in users away from auth pages", async () => {
     getSessionUserMock.mockResolvedValue({
       id: "auth-user",
