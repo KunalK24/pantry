@@ -6,6 +6,13 @@ import {
 } from "@/services/auth-service";
 
 export const SESSION_COOKIE_NAME = "pantry_session";
+const bearerTokenPattern = /^Bearer ([A-Za-z0-9_-]{43})$/;
+
+type RequestCredential =
+  | { kind: "bearer"; token: string }
+  | { kind: "cookie"; token: string }
+  | { kind: "none" }
+  | { kind: "invalid" };
 
 function cookieOptions(maxAgeSeconds: number) {
   const options = [
@@ -58,32 +65,69 @@ export function getSessionToken(request: Request) {
   return null;
 }
 
-export async function getAuthenticatedUser(
-  request: Request,
-): Promise<PublicUser | null> {
-  const token = getSessionToken(request);
+function hasSessionCookie(request: Request) {
+  return request.headers.get("cookie")?.split(";").some((cookie) =>
+    cookie.trim().split("=", 1)[0] === SESSION_COOKIE_NAME
+  ) ?? false;
+}
 
-  if (!token) {
+export function getBearerSessionToken(request: Request): string | null {
+  const authorization = request.headers.get("authorization");
+  if (!authorization || hasSessionCookie(request)) {
     return null;
   }
 
-  return getSessionUser(token);
+  return bearerTokenPattern.exec(authorization)?.[1] ?? null;
+}
+
+function resolveCredential(request: Request): RequestCredential {
+  if (request.headers.has("authorization")) {
+    const token = getBearerSessionToken(request);
+    return token ? { kind: "bearer", token } : { kind: "invalid" };
+  }
+
+  const token = getSessionToken(request);
+  return token ? { kind: "cookie", token } : { kind: "none" };
+}
+
+function unauthorizedResponse() {
+  return Response.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+export async function getAuthenticatedUser(
+  request: Request,
+): Promise<PublicUser | null> {
+  const credential = resolveCredential(request);
+  if (credential.kind === "none" || credential.kind === "invalid") {
+    return null;
+  }
+
+  return getSessionUser(credential.token);
 }
 
 export async function requireAuth(request: Request) {
+  const credential = resolveCredential(request);
+  if (credential.kind === "invalid") {
+    return { user: null, response: unauthorizedResponse() };
+  }
+
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
-    const originResponse = checkRequestOrigin(request);
+    const originResponse = credential.kind === "bearer"
+      ? checkNativeRequestOrigin(request)
+      : checkRequestOrigin(request);
     if (originResponse) {
       return { user: null, response: originResponse };
     }
   }
 
-  const user = await getAuthenticatedUser(request);
+  const user = credential.kind === "none"
+    ? null
+    : await getSessionUser(credential.token);
 
   if (!user) {
     return {
       user: null,
-      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+      response: unauthorizedResponse(),
     };
   }
 
@@ -91,6 +135,22 @@ export async function requireAuth(request: Request) {
     user,
     response: null,
   };
+}
+
+export function checkNativeRequestOrigin(request: Request): Response | null {
+  if (process.env.NODE_ENV === "production") {
+    const configuredOrigin = process.env.APP_ORIGIN;
+    try {
+      const url = new URL(configuredOrigin ?? "");
+      if (url.protocol !== "https:" || url.origin !== configuredOrigin) {
+        return Response.json({ error: "Service Unavailable" }, { status: 503 });
+      }
+    } catch {
+      return Response.json({ error: "Service Unavailable" }, { status: 503 });
+    }
+  }
+
+  return request.headers.has("origin") ? checkRequestOrigin(request) : null;
 }
 
 export function checkRequestOrigin(request: Request): Response | null {
