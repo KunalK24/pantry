@@ -14,7 +14,7 @@ export class ApiError extends Error {
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   token?: string;
   body?: unknown;
 };
@@ -107,8 +107,26 @@ export async function postJson<T>(
   path: `/${string}`,
   body: unknown,
   isResponse: (value: unknown) => value is T,
+  token?: string,
 ): Promise<T> {
-  return request(path, { method: "POST", body }, (response) => parseJson(response, isResponse));
+  return request(path, { method: "POST", body, token }, (response) => parseJson(response, isResponse));
+}
+
+export async function putJson<T>(
+  path: `/${string}`,
+  body: unknown,
+  isResponse: (value: unknown) => value is T,
+  token: string,
+): Promise<T> {
+  return request(path, { method: "PUT", body, token }, (response) => parseJson(response, isResponse));
+}
+
+export async function deleteJson<T>(
+  path: `/${string}`,
+  isResponse: (value: unknown) => value is T,
+  token: string,
+): Promise<T> {
+  return request(path, { method: "DELETE", token }, (response) => parseJson(response, isResponse));
 }
 
 export async function postNoContent(path: `/${string}`, token: string): Promise<void> {
