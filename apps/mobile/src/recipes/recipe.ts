@@ -2,6 +2,10 @@ export type RecipeIngredient = {
   name: string;
   quantity: string | null;
   unit: string | null;
+  brand: string | null;
+  modifiers: string[];
+  packageQuantity: string | null;
+  packageUnit: string | null;
 };
 
 export type RecipeSummary = {
@@ -29,7 +33,11 @@ function isIngredient(value: unknown): value is RecipeIngredient {
   return typeof value === "object" && value !== null &&
     "name" in value && typeof value.name === "string" &&
     "quantity" in value && isNullableString(value.quantity) &&
-    "unit" in value && isNullableString(value.unit);
+    "unit" in value && isNullableString(value.unit) &&
+    "brand" in value && isNullableString(value.brand) &&
+    "modifiers" in value && Array.isArray(value.modifiers) && value.modifiers.every((part) => typeof part === "string") &&
+    "packageQuantity" in value && isNullableString(value.packageQuantity) &&
+    "packageUnit" in value && isNullableString(value.packageUnit);
 }
 
 export function isRecipeSummary(value: unknown): value is RecipeSummary {

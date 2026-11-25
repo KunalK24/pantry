@@ -1,9 +1,9 @@
-import { Link } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Link, router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, getJson } from "@/api/client";
+import { ApiError, deleteJson, getJson, patchJson } from "@/api/client";
 import { useAuth, type Session } from "@/auth/session";
 import RecipeCover from "@/components/RecipeCover";
 import { formatMealType, isRecipeDetail, isSafeRecipeId, type RecipeDetail } from "@/recipes/recipe";
@@ -15,6 +15,12 @@ export default function RecipeDetailScreen({ id, session }: { id: string; sessio
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [favoritePending, setFavoritePending] = useState(false);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+  const favoritePendingRef = useRef(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const invalidId = !isSafeRecipeId(id);
 
   useEffect(() => {
@@ -52,6 +58,66 @@ export default function RecipeDetailScreen({ id, session }: { id: string; sessio
     setRetryCount((current) => current + 1);
   }
 
+  async function toggleFavorite() {
+    if (!recipe || favoritePendingRef.current || deletingRef.current) return;
+    favoritePendingRef.current = true;
+    setFavoritePending(true);
+    setFavoriteError(null);
+    try {
+      const updated = await patchJson(
+        `/api/recipes/${encodeURIComponent(recipe.id)}`,
+        { isFavorite: !recipe.isFavorite },
+        isRecipeDetail,
+        session.token,
+      );
+      setRecipe(updated);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) {
+        clearSession();
+      } else if (caught instanceof ApiError && caught.status === 404) {
+        setRecipe(null);
+        setMissing(true);
+        setError("Recipe not found.");
+      } else {
+        setFavoriteError(caught instanceof Error ? caught.message : "Unable to update favorite.");
+      }
+    } finally {
+      favoritePendingRef.current = false;
+      setFavoritePending(false);
+    }
+  }
+
+  async function deleteCurrentRecipe(recipeToDelete: RecipeDetail) {
+    if (deletingRef.current || favoritePendingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteJson(`/api/recipes/${encodeURIComponent(recipeToDelete.id)}`, isRecipeDetail, session.token);
+      router.dismissTo("/recipes");
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) {
+        clearSession();
+      } else if (caught instanceof ApiError && caught.status === 404) {
+        router.dismissTo("/recipes");
+      } else {
+        setDeleteError(caught instanceof Error ? caught.message : "Unable to delete this recipe.");
+      }
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
+  }
+
+  function confirmDelete() {
+    if (!recipe || deletingRef.current || favoritePendingRef.current) return;
+    const recipeToDelete = recipe;
+    Alert.alert("Delete recipe?", `Delete ${recipe.name}? This also removes it from meal plans and grocery list recipe selections.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { void deleteCurrentRecipe(recipeToDelete); } },
+    ]);
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -73,6 +139,20 @@ export default function RecipeDetailScreen({ id, session }: { id: string; sessio
           <View style={styles.body}>
             <RecipeCover recipe={recipe} token={session.token} large />
             <Text style={styles.title}>{recipe.name}</Text>
+            {!deleting ? <Link href={{ pathname: "/recipes/edit/[id]", params: { id: recipe.id } }} asChild>
+              <Pressable accessibilityRole="button" style={styles.editButton}><Text style={styles.editText}>Edit recipe</Text></Pressable>
+            </Link> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={recipe.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              accessibilityState={{ selected: recipe.isFavorite, disabled: favoritePending || deleting }} disabled={favoritePending || deleting}
+              onPress={() => void toggleFavorite()} style={styles.favoriteButton}>
+              <Text style={styles.favoriteText}>{favoritePending ? "Saving…" : recipe.isFavorite ? "♥ Favorite" : "♡ Add to favorites"}</Text>
+            </Pressable>
+            {favoriteError ? <Text accessibilityRole="alert" style={styles.error}>{favoriteError}</Text> : null}
+            <Pressable accessibilityRole="button" accessibilityLabel="Delete recipe" disabled={deleting || favoritePending}
+              onPress={confirmDelete} style={styles.deleteButton}>
+              <Text style={styles.deleteText}>{deleting ? "Deleting…" : "Delete recipe"}</Text>
+            </Pressable>
+            {deleteError ? <Text accessibilityRole="alert" style={styles.error}>{deleteError}</Text> : null}
             <Text style={styles.meta}>{[
               formatMealType(recipe.mealType),
               recipe.timeMinutes ? `${recipe.timeMinutes} min` : null,
@@ -108,6 +188,12 @@ const styles = StyleSheet.create({
   retryText: { color: "#35644f", fontSize: 15, fontWeight: "600" },
   body: { gap: 12 },
   title: { color: "#244c38", fontSize: 30, fontWeight: "700" },
+  editButton: { alignSelf: "flex-start", borderColor: "#35644f", borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  editText: { color: "#35644f", fontSize: 16, fontWeight: "600" },
+  favoriteButton: { alignSelf: "flex-start", borderColor: "#c5745a", borderRadius: 10, borderWidth: 1, minHeight: 44, paddingHorizontal: 14, justifyContent: "center" },
+  favoriteText: { color: "#a8513a", fontSize: 16, fontWeight: "600" },
+  deleteButton: { alignSelf: "flex-start", borderColor: "#a12f2f", borderRadius: 10, borderWidth: 1, minHeight: 44, paddingHorizontal: 14, justifyContent: "center" },
+  deleteText: { color: "#a12f2f", fontSize: 16, fontWeight: "600" },
   meta: { color: "#526354", fontSize: 15 },
   description: { color: "#465a4d", fontSize: 16, lineHeight: 24 },
   heading: { color: "#244c38", fontSize: 21, fontWeight: "700", marginTop: 10 },
