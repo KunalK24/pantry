@@ -9,6 +9,7 @@ import {
 const weeklyPlanSelect = {
   id: true,
   weekStart: true,
+  revision: true,
   updatedAt: true,
   meals: {
     orderBy: [{ dayOffset: "asc" }, { position: "asc" }],
@@ -30,6 +31,13 @@ export class WeeklyPlanReferenceError extends Error {
   constructor() {
     super("Weekly plan references an unknown recipe");
     this.name = "WeeklyPlanReferenceError";
+  }
+}
+
+export class WeeklyPlanRevisionConflictError extends Error {
+  constructor() {
+    super("Weekly plan changed since it was loaded");
+    this.name = "WeeklyPlanRevisionConflictError";
   }
 }
 
@@ -86,24 +94,25 @@ export async function saveWeeklyPlan(
         }
       }
 
-      const savedPlan = await transaction.weeklyPlan.upsert({
-        where: {
-          userId_weekStart: {
-            userId,
-            weekStart: weekStartDate,
-          },
-        },
-        create: {
-          userId,
-          weekStart: weekStartDate,
-        },
-        update: {
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-        },
-      });
+      let savedPlan: { id: string };
+      if (input.expectedRevision === null) {
+        savedPlan = await transaction.weeklyPlan.create({
+          data: { userId, weekStart: weekStartDate },
+          select: { id: true },
+        });
+      } else {
+        const updated = await transaction.weeklyPlan.updateMany({
+          where: { userId, weekStart: weekStartDate, revision: input.expectedRevision },
+          data: { revision: { increment: 1 }, updatedAt: new Date() },
+        });
+        if (updated.count !== 1) {
+          throw new WeeklyPlanRevisionConflictError();
+        }
+        savedPlan = await transaction.weeklyPlan.findUniqueOrThrow({
+          where: { userId_weekStart: { userId, weekStart: weekStartDate } },
+          select: { id: true },
+        });
+      }
 
       await transaction.plannedMeal.deleteMany({
         where: {
@@ -130,6 +139,9 @@ export async function saveWeeklyPlan(
 
     return serializeWeeklyPlan(plan);
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new WeeklyPlanRevisionConflictError();
+    }
     if (isForeignKeyError(error)) {
       throw new WeeklyPlanReferenceError();
     }

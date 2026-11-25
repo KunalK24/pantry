@@ -36,6 +36,7 @@ type WeeklyPlanMeal = {
 type WeeklyPlan = {
   id: string;
   weekStart: string;
+  revision: number;
   updatedAt: string;
   meals: WeeklyPlanMeal[];
 };
@@ -125,6 +126,10 @@ function isWeeklyPlan(value: unknown): value is WeeklyPlan {
     typeof value.id === "string" &&
     "weekStart" in value &&
     typeof value.weekStart === "string" &&
+    "revision" in value &&
+    typeof value.revision === "number" &&
+    Number.isInteger(value.revision) &&
+    value.revision >= 0 &&
     "updatedAt" in value &&
     typeof value.updatedAt === "string" &&
     "meals" in value &&
@@ -185,6 +190,7 @@ export default function MealPlanner() {
   const [draftMeals, setDraftMeals] = useState<DraftMeal[]>([]);
   const [planLoadState, setPlanLoadState] = useState<PlanLoadState>("loading");
   const [loadedWeek, setLoadedWeek] = useState<string | null>(null);
+  const [planRevision, setPlanRevision] = useState<number | null>(null);
   const [planRequestNumber, setPlanRequestNumber] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -266,6 +272,7 @@ export default function MealPlanner() {
 
         planReadyRef.current = true;
         setDraftMeals(availableMeals);
+        setPlanRevision(payload.plan?.revision ?? null);
         setDirty(availableMeals.length !== loadedMeals.length);
         setSaveError(null);
         setPickerTarget(null);
@@ -308,15 +315,20 @@ export default function MealPlanner() {
       const response = await fetch(`/api/weekly-plans/${weekStart}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ meals: toPlanInput(draftMeals) }),
+        body: JSON.stringify({ meals: toPlanInput(draftMeals), expectedRevision: planRevision }),
       });
       const payload: unknown = await response.json().catch(() => null);
 
+      if (response.status === 409) {
+        setSaveError("This plan changed elsewhere. Reload the week before saving.");
+        return false;
+      }
       if (!response.ok || !isWeeklyPlanResponse(payload) || !payload.plan) {
         throw new Error("Unable to save weekly plan");
       }
 
       setDraftMeals(toDraftMeals(payload.plan));
+      setPlanRevision(payload.plan.revision);
       setDirty(false);
       return true;
     } catch {
@@ -325,7 +337,7 @@ export default function MealPlanner() {
     } finally {
       setSaving(false);
     }
-  }, [draftMeals, loadedWeek, planLoadState, saving, weekStart]);
+  }, [draftMeals, loadedWeek, planLoadState, planRevision, saving, weekStart]);
 
   function navigateToWeek(nextWeek: string) {
     if (nextWeek === weekStart) {
@@ -339,6 +351,7 @@ export default function MealPlanner() {
     planReadyRef.current = false;
     setPlanLoadState("loading");
     setLoadedWeek(null);
+    setPlanRevision(null);
     setDraftMeals([]);
     setDirty(false);
     setSaveError(null);

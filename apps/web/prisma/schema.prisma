@@ -96,6 +96,7 @@ model PantryItem {
 model WeeklyPlan {
   id        String   @id @default(cuid())
   weekStart DateTime @db.Date
+  revision  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -127,6 +128,7 @@ model GroceryList {
   id                   String   @id @default(cuid())
   key                  String
   name                 String   @default("Grocery list")
+  revision             Int      @default(0)
   importedWeeklyPlanId String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -255,4 +257,14 @@ model AuthRateLimit {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+model ApprovedEmail {
+  email          String    @id
+  tokenHash      String    @unique
+  tokenExpiresAt DateTime
+  tokenUsedAt    DateTime?
+  approvedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

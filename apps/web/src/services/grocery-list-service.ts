@@ -131,6 +131,7 @@ export async function saveActiveGroceryList(
         },
         update: {
           importedWeeklyPlanId: input.importedWeeklyPlanId,
+          revision: { increment: 1 },
         },
         select: {
           id: true,

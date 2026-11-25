@@ -9,6 +9,7 @@ import {
   getWeeklyPlan,
   saveWeeklyPlan,
   WeeklyPlanReferenceError,
+  WeeklyPlanRevisionConflictError,
 } from "@/services/weekly-plan-service";
 
 type WeeklyPlanRouteContext = {
@@ -96,6 +97,12 @@ export async function PUT(request: Request, context: WeeklyPlanRouteContext) {
     );
     return Response.json({ plan });
   } catch (error) {
+    if (error instanceof WeeklyPlanRevisionConflictError) {
+      return Response.json(
+        { error: "Weekly plan changed since it was loaded", code: "REVISION_CONFLICT" },
+        { status: 409 },
+      );
+    }
     if (error instanceof WeeklyPlanReferenceError) {
       return Response.json(
         { error: "Weekly plan references an unknown recipe" },

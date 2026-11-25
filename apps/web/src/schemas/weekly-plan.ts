@@ -62,6 +62,7 @@ const plannedMealInputSchema = z.object({
 
 export const weeklyPlanInputSchema = z
   .object({
+    expectedRevision: z.number().int().nonnegative().nullable(),
     meals: z.array(plannedMealInputSchema).max(70),
   })
   .superRefine(({ meals }, context) => {

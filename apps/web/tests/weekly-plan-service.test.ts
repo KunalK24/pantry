@@ -4,7 +4,9 @@ const {
   findWeeklyPlanMock,
   transactionMock,
   countRecipesMock,
-  upsertWeeklyPlanMock,
+  createWeeklyPlanMock,
+  updateWeeklyPlanMock,
+  findPlanIdMock,
   deleteMealsMock,
   createMealsMock,
   findSavedWeeklyPlanMock,
@@ -12,7 +14,9 @@ const {
   findWeeklyPlanMock: vi.fn(),
   transactionMock: vi.fn(),
   countRecipesMock: vi.fn(),
-  upsertWeeklyPlanMock: vi.fn(),
+  createWeeklyPlanMock: vi.fn(),
+  updateWeeklyPlanMock: vi.fn(),
+  findPlanIdMock: vi.fn(),
   deleteMealsMock: vi.fn(),
   createMealsMock: vi.fn(),
   findSavedWeeklyPlanMock: vi.fn(),
@@ -32,6 +36,7 @@ import {
   getWeeklyPlan,
   saveWeeklyPlan,
   WeeklyPlanReferenceError,
+  WeeklyPlanRevisionConflictError,
 } from "@/services/weekly-plan-service";
 
 const recipeId = "cm12345678901234567890123";
@@ -45,6 +50,7 @@ const updatedAt = new Date("2026-10-01T12:00:00.000Z");
 const persistedPlan = {
   id: planId,
   weekStart: weekStartDate,
+  revision: 0,
   updatedAt,
   meals: [
     {
@@ -60,6 +66,7 @@ const persistedPlan = {
 const weeklyPlanSelect = {
   id: true,
   weekStart: true,
+  revision: true,
   updatedAt: true,
   meals: {
     orderBy: [{ dayOffset: "asc" }, { position: "asc" }],
@@ -81,8 +88,10 @@ beforeEach(() => {
         count: countRecipesMock,
       },
       weeklyPlan: {
-        upsert: upsertWeeklyPlanMock,
-        findUniqueOrThrow: findSavedWeeklyPlanMock,
+        create: createWeeklyPlanMock,
+        updateMany: updateWeeklyPlanMock,
+        findUniqueOrThrow: vi.fn().mockImplementation((query) =>
+          Object.keys(query.select).length === 1 ? findPlanIdMock(query) : findSavedWeeklyPlanMock(query)),
       },
       plannedMeal: {
         deleteMany: deleteMealsMock,
@@ -121,6 +130,7 @@ describe("getWeeklyPlan", () => {
 describe("saveWeeklyPlan", () => {
   it("atomically replaces meals and permits repeated recipes", async () => {
     const input = {
+      expectedRevision: null,
       meals: [
         { recipeId, dayOffset: 0, position: 0, mealSlot: "breakfast" as const },
         { recipeId, dayOffset: 2, position: 0, mealSlot: "lunch" as const },
@@ -128,7 +138,7 @@ describe("saveWeeklyPlan", () => {
       ],
     };
     countRecipesMock.mockResolvedValue(2);
-    upsertWeeklyPlanMock.mockResolvedValue({ id: planId });
+    createWeeklyPlanMock.mockResolvedValue({ id: planId });
     findSavedWeeklyPlanMock.mockResolvedValue(persistedPlan);
 
     await expect(saveWeeklyPlan(userId, weekStart, input)).resolves.toEqual({
@@ -140,15 +150,8 @@ describe("saveWeeklyPlan", () => {
     expect(countRecipesMock).toHaveBeenCalledWith({
       where: { userId, id: { in: [recipeId, secondRecipeId] } },
     });
-    expect(upsertWeeklyPlanMock).toHaveBeenCalledWith({
-      where: {
-        userId_weekStart: {
-          userId,
-          weekStart: weekStartDate,
-        },
-      },
-      create: { userId, weekStart: weekStartDate },
-      update: { updatedAt: expect.any(Date) },
+    expect(createWeeklyPlanMock).toHaveBeenCalledWith({
+      data: { userId, weekStart: weekStartDate },
       select: { id: true },
     });
     expect(deleteMealsMock).toHaveBeenCalledWith({
@@ -164,10 +167,10 @@ describe("saveWeeklyPlan", () => {
   });
 
   it("saves an empty week without unnecessary reference or create queries", async () => {
-    upsertWeeklyPlanMock.mockResolvedValue({ id: planId });
+    createWeeklyPlanMock.mockResolvedValue({ id: planId });
     findSavedWeeklyPlanMock.mockResolvedValue({ ...persistedPlan, meals: [] });
 
-    await saveWeeklyPlan(userId, weekStart, { meals: [] });
+    await saveWeeklyPlan(userId, weekStart, { expectedRevision: null, meals: [] });
 
     expect(countRecipesMock).not.toHaveBeenCalled();
     expect(createMealsMock).not.toHaveBeenCalled();
@@ -179,17 +182,18 @@ describe("saveWeeklyPlan", () => {
 
     await expect(
       saveWeeklyPlan(userId, weekStart, {
+        expectedRevision: null,
         meals: [{ recipeId, dayOffset: 0, position: 0 }],
       }),
     ).rejects.toBeInstanceOf(WeeklyPlanReferenceError);
 
-    expect(upsertWeeklyPlanMock).not.toHaveBeenCalled();
+    expect(createWeeklyPlanMock).not.toHaveBeenCalled();
     expect(deleteMealsMock).not.toHaveBeenCalled();
   });
 
   it("translates a foreign-key race to a safe reference error", async () => {
     countRecipesMock.mockResolvedValue(1);
-    upsertWeeklyPlanMock.mockResolvedValue({ id: planId });
+    createWeeklyPlanMock.mockResolvedValue({ id: planId });
     deleteMealsMock.mockResolvedValue({ count: 0 });
     createMealsMock.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Foreign key failed", {
@@ -200,8 +204,38 @@ describe("saveWeeklyPlan", () => {
 
     await expect(
       saveWeeklyPlan(userId, weekStart, {
+        expectedRevision: null,
         meals: [{ recipeId, dayOffset: 0, position: 0 }],
       }),
     ).rejects.toBeInstanceOf(WeeklyPlanReferenceError);
+  });
+
+  it("updates an existing week only at the loaded revision", async () => {
+    updateWeeklyPlanMock.mockResolvedValue({ count: 1 });
+    findPlanIdMock.mockResolvedValue({ id: planId });
+    findSavedWeeklyPlanMock.mockResolvedValue({ ...persistedPlan, revision: 4 });
+
+    await expect(saveWeeklyPlan(userId, weekStart, { expectedRevision: 3, meals: [] }))
+      .resolves.toMatchObject({ revision: 4 });
+    expect(updateWeeklyPlanMock).toHaveBeenCalledWith({
+      where: { userId, weekStart: weekStartDate, revision: 3 },
+      data: { revision: { increment: 1 }, updatedAt: expect.any(Date) },
+    });
+  });
+
+  it("rejects a stale week before replacing meals", async () => {
+    updateWeeklyPlanMock.mockResolvedValue({ count: 0 });
+    await expect(saveWeeklyPlan(userId, weekStart, { expectedRevision: 2, meals: [] }))
+      .rejects.toBeInstanceOf(WeeklyPlanRevisionConflictError);
+    expect(deleteMealsMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects creating a week that another client already created", async () => {
+    createWeeklyPlanMock.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("Unique failed", {
+      code: "P2002", clientVersion: "7.10.0",
+    }));
+    await expect(saveWeeklyPlan(userId, weekStart, { expectedRevision: null, meals: [] }))
+      .rejects.toBeInstanceOf(WeeklyPlanRevisionConflictError);
+    expect(deleteMealsMock).not.toHaveBeenCalled();
   });
 });

@@ -10,11 +10,16 @@ const mocks = vi.hoisted(() => ({
   deleteGroceryList: vi.fn(),
 }));
 
+const conflict = vi.hoisted(() => ({
+  ErrorClass: class NamedGroceryListRevisionConflictError extends Error {},
+}));
+
 vi.mock("@/lib/auth", () => ({ requireAuth: mocks.requireAuth }));
 vi.mock("@/services/named-grocery-list-service", () => ({
   ...mocks,
   NamedGroceryListNotFoundError: class NamedGroceryListNotFoundError extends Error {},
   NamedGroceryListReferenceError: class NamedGroceryListReferenceError extends Error {},
+  NamedGroceryListRevisionConflictError: conflict.ErrorClass,
 }));
 
 import { GET as getLists, POST } from "@/app/api/grocery-lists/route";
@@ -62,7 +67,7 @@ describe("named grocery list routes", () => {
     expect(getResponse.status).toBe(200);
     expect(mocks.getGroceryList).toHaveBeenCalledWith("user-1", id);
 
-    const input = { importedWeeklyPlanId: null, recipes: [], items: [] };
+    const input = { expectedRevision: 0, importedWeeklyPlanId: null, recipes: [], items: [] };
     mocks.saveGroceryList.mockResolvedValue({ id, ...input });
     const putResponse = await PUT(new Request("http://localhost", {
       method: "PUT",
@@ -72,14 +77,29 @@ describe("named grocery list routes", () => {
     expect(mocks.saveGroceryList).toHaveBeenCalledWith("user-1", id, input);
   });
 
+  it("requires a revision for list replacement and rename", async () => {
+    const putResponse = await PUT(new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify({ importedWeeklyPlanId: null, recipes: [], items: [] }),
+    }), context);
+    expect(putResponse.status).toBe(400);
+    expect(mocks.saveGroceryList).not.toHaveBeenCalled();
+
+    const patchResponse = await PATCH(new Request("http://localhost", {
+      method: "PATCH", body: JSON.stringify({ name: "Market" }),
+    }), context);
+    expect(patchResponse.status).toBe(400);
+    expect(mocks.renameGroceryList).not.toHaveBeenCalled();
+  });
+
   it("renames and deletes a list", async () => {
     mocks.renameGroceryList.mockResolvedValue({ id, name: "Market" });
     const patchResponse = await PATCH(new Request("http://localhost", {
       method: "PATCH",
-      body: JSON.stringify({ name: "Market" }),
+      body: JSON.stringify({ name: "Market", expectedRevision: 0 }),
     }), context);
     expect(patchResponse.status).toBe(200);
-    expect(mocks.renameGroceryList).toHaveBeenCalledWith("user-1", id, "Market");
+    expect(mocks.renameGroceryList).toHaveBeenCalledWith("user-1", id, "Market", 0);
 
     const deleteResponse = await DELETE(new Request("http://localhost", { method: "DELETE" }), context);
     expect(deleteResponse.status).toBe(204);
@@ -90,5 +110,27 @@ describe("named grocery list routes", () => {
     mocks.getGroceryList.mockResolvedValue(null);
     const response = await GET(new Request("http://localhost"), context);
     expect(response.status).toBe(404);
+  });
+
+  it("returns 409 with a stable code for stale PUT and PATCH", async () => {
+    mocks.saveGroceryList.mockRejectedValue(new conflict.ErrorClass());
+    const putResponse = await PUT(new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify({ expectedRevision: 2, importedWeeklyPlanId: null, recipes: [], items: [] }),
+    }), context);
+    expect(putResponse.status).toBe(409);
+    expect(await putResponse.json()).toEqual({
+      error: "Grocery list changed since it was loaded", code: "REVISION_CONFLICT",
+    });
+
+    mocks.renameGroceryList.mockRejectedValue(new conflict.ErrorClass());
+    const patchResponse = await PATCH(new Request("http://localhost", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "Updated", expectedRevision: 2 }),
+    }), context);
+    expect(patchResponse.status).toBe(409);
+    expect(await patchResponse.json()).toEqual({
+      error: "Grocery list changed since it was loaded", code: "REVISION_CONFLICT",
+    });
   });
 });

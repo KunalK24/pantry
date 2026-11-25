@@ -4,14 +4,17 @@ const {
   getWeeklyPlanMock,
   saveWeeklyPlanMock,
   WeeklyPlanReferenceErrorMock,
+  WeeklyPlanRevisionConflictErrorMock,
   requireAuthMock,
 } = vi.hoisted(() => {
   class WeeklyPlanReferenceErrorMock extends Error {}
+  class WeeklyPlanRevisionConflictErrorMock extends Error {}
 
   return {
     getWeeklyPlanMock: vi.fn(),
     saveWeeklyPlanMock: vi.fn(),
     WeeklyPlanReferenceErrorMock,
+    WeeklyPlanRevisionConflictErrorMock,
     requireAuthMock: vi.fn(),
   };
 });
@@ -20,6 +23,7 @@ vi.mock("@/services/weekly-plan-service", () => ({
   getWeeklyPlan: getWeeklyPlanMock,
   saveWeeklyPlan: saveWeeklyPlanMock,
   WeeklyPlanReferenceError: WeeklyPlanReferenceErrorMock,
+  WeeklyPlanRevisionConflictError: WeeklyPlanRevisionConflictErrorMock,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -38,6 +42,7 @@ const context = (value = weekStart) => ({
 const plan = {
   id: "cm22345678901234567890123",
   weekStart,
+  revision: 0,
   updatedAt: "2026-10-01T12:00:00.000Z",
   meals: [],
 };
@@ -96,8 +101,17 @@ describe("GET /api/weekly-plans/[weekStart]", () => {
 });
 
 describe("PUT /api/weekly-plans/[weekStart]", () => {
+  it("requires an explicit revision precondition", async () => {
+    const response = await PUT(new Request("http://localhost", {
+      method: "PUT", body: JSON.stringify({ meals: [] }),
+    }), context());
+    expect(response.status).toBe(400);
+    expect(saveWeeklyPlanMock).not.toHaveBeenCalled();
+  });
+
   it("validates and saves a complete weekly snapshot", async () => {
     const input = {
+      expectedRevision: null,
       meals: [
         { recipeId, dayOffset: 0, position: 0, mealSlot: "breakfast" },
         { recipeId, dayOffset: 0, position: 1, mealSlot: "snacks" },
@@ -117,7 +131,7 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
   });
 
   it("accepts existing clients that do not send a meal type", async () => {
-    const input = { meals: [{ recipeId, dayOffset: 0, position: 0 }] };
+    const input = { expectedRevision: null, meals: [{ recipeId, dayOffset: 0, position: 0 }] };
     saveWeeklyPlanMock.mockResolvedValue(plan);
 
     const response = await PUT(new Request("http://localhost", {
@@ -148,7 +162,7 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
   ])("returns 400 for %s", async (_case, meals) => {
     const request = new Request("http://localhost", {
       method: "PUT",
-      body: JSON.stringify({ meals }),
+      body: JSON.stringify({ expectedRevision: null, meals }),
     });
 
     const response = await PUT(request, context());
@@ -174,6 +188,7 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
       method: "PUT",
       body: JSON.stringify({
         meals: [{ recipeId, dayOffset: 0, position: 0 }],
+        expectedRevision: null,
       }),
     });
 
@@ -190,7 +205,7 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
     saveWeeklyPlanMock.mockRejectedValue(new Error("database internals"));
     const request = new Request("http://localhost", {
       method: "PUT",
-      body: JSON.stringify({ meals: [] }),
+      body: JSON.stringify({ meals: [], expectedRevision: null }),
     });
 
     const response = await PUT(request, context());
@@ -198,6 +213,18 @@ describe("PUT /api/weekly-plans/[weekStart]", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
       error: "Internal Server Error",
+    });
+  });
+
+  it("returns 409 with a stable code for stale revisions", async () => {
+    saveWeeklyPlanMock.mockRejectedValue(new WeeklyPlanRevisionConflictErrorMock());
+    const response = await PUT(new Request("http://localhost", {
+      method: "PUT",
+      body: JSON.stringify({ meals: [], expectedRevision: 2 }),
+    }), context());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Weekly plan changed since it was loaded", code: "REVISION_CONFLICT",
     });
   });
 });

@@ -41,6 +41,7 @@ type PersistedGroceryItem = {
 type PersistedGroceryList = {
   id: string;
   name: string;
+  revision: number;
   importedWeeklyPlanId: string | null;
   updatedAt: string;
   recipes: RecipeOccurrence[];
@@ -144,6 +145,10 @@ function isPersistedGroceryList(value: unknown): value is PersistedGroceryList {
     typeof value.id === "string" &&
     "name" in value &&
     typeof value.name === "string" &&
+    "revision" in value &&
+    typeof value.revision === "number" &&
+    Number.isInteger(value.revision) &&
+    value.revision >= 0 &&
     "importedWeeklyPlanId" in value &&
     isNullableString(value.importedWeeklyPlanId) &&
     "updatedAt" in value &&
@@ -490,6 +495,7 @@ export default function GroceryList() {
   const importedWeeklyPlanIdRef = useRef(importedWeeklyPlanId);
   const dirtyRef = useRef(dirty);
   const manualItemsRef = useRef(manualItems);
+  const revisionRef = useRef<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -525,6 +531,7 @@ export default function GroceryList() {
           throw new Error("Unable to load grocery list");
         }
 
+        revisionRef.current = payload.list?.revision ?? null;
         setLoadedList(payload.list);
         setListLoadState("ready");
       })
@@ -533,6 +540,7 @@ export default function GroceryList() {
           return;
         }
         setLoadedList(null);
+        revisionRef.current = null;
         setListLoadState("error");
       });
 
@@ -863,20 +871,25 @@ export default function GroceryList() {
         const saveResponse = await fetch(`/api/grocery-lists/${selectedListId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            createSnapshot(
+          body: JSON.stringify({
+            ...createSnapshot(
               nextOccurrences,
               planPayload.plan.id,
               nextLines,
               nextLineStates,
               snapshotManualItems(manualItemsRef.current, nextLineStates),
             ),
-          ),
+            expectedRevision: revisionRef.current,
+          }),
           signal: controller.signal,
         });
         const savePayload: unknown = await saveResponse
           .json()
           .catch(() => null);
+
+        if (saveResponse.status === 409) {
+          throw new Error("This grocery list changed elsewhere. Reload it before importing the plan.");
+        }
 
         if (
           !saveResponse.ok ||
@@ -886,6 +899,7 @@ export default function GroceryList() {
           throw new Error("Unable to save the imported grocery list.");
         }
 
+        revisionRef.current = savePayload.list.revision;
         setDirty(false);
         setSaveError(null);
         setImportConfirmation("Weekly plan added to your grocery list.");
@@ -1212,23 +1226,30 @@ export default function GroceryList() {
       const response = await fetch(`/api/grocery-lists/${selectedListId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          createSnapshot(
+        body: JSON.stringify({
+          ...createSnapshot(
             recipeOccurrences,
             importedWeeklyPlanId,
             calculatedLines,
             reconciledStates,
             snapshotManualItems(manualItems, reconciledStates),
           ),
-        ),
+          expectedRevision: revisionRef.current,
+        }),
       });
       const payload: unknown = await response.json().catch(() => null);
+
+      if (response.status === 409) {
+        setSaveError("This grocery list changed elsewhere. Reload it before saving.");
+        return;
+      }
 
       if (!response.ok || !isGroceryListResponse(payload) || !payload.list) {
         throw new Error("Unable to save grocery list");
       }
 
       setLineStates(reconciledStates);
+      revisionRef.current = payload.list.revision;
       setDirty(false);
       setLists((current) => current.map((list) => list.id === selectedListId ? {
         ...list,
@@ -1313,11 +1334,17 @@ export default function GroceryList() {
       const response = await fetch(`/api/grocery-lists/${selectedListId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, expectedRevision: revisionRef.current }),
       });
-      if (!response.ok) {throw new Error("Unable to rename list");}
+      const payload: unknown = await response.json().catch(() => null);
+      if (response.status === 409) {
+        setListActionError("This grocery list changed elsewhere. Reload it before renaming.");
+        return;
+      }
+      if (!response.ok || !isGroceryListResponse(payload) || !payload.list) {throw new Error("Unable to rename list");}
+      revisionRef.current = payload.list.revision;
       setLists((current) => current.map((list) => list.id === selectedListId ? { ...list, name } : list));
-      setLoadedList((current) => current ? { ...current, name } : current);
+      setLoadedList((current) => current ? { ...current, name, revision: payload.list!.revision } : current);
       setIsRenamingList(false);
     } catch {
       setListActionError("Could not rename the list. Please try again.");

@@ -184,7 +184,7 @@ describe("saveActiveGroceryList", () => {
         },
       },
       create: { userId, key: "active", importedWeeklyPlanId: weeklyPlanId },
-      update: { importedWeeklyPlanId: weeklyPlanId },
+      update: { importedWeeklyPlanId: weeklyPlanId, revision: { increment: 1 } },
       select: { id: true },
     });
     expect(deleteListRecipesMock).toHaveBeenCalledWith({

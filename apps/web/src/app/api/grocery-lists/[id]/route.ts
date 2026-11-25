@@ -4,13 +4,14 @@ import {
   readBoundedJson,
   RequestTooLargeError,
 } from "@/lib/request-json";
-import { groceryListInputSchema } from "@/schemas/grocery-list";
-import { groceryListIdSchema, groceryListNameSchema } from "@/schemas/named-grocery-list";
+import { namedGroceryListSaveSchema } from "@/schemas/grocery-list";
+import { groceryListIdSchema, groceryListRenameSchema } from "@/schemas/named-grocery-list";
 import {
   deleteGroceryList,
   getGroceryList,
   NamedGroceryListNotFoundError,
   NamedGroceryListReferenceError,
+  NamedGroceryListRevisionConflictError,
   renameGroceryList,
   saveGroceryList,
 } from "@/services/named-grocery-list-service";
@@ -27,6 +28,12 @@ function errorResponse(error: unknown) {
   }
   if (error instanceof NamedGroceryListReferenceError) {
     return Response.json({ error: "Grocery list references an unknown record" }, { status: 400 });
+  }
+  if (error instanceof NamedGroceryListRevisionConflictError) {
+    return Response.json(
+      { error: "Grocery list changed since it was loaded", code: "REVISION_CONFLICT" },
+      { status: 409 },
+    );
   }
   console.error(error);
   return Response.json({ error: "Internal Server Error" }, { status: 500 });
@@ -65,7 +72,7 @@ export async function PUT(request: Request, context: RouteContext) {
   if (!id.success) {return Response.json({ error: "Grocery list not found" }, { status: 404 });}
   const payload = await readBody(request);
   if (payload.response) {return payload.response;}
-  const parsed = groceryListInputSchema.safeParse(payload.body);
+  const parsed = namedGroceryListSaveSchema.safeParse(payload.body);
   if (!parsed.success) {
     return Response.json({ error: "Invalid grocery list", details: parsed.error.flatten() }, { status: 400 });
   }
@@ -84,13 +91,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!id.success) {return Response.json({ error: "Grocery list not found" }, { status: 404 });}
   const payload = await readBody(request);
   if (payload.response) {return payload.response;}
-  const parsed = groceryListNameSchema.safeParse(payload.body);
+  const parsed = groceryListRenameSchema.safeParse(payload.body);
   if (!parsed.success) {
     return Response.json({ error: "Invalid grocery list name" }, { status: 400 });
   }
 
   try {
-    return Response.json({ list: await renameGroceryList(auth.user.id, id.data, parsed.data.name) });
+    return Response.json({ list: await renameGroceryList(auth.user.id, id.data, parsed.data.name, parsed.data.expectedRevision) });
   } catch (error) {
     return errorResponse(error);
   }

@@ -45,3 +45,9 @@ export const groceryListInputSchema = z
   });
 
 export type GroceryListInput = z.infer<typeof groceryListInputSchema>;
+
+export const namedGroceryListSaveSchema = groceryListInputSchema.safeExtend({
+  expectedRevision: z.number().int().nonnegative(),
+});
+
+export type NamedGroceryListSaveInput = z.infer<typeof namedGroceryListSaveSchema>;

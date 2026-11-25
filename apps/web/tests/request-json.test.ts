@@ -223,9 +223,9 @@ describe("request schema limits", () => {
       dayOffset: 0,
       position: index,
     }));
-    expect(weeklyPlanInputSchema.safeParse({ meals }).success).toBe(false);
+    expect(weeklyPlanInputSchema.safeParse({ expectedRevision: null, meals }).success).toBe(false);
     expect(
-      weeklyPlanInputSchema.safeParse({ meals: meals.slice(0, 70) }).success,
+      weeklyPlanInputSchema.safeParse({ expectedRevision: null, meals: meals.slice(0, 70) }).success,
     ).toBe(true);
   });
 });

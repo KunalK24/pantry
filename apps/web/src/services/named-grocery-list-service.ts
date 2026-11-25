@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { GroceryListInput } from "@/schemas/grocery-list";
+import type { NamedGroceryListSaveInput } from "@/schemas/grocery-list";
 
 const listSelect = {
   id: true,
   name: true,
+  revision: true,
   importedWeeklyPlanId: true,
   updatedAt: true,
   recipes: {
@@ -38,6 +39,13 @@ export class NamedGroceryListNotFoundError extends Error {
 export class NamedGroceryListReferenceError extends Error {
   constructor() {
     super("Grocery list references an unknown record");
+  }
+}
+
+export class NamedGroceryListRevisionConflictError extends Error {
+  constructor() {
+    super("Grocery list changed since it was loaded");
+    this.name = "NamedGroceryListRevisionConflictError";
   }
 }
 
@@ -73,14 +81,18 @@ export async function getGroceryList(userId: string, id: string) {
   });
 }
 
-export async function renameGroceryList(userId: string, id: string, name: string) {
+export async function renameGroceryList(userId: string, id: string, name: string, expectedRevision: number) {
   const changed = await prisma.groceryList.updateMany({
-    where: { userId, id },
-    data: { name },
+    where: { userId, id, revision: expectedRevision },
+    data: { name, revision: { increment: 1 } },
   });
 
   if (changed.count === 0) {
-    throw new NamedGroceryListNotFoundError();
+    const exists = await prisma.groceryList.findFirst({ where: { userId, id }, select: { id: true } });
+    if (!exists) {
+      throw new NamedGroceryListNotFoundError();
+    }
+    throw new NamedGroceryListRevisionConflictError();
   }
 
   return prisma.groceryList.findUniqueOrThrow({ where: { id }, select: listSelect });
@@ -97,7 +109,7 @@ export async function deleteGroceryList(userId: string, id: string) {
 export async function saveGroceryList(
   userId: string,
   id: string,
-  input: GroceryListInput,
+  input: NamedGroceryListSaveInput,
 ) {
   try {
     return await prisma.$transaction(async (transaction) => {
@@ -142,10 +154,13 @@ export async function saveGroceryList(
         }
       }
 
-      await transaction.groceryList.update({
-        where: { id },
-        data: { importedWeeklyPlanId: input.importedWeeklyPlanId },
+      const changed = await transaction.groceryList.updateMany({
+        where: { id, userId, revision: input.expectedRevision },
+        data: { importedWeeklyPlanId: input.importedWeeklyPlanId, revision: { increment: 1 } },
       });
+      if (changed.count !== 1) {
+        throw new NamedGroceryListRevisionConflictError();
+      }
       await transaction.groceryListRecipe.deleteMany({ where: { groceryListId: id } });
       await transaction.groceryItem.deleteMany({ where: { groceryListId: id } });
 
