@@ -4,6 +4,7 @@ const database = vi.hoisted(() => ({
   findUser: vi.fn(),
   createUser: vi.fn(),
   createItems: vi.fn(),
+  approveEmail: vi.fn(),
   disconnect: vi.fn(),
 }));
 
@@ -12,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: (callback: (transaction: unknown) => Promise<unknown>) => callback({
       user: { findUnique: database.findUser, create: database.createUser },
       pantryItem: { createMany: database.createItems },
+      approvedEmail: { upsert: database.approveEmail },
     }),
     $disconnect: database.disconnect,
   },
@@ -25,6 +27,7 @@ describe("targeted pantry seed", () => {
     database.findUser.mockReset();
     database.createUser.mockReset();
     database.createItems.mockReset();
+    database.approveEmail.mockReset();
     database.disconnect.mockReset();
   });
 
@@ -40,6 +43,9 @@ describe("targeted pantry seed", () => {
 
     expect(database.findUser).toHaveBeenCalledWith({ where: { email: "person@example.com" }, select: { id: true } });
     expect(database.createUser).not.toHaveBeenCalled();
+    expect(database.approveEmail).toHaveBeenCalledWith(expect.objectContaining({
+      where: { email: "person@example.com" },
+    }));
     expect(database.createItems).toHaveBeenCalledWith(expect.objectContaining({
       skipDuplicates: true,
       data: expect.arrayContaining([expect.objectContaining({ userId: "existing-user", normalizedName: "eggs" })]),
@@ -58,6 +64,9 @@ describe("targeted pantry seed", () => {
       data: { email: "new@example.com", passwordHash: expect.stringMatching(/^scrypt\$[^$]+\$[^$]+$/) },
       select: { id: true },
     });
+    expect(database.approveEmail).toHaveBeenCalledWith(expect.objectContaining({
+      where: { email: "new@example.com" },
+    }));
     expect(database.createItems).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.arrayContaining([expect.objectContaining({ userId: "new-user" })]),
     }));

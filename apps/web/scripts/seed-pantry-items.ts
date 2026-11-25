@@ -6,7 +6,8 @@ import { pathToFileURL } from "node:url";
 
 import { normalizeIngredientName, titleCaseIngredientName } from "@/lib/ingredient-normalization";
 import { addLocalDays, formatLocalDate } from "@/lib/week";
-import { signUpSchema } from "@/schemas/auth";
+import { signInSchema } from "@/schemas/auth";
+import { hashInvitationToken } from "@/services/auth-service";
 import { pantryItems } from "./test-user-fixture";
 
 const scrypt = promisify(scryptCallback);
@@ -26,7 +27,7 @@ export async function seedPantryItems(args: string[] = process.argv.slice(2)) {
     throw new Error("Usage: pnpm --filter @pantry/web pantry:seed --email user@example.com");
   }
 
-  const { email } = signUpSchema.parse({ email: args[1], password: newAccountPassword });
+  const { email } = signInSchema.parse({ email: args[1], password: newAccountPassword });
   const salt = randomBytes(16).toString("base64url");
   const derivedKey = (await scrypt(newAccountPassword, salt, 64)) as Buffer;
   const passwordHash = `scrypt$${salt}$${derivedKey.toString("base64url")}`;
@@ -44,6 +45,17 @@ export async function seedPantryItems(args: string[] = process.argv.slice(2)) {
           select: { id: true },
         });
       }
+
+      await transaction.approvedEmail.upsert({
+        where: { email },
+        create: {
+          email,
+          tokenHash: hashInvitationToken(randomBytes(32).toString("base64url")),
+          tokenExpiresAt: new Date(),
+          tokenUsedAt: new Date(),
+        },
+        update: {},
+      });
 
       const seeded = await transaction.pantryItem.createMany({
         data: pantryItems.map((item) => ({

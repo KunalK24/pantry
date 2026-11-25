@@ -256,3 +256,13 @@ model AuthRateLimit {
 
   @@index([expiresAt])
 }
+
+model ApprovedEmail {
+  email           String   @id
+  tokenHash       String   @unique
+  tokenExpiresAt  DateTime
+  tokenUsedAt     DateTime?
+  approvedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

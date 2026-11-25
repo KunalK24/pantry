@@ -6,6 +6,8 @@ const {
   deleteManySessionsMock,
   findSessionMock,
   findUserMock,
+  findApprovalMock,
+  consumeInvitationMock,
   scryptCallMock,
   transactionMock,
 } = vi.hoisted(() => ({
@@ -14,6 +16,8 @@ const {
   deleteManySessionsMock: vi.fn(),
   findSessionMock: vi.fn(),
   findUserMock: vi.fn(),
+  findApprovalMock: vi.fn(),
+  consumeInvitationMock: vi.fn(),
   scryptCallMock: vi.fn(),
   transactionMock: vi.fn(),
 }));
@@ -46,15 +50,21 @@ vi.mock("@/lib/prisma", () => ({
       create: createUserMock,
       findUnique: findUserMock,
     },
+    approvedEmail: {
+      findUnique: findApprovalMock,
+      updateMany: consumeInvitationMock,
+    },
   },
 }));
 
 import { Prisma } from "@/generated/prisma/client";
 import {
   EmailAlreadyRegisteredError,
+  hashInvitationToken,
   getSessionUser,
   hashSessionToken,
   InvalidCredentialsError,
+  InvalidInvitationError,
   signIn,
   signOut,
   signUp,
@@ -64,6 +74,7 @@ const user = {
   id: "cm12345678901234567890123",
   email: "cook@example.com",
 };
+const inviteToken = "a-valid-invitation-token";
 
 function duplicateError() {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
@@ -74,8 +85,11 @@ function duplicateError() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  consumeInvitationMock.mockResolvedValue({ count: 1 });
+  findApprovalMock.mockResolvedValue({ email: user.email });
   transactionMock.mockImplementation((operation) =>
     operation({
+      approvedEmail: { updateMany: consumeInvitationMock },
       user: { create: createUserMock },
       session: { create: createSessionMock },
     }),
@@ -90,6 +104,7 @@ describe("signUp", () => {
     const result = await signUp({
       email: user.email,
       password: "correct horse battery staple",
+      inviteToken,
     });
 
     expect(result.user).toEqual(user);
@@ -116,6 +131,38 @@ describe("signUp", () => {
       },
     });
     expect(transactionMock).toHaveBeenCalledOnce();
+    expect(consumeInvitationMock).toHaveBeenCalledWith({
+      where: {
+        email: user.email,
+        tokenHash: hashInvitationToken(inviteToken),
+        tokenUsedAt: null,
+        tokenExpiresAt: { gt: expect.any(Date) },
+      },
+      data: { tokenUsedAt: expect.any(Date) },
+    });
+  });
+
+  it("rejects an expired, used, or wrong-email invitation before account creation", async () => {
+    consumeInvitationMock.mockResolvedValue({ count: 0 });
+
+    await expect(signUp({ email: user.email, password: "password123", inviteToken }))
+      .rejects.toBeInstanceOf(InvalidInvitationError);
+    expect(createUserMock).not.toHaveBeenCalled();
+    expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("does not accept a single-use invitation twice", async () => {
+    consumeInvitationMock
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    createUserMock.mockResolvedValue(user);
+    createSessionMock.mockResolvedValue({ id: "session-1" });
+
+    await expect(signUp({ email: user.email, password: "password123", inviteToken }))
+      .resolves.toMatchObject({ user });
+    await expect(signUp({ email: user.email, password: "password123", inviteToken }))
+      .rejects.toBeInstanceOf(InvalidInvitationError);
+    expect(createUserMock).toHaveBeenCalledOnce();
   });
 
   it("translates duplicate emails to a domain error", async () => {
@@ -125,6 +172,7 @@ describe("signUp", () => {
       signUp({
         email: user.email,
         password: "password123",
+        inviteToken,
       }),
     ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
   });
@@ -134,6 +182,7 @@ describe("signUp", () => {
     let didCommit = false;
     transactionMock.mockImplementation(async (operation) => {
       const result = await operation({
+        approvedEmail: { updateMany: consumeInvitationMock },
         user: { create: transactionUserCreate },
         session: { create: createSessionMock },
       });
@@ -146,6 +195,7 @@ describe("signUp", () => {
       signUp({
         email: user.email,
         password: "password123",
+        inviteToken,
       }),
     ).rejects.toThrow("Session write failed");
     expect(transactionMock).toHaveBeenCalledOnce();
@@ -162,6 +212,7 @@ describe("signIn", () => {
     await signUp({
       email: user.email,
       password: "password123",
+      inviteToken,
     });
     const passwordHash = createUserMock.mock.calls[0][0].data.passwordHash;
 
@@ -171,6 +222,7 @@ describe("signIn", () => {
       passwordHash,
     });
     createSessionMock.mockResolvedValue({ id: "session-2" });
+    findApprovalMock.mockResolvedValue({ email: user.email });
 
     const result = await signIn({
       email: user.email,
@@ -214,6 +266,7 @@ describe("signIn", () => {
     await signUp({
       email: user.email,
       password: "password123",
+      inviteToken,
     });
     const passwordHash = createUserMock.mock.calls[0][0].data.passwordHash;
 
@@ -244,6 +297,19 @@ describe("signIn", () => {
         password: "password123",
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
+    expect(createSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects correct credentials when approval is missing", async () => {
+    createUserMock.mockResolvedValue(user);
+    await signUp({ email: user.email, password: "password123", inviteToken });
+    const passwordHash = createUserMock.mock.calls[0][0].data.passwordHash;
+    vi.clearAllMocks();
+    findUserMock.mockResolvedValue({ ...user, passwordHash });
+    findApprovalMock.mockResolvedValue(null);
+
+    await expect(signIn({ email: user.email, password: "password123" }))
+      .rejects.toBeInstanceOf(InvalidCredentialsError);
     expect(createSessionMock).not.toHaveBeenCalled();
   });
 });
@@ -284,6 +350,16 @@ describe("getSessionUser", () => {
         tokenHash: hashSessionToken("raw-token"),
       },
     });
+  });
+
+  it("rejects a live session after approval is removed", async () => {
+    findSessionMock.mockResolvedValue({
+      expiresAt: new Date(Date.now() + 60_000),
+      user,
+    });
+    findApprovalMock.mockResolvedValue(null);
+
+    await expect(getSessionUser("raw-token")).resolves.toBeNull();
   });
 });
 

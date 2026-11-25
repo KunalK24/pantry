@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type SubmitEvent } from "react";
 
@@ -164,13 +163,7 @@ export default function SignInForm() {
       ) : null}
 
       <p className="text-sm text-[#6f7a71]">
-        Need an account?{" "}
-        <Link
-          className="font-bold text-[#35644f] underline-offset-4 hover:underline"
-          href="/sign-up"
-        >
-          Sign up
-        </Link>
+        Have an invitation? Open the link in your approval email to create your account.
       </p>
     </form>
   );

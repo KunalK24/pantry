@@ -1,62 +1,66 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { queryRawMock } = vi.hoisted(() => ({ queryRawMock: vi.fn() }));
+const { queryRawMock, transactionMock } = vi.hoisted(() => ({
+  queryRawMock: vi.fn(),
+  transactionMock: vi.fn(),
+}));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { $queryRaw: queryRawMock },
+  prisma: { $transaction: transactionMock },
 }));
 
 import { checkImportRateLimit } from "@/lib/import-rate-limit";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("IMPORT_GLOBAL_DAILY_LIMIT", "");
   queryRawMock.mockResolvedValue([
-    { count: 1, expiresAt: new Date(Date.now() + 86_400_000) },
+    { count: 1, expiresAt: new Date(Date.now() + 60_000) },
   ]);
+  transactionMock.mockImplementation((callback) => callback({ $queryRaw: queryRawMock }));
 });
 
 describe("import rate limiting", () => {
-  it("uses one atomic daily bucket per user without storing the raw ID", async () => {
-    await expect(checkImportRateLimit("user-1")).resolves.toEqual({
-      status: "allowed",
-    });
-
-    expect(queryRawMock).toHaveBeenCalledOnce();
-    const [sql, key, windowSeconds, rolloverSeconds] = queryRawMock.mock.calls[0];
-    expect(key).toMatch(/^import:user:[a-f0-9]{64}$/);
-    expect(key).not.toContain("user-1");
-    expect(windowSeconds).toBe(86_400);
-    expect(rolloverSeconds).toBe(86_400);
-    expect(sql.join(" ")).toContain("ON CONFLICT");
-
-    await checkImportRateLimit("user-1");
-    await checkImportRateLimit("user-2");
-    expect(queryRawMock.mock.calls[1][1]).toBe(key);
-    expect(queryRawMock.mock.calls[2][1]).not.toBe(key);
+  it("counts a user and the whole app atomically", async () => {
+    await expect(checkImportRateLimit("user-1")).resolves.toEqual({ status: "allowed" });
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(queryRawMock).toHaveBeenCalledTimes(2);
+    const [userSql, userKey, seconds] = queryRawMock.mock.calls[0];
+    const [globalSql, globalKey] = queryRawMock.mock.calls[1];
+    expect(userKey).toMatch(/^import:user:[a-f0-9]{64}$/);
+    expect(userKey).not.toContain("user-1");
+    expect(globalKey).toBe("import:global");
+    expect(seconds).toBe(86_400);
+    expect(userSql.join(" ")).toContain("ON CONFLICT");
+    expect(globalSql.join(" ")).toContain("ON CONFLICT");
   });
 
-  it("allows the twentieth request and limits the twenty-first", async () => {
+  it("limits the twenty-first request from one account", async () => {
     const expiresAt = new Date(Date.now() + 60_000);
     queryRawMock
-      .mockResolvedValueOnce([{ count: 20, expiresAt }])
       .mockResolvedValueOnce([{ count: 21, expiresAt }]);
+    await expect(checkImportRateLimit("user-1")).resolves.toMatchObject({ status: "limited" });
+    expect(queryRawMock).toHaveBeenCalledTimes(1);
+  });
 
-    await expect(checkImportRateLimit("user-1")).resolves.toEqual({
-      status: "allowed",
+  it("limits all accounts after the global allowance is reached", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    let committed = false;
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({ $queryRaw: queryRawMock });
+      committed = true;
     });
-    await expect(checkImportRateLimit("user-1")).resolves.toEqual({
-      status: "limited",
-      retryAfterSeconds: 60,
-    });
+    queryRawMock
+      .mockResolvedValueOnce([{ count: 1, expiresAt }])
+      .mockResolvedValueOnce([{ count: 101, expiresAt }]);
+    await expect(checkImportRateLimit("user-2")).resolves.toMatchObject({ status: "limited" });
+    expect(committed).toBe(false);
   });
 
   it("fails closed if the database is unavailable", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     queryRawMock.mockRejectedValue(new Error("database unavailable"));
-
-    await expect(checkImportRateLimit("user-1")).resolves.toEqual({
-      status: "unavailable",
-    });
+    await expect(checkImportRateLimit("user-1")).resolves.toEqual({ status: "unavailable" });
     consoleError.mockRestore();
   });
 });

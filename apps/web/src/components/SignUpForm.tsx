@@ -12,6 +12,10 @@ type AuthStatus = {
 } | null;
 
 function authErrorMessage(payload: unknown, status: number) {
+  if (status === 403) {
+    return "This invitation is invalid or has expired. Please request access again.";
+  }
+
   if (
     typeof payload === "object" &&
     payload !== null &&
@@ -31,7 +35,7 @@ function authErrorMessage(payload: unknown, status: number) {
 const inputClasses =
   "mt-1 w-full rounded-xl border border-[#d8d3c8] bg-white px-3 py-2.5 text-sm text-[#24342b] outline-none transition-colors focus:border-[#35644f] focus:ring-2 focus:ring-[#35644f]/15 disabled:cursor-not-allowed disabled:bg-[#f4f1e8]";
 
-export default function SignUpForm() {
+export default function SignUpForm({ inviteToken }: { inviteToken: string | null }) {
   const router = useRouter();
   const submittingRef = useRef(false);
   const [email, setEmail] = useState("");
@@ -55,10 +59,10 @@ export default function SignUpForm() {
 
     const trimmedEmail = email.trim();
 
-    if (!trimmedEmail || !password) {
+    if (!inviteToken || !trimmedEmail || !password) {
       setStatus({
         type: "error",
-        message: "Enter an email and password to create your account.",
+        message: "Open your invitation link and enter an email and password to create your account.",
       });
       return;
     }
@@ -78,7 +82,7 @@ export default function SignUpForm() {
       const response = await fetch("/api/auth/sign-up", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password }),
+        body: JSON.stringify({ email: trimmedEmail, password, inviteToken }),
       });
 
       if (!response.ok) {
@@ -105,6 +109,29 @@ export default function SignUpForm() {
     }
   }
 
+  if (!inviteToken) {
+    return (
+      <div className="space-y-5">
+        <h1 className="[font-family:Georgia,serif] text-3xl font-bold text-[#24342b]">
+          Create account
+        </h1>
+        <p className="text-sm leading-6 text-[#6f7a71]">
+          Pantry account creation is by invitation. If you were approved, open
+          the invitation link in your email. Invitations expire after seven days.
+        </p>
+        <p className="text-sm text-[#6f7a71]">
+          Already have an account?{" "}
+          <Link
+            className="font-bold text-[#35644f] underline-offset-4 hover:underline"
+            href="/sign-in"
+          >
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form className="w-full space-y-6" onSubmit={handleSubmit}>
       <fieldset className="space-y-6" disabled={isSubmitting}>
@@ -113,7 +140,8 @@ export default function SignUpForm() {
         </legend>
 
         <p className="text-sm text-[#6f7a71]">
-          Start a Pantry account for your recipes and meal planning.
+          Use the email address that received your invitation. This link expires
+          seven days after approval and can be used once.
         </p>
 
         <div>

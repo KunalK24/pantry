@@ -15,7 +15,6 @@ const links = [
 
 const authLinks = [
   { href: "/sign-in", label: "Sign in" },
-  { href: "/sign-up", label: "Sign up" },
 ];
 
 type SessionStatus = "loading" | "signed-in" | "signed-out";

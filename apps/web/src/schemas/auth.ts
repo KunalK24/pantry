@@ -7,6 +7,7 @@ const passwordSchema = z.string().min(8).max(200);
 export const signUpSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
+  inviteToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 });
 
 export const signInSchema = z.object({

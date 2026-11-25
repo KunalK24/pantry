@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   EmailAlreadyRegisteredErrorMock,
   InvalidCredentialsErrorMock,
+  InvalidInvitationErrorMock,
   clearSessionCookieMock,
   getAuthenticatedUserMock,
   getSessionTokenMock,
@@ -14,10 +15,12 @@ const {
 } = vi.hoisted(() => {
   class EmailAlreadyRegisteredErrorMock extends Error {}
   class InvalidCredentialsErrorMock extends Error {}
+  class InvalidInvitationErrorMock extends Error {}
 
   return {
     EmailAlreadyRegisteredErrorMock,
     InvalidCredentialsErrorMock,
+    InvalidInvitationErrorMock,
     clearSessionCookieMock: vi.fn(),
     getAuthenticatedUserMock: vi.fn(),
     getSessionTokenMock: vi.fn(),
@@ -32,6 +35,7 @@ const {
 vi.mock("@/services/auth-service", () => ({
   EmailAlreadyRegisteredError: EmailAlreadyRegisteredErrorMock,
   InvalidCredentialsError: InvalidCredentialsErrorMock,
+  InvalidInvitationError: InvalidInvitationErrorMock,
   signIn: signInMock,
   signOut: signOutMock,
   signUp: signUpMock,
@@ -62,6 +66,7 @@ const session = {
   token: "raw-token",
   expiresAt: new Date("2026-11-01T00:00:00.000Z"),
 };
+const inviteToken = "a".repeat(43);
 
 function jsonRequest(path: string, body: unknown) {
   return new Request(`http://localhost:3000${path}`, {
@@ -91,6 +96,7 @@ describe("POST /api/auth/sign-up", () => {
       jsonRequest("/api/auth/sign-up", {
         email: " Cook@Example.COM ",
         password: "password123",
+        inviteToken,
       }),
     );
 
@@ -102,6 +108,7 @@ describe("POST /api/auth/sign-up", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: user.email,
       password: "password123",
+      inviteToken,
     });
     expect(checkAuthRateLimitMock).toHaveBeenCalledWith(
       "sign-up",
@@ -139,6 +146,26 @@ describe("POST /api/auth/sign-up", () => {
     expect(signUpMock).not.toHaveBeenCalled();
   });
 
+  it("rejects sign-up without an invitation", async () => {
+    const response = await signUpPOST(jsonRequest("/api/auth/sign-up", {
+      email: user.email,
+      password: "password123",
+    }));
+    expect(response.status).toBe(400);
+    expect(signUpMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for an expired or consumed invitation", async () => {
+    signUpMock.mockRejectedValue(new InvalidInvitationErrorMock());
+    const response = await signUpPOST(jsonRequest("/api/auth/sign-up", {
+      email: user.email,
+      password: "password123",
+      inviteToken,
+    }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
   it("returns 409 for duplicate emails", async () => {
     signUpMock.mockRejectedValue(new EmailAlreadyRegisteredErrorMock());
 
@@ -146,6 +173,7 @@ describe("POST /api/auth/sign-up", () => {
       jsonRequest("/api/auth/sign-up", {
         email: user.email,
         password: "password123",
+        inviteToken,
       }),
     );
 
@@ -165,6 +193,7 @@ describe("POST /api/auth/sign-up", () => {
       jsonRequest("/api/auth/sign-up", {
         email: user.email,
         password: "password123",
+        inviteToken,
       }),
     );
 

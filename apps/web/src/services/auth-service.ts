@@ -47,6 +47,13 @@ export class InvalidCredentialsError extends Error {
   }
 }
 
+export class InvalidInvitationError extends Error {
+  constructor() {
+    super("Invitation is invalid or expired");
+    this.name = "InvalidInvitationError";
+  }
+}
+
 function isKnownPrismaError(error: unknown, code: string) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError && error.code === code
@@ -89,6 +96,10 @@ export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("base64url");
 }
 
+export function hashInvitationToken(token: string) {
+  return createHash("sha256").update(token).digest("base64url");
+}
+
 async function createSession(
   userId: string,
   client: Prisma.TransactionClient | typeof prisma = prisma,
@@ -114,6 +125,19 @@ export async function signUp(input: SignUpInput) {
   const passwordHash = await hashPassword(input.password);
 
   return prisma.$transaction(async (tx) => {
+    const invitation = await tx.approvedEmail.updateMany({
+      where: {
+        email: input.email,
+        tokenHash: hashInvitationToken(input.inviteToken),
+        tokenUsedAt: null,
+        tokenExpiresAt: { gt: new Date() },
+      },
+      data: { tokenUsedAt: new Date() },
+    });
+    if (invitation.count !== 1) {
+      throw new InvalidInvitationError();
+    }
+
     let user: PublicUser;
     try {
       user = await tx.user.create({
@@ -155,6 +179,14 @@ export async function signIn(input: SignInInput) {
     throw new InvalidCredentialsError();
   }
 
+  const approved = await prisma.approvedEmail.findUnique({
+    where: { email: user.email },
+    select: { email: true },
+  });
+  if (!approved) {
+    throw new InvalidCredentialsError();
+  }
+
   const session = await createSession(user.id);
 
   return {
@@ -192,6 +224,14 @@ export async function getSessionUser(
       },
     });
 
+    return null;
+  }
+
+  const approved = await prisma.approvedEmail.findUnique({
+    where: { email: session.user.email },
+    select: { email: true },
+  });
+  if (!approved) {
     return null;
   }
 

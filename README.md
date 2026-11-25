@@ -42,7 +42,19 @@ The same database stores accounts, sessions, recipes, pantry items, meal plans, 
 
 ## Request beta access
 
-Pantry is available for testing by invitation. [Email me](mailto:kunaldk98@gmail.com?subject=Pantry%20beta%20access) with the email address you would like to use and a short note that you want to try Pantry. I will add your email to the allowed list and send you the app URL. Once you have access, you can create your own account and try it with your recipes and pantry.
+Pantry is available for testing by invitation. Visitors can request access from the sign-in or sign-up page by providing their name, email address, and why they want to try Pantry. Requests are emailed to the configured owner address for manual review. Pantry is in very early testing, and submitting a request does not grant access.
+
+After approving a request, run the following command with `APP_ORIGIN` and the intended deployment database configured:
+
+```bash
+pnpm --filter @pantry/web invite:create --email person@example.com
+```
+
+The command stores the approved email and prints a single-use sign-up link that expires after seven days. Send that link privately to the applicant. The command does not email them. If the email already has an account, the command approves it for sign-in and no link is needed. Sign-in and existing sessions require an approved email.
+
+For deployment, first apply the new migration to the intended production database, then run `invite:create` for each existing account that should keep access, and only then deploy the gated application. Confirm that the command is connected to the intended database before approving an address. Protect older generated and preview deployment URLs at the Vercel project level so an older deployment with open sign-up and paid import routes cannot be used to bypass the new gate.
+
+Access request delivery requires `RESEND_API_KEY`, `ACCESS_REQUEST_FROM_EMAIL` (a verified sender), and `ACCESS_REQUEST_TO_EMAIL` in the web app's server-side environment. Recipe and pantry AI imports also have a shared limit of 100 attempts per rolling 24 hours by default; set `IMPORT_GLOBAL_DAILY_LIMIT` to adjust it. The existing per-user limit still applies.
 
 If something feels confusing or breaks, I would love to hear about it. Early feedback is helping me make Pantry useful in a real kitchen.
 

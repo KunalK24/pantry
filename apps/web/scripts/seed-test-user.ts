@@ -6,7 +6,8 @@ import { pathToFileURL } from "node:url";
 
 import { parseIngredientDetails } from "@/lib/ingredient-normalization";
 import { addLocalDays, formatLocalDate, getLocalWeekStart } from "@/lib/week";
-import { signUpSchema } from "@/schemas/auth";
+import { signInSchema } from "@/schemas/auth";
+import { hashInvitationToken } from "@/services/auth-service";
 import { weekStartToDate } from "@/schemas/weekly-plan";
 import { pantryItems, recipes, TEST_USER_EMAIL, TEST_USER_ID } from "./test-user-fixture";
 
@@ -30,7 +31,7 @@ async function run() {
   if (!password) {
     throw new Error("Set PANTRY_TEST_PASSWORD to a password of 8–200 characters.");
   }
-  signUpSchema.parse({ email: TEST_USER_EMAIL, password });
+  signInSchema.parse({ email: TEST_USER_EMAIL, password });
 
   const salt = randomBytes(16).toString("base64url");
   const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
@@ -50,6 +51,17 @@ async function run() {
 
       await transaction.user.create({
         data: { id: TEST_USER_ID, email: TEST_USER_EMAIL, passwordHash },
+      });
+
+      await transaction.approvedEmail.upsert({
+        where: { email: TEST_USER_EMAIL },
+        create: {
+          email: TEST_USER_EMAIL,
+          tokenHash: hashInvitationToken(randomBytes(32).toString("base64url")),
+          tokenExpiresAt: new Date(),
+          tokenUsedAt: new Date(),
+        },
+        update: {},
       });
 
       await transaction.pantryItem.createMany({

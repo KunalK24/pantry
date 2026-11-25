@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 
 import { prisma } from "@/lib/prisma";
 
-type AuthAction = "sign-in" | "sign-up";
+type AuthAction = "sign-in" | "sign-up" | "access-request";
 
 type RateLimitResult =
   | { status: "allowed" }
@@ -15,6 +15,7 @@ type BucketCount = { count: number; expiresAt: Date };
 const AUTH_RATE_LIMITS = {
   "sign-in": { emailLimit: 10, sourceLimit: 60, windowSeconds: 15 * 60 },
   "sign-up": { emailLimit: 5, sourceLimit: 20, windowSeconds: 60 * 60 },
+  "access-request": { emailLimit: 3, sourceLimit: 12, windowSeconds: 24 * 60 * 60 },
 } as const;
 
 function getClientSource(request: Request): string | null {

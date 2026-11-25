@@ -119,6 +119,16 @@ describe("auth rate limiting", () => {
     expect(queryRawMock.mock.calls[0][2]).toBe(3600);
   });
 
+  it("limits repeated access requests by email within a day", async () => {
+    queryRawMock
+      .mockResolvedValueOnce([{ count: 4, expiresAt: new Date(Date.now() + 60_000) }])
+      .mockResolvedValueOnce([{ count: 4, expiresAt: new Date(Date.now() + 60_000) }]);
+    await expect(
+      checkAuthRateLimit("access-request", "cook@example.com", authRequest()),
+    ).resolves.toMatchObject({ status: "limited" });
+    expect(queryRawMock.mock.calls[0][2]).toBe(86_400);
+  });
+
   it("fails closed when the database is unavailable", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     transactionMock.mockRejectedValue(new Error("database unavailable"));
