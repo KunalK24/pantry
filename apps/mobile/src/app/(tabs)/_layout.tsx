@@ -11,11 +11,13 @@ export default function TabLayout() {
       headerShown: false,
       tabBarActiveTintColor: "#35644f",
       tabBarInactiveTintColor: "#526354",
-      tabBarLabelStyle: { fontSize: 14, fontWeight: "600" },
+      tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
       tabBarStyle: { backgroundColor: "#f7f6f1", borderTopColor: "#d8e4d9" },
     }}>
       <Tabs.Screen name="recipes" options={{ title: "Recipe book" }} />
+      <Tabs.Screen name="meal-planner" options={{ title: "Meal plan" }} />
       <Tabs.Screen name="pantry" options={{ title: "Pantry" }} />
+      <Tabs.Screen name="grocery-list" options={{ title: "Groceries" }} />
     </Tabs>
   );
 }
