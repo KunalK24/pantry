@@ -258,11 +258,11 @@ model AuthRateLimit {
 }
 
 model ApprovedEmail {
-  email           String   @id
-  tokenHash       String   @unique
-  tokenExpiresAt  DateTime
-  tokenUsedAt     DateTime?
-  approvedAt      DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  email          String    @id
+  tokenHash      String    @unique
+  tokenExpiresAt DateTime
+  tokenUsedAt    DateTime?
+  approvedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
